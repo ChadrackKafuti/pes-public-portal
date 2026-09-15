@@ -1,0 +1,204 @@
+// ============================================================
+//  CB_Protected_Areas — popup content (Arcade element)
+//  Reads the table "CB_Documents" and the layers "CB_Logging_Concessions" / "CB_Community_Forests"
+//  from the web map by name (or SOURCE = "portal" + ITEM_ID) for documents and overlaps.
+// ============================================================
+Expects($feature, "*")
+
+var SOURCE     = "map"
+var PORTAL_URL = "https://geosmart.undp.org/arcgis"
+var ITEM_ID    = "8e3638153ad74d2f8df9a4656bec5bb0"   // item "Other areas of interest" (Hosted/Protected_areas)
+var NAME_DOCS  = "CB_Documents";            var ID_DOCS = 7
+var NAME_CONC  = "CB_Logging_Concessions";  var ID_CONC = 1
+var NAME_CF    = "CB_Community_Forests";    var ID_CF   = 3
+
+function isBlank(x) { return IsEmpty(x) || Text(x) == "" || Text(x) == "null" }
+function txt(x) { if (isBlank(x)) { return "" } var s = Text(x); s = Replace(s, "&", "&amp;"); s = Replace(s, "<", "&lt;"); return Replace(s, ">", "&gt;") }
+function haTxt(x) { if (isBlank(x)) { return "" } var n = Number(x); if (IsNan(n) || n <= 0) { return "" } return Text(Round(n, 0), "#,###") + " ha" }
+function km2Txt(x) { if (isBlank(x)) { return "" } var n = Number(x); if (IsNan(n) || n <= 0) { return "" } return Text(Round(n / 100, 0), "#,###") + " km²" }
+function dateTxt(x) { if (IsEmpty(x)) { return "" } return Text(Date(x), "DD MMM YYYY") }
+function cat(dict, key, dflt) { if (!isBlank(key) && HasKey(dict, key)) { return dict[key] } return dflt }
+function fsGet(name, id, fields, geom) {
+  // "portal" mode: read the sub-layer of the service by item id
+  if (SOURCE == "portal" && ITEM_ID != "PASTE_ITEM_ID_HERE") { return FeatureSetByPortalItem(Portal(PORTAL_URL), ITEM_ID, id, fields, geom) }
+  // "map" mode: Map Viewer titles a sub-layer added from a service "<service> - <layer>", so try the usual variants
+  var cands = [name, "Other areas of interest - " + name, "CB_Forest_Consolidated - " + name, "CB Forest Consolidated - " + name, Replace(name, "_", " "), "CB_Forest_Consolidated - " + Replace(name, "_", " ")]
+  for (var i in cands) {
+    var fs = FeatureSetByName($map, cands[i], fields, geom)
+    if (!IsEmpty(fs)) { return fs }
+  }
+  if (ITEM_ID != "PASTE_ITEM_ID_HERE") { return FeatureSetByPortalItem(Portal(PORTAL_URL), ITEM_ID, id, fields, geom) }
+  return null
+}
+function row(label, value) {
+  if (isBlank(value)) { return "" }
+  return "<tr><td style=\"color:#666; width:44%; padding:4px 6px 4px 0; font-size:12px; vertical-align:top;\">" + label + "</td><td style=\"font-weight:600; font-size:12px; padding:4px 0; vertical-align:top;\">" + value + "</td></tr>"
+}
+function table(rows) { if (isBlank(rows)) { return "" } return "<table style=\"width:100%; border-collapse:collapse;\">" + rows + "</table>" }
+function section(title, accent, body) {
+  if (isBlank(body)) { return "" }
+  return "<div style=\"background:#f7fafa; border-left:4px solid " + accent + "; border-radius:4px; margin-bottom:10px; padding:8px 10px 8px 8px;\">"
+       + "<div style=\"font-size:10px; font-weight:700; color:" + accent + "; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;\">" + title + "</div>" + body + "</div>"
+}
+function chip(label, bg, fg) { return "<div style=\"background:" + bg + "; color:" + fg + "; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:700;\">" + label + "</div>" }
+function tile(value, label, color) {
+  return "<div style=\"flex:1 1 30%; min-width:80px; background:#f5f9f9; border:1px solid #e0e0e0; border-radius:6px; padding:8px 4px; text-align:center;\">"
+       + "<div style=\"font-size:16px; font-weight:700; color:" + color + ";\">" + value + "</div><div style=\"font-size:9px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;\">" + label + "</div></div>"
+}
+function bar(label, value, color, maxv) {
+  if (isBlank(value) || value <= 0 || maxv <= 0) { return "" }
+  var pct = Round((value / maxv) * 100, 0)
+  return "<div style=\"margin-bottom:6px;\"><div style=\"display:flex; justify-content:space-between; font-size:10px; color:#555; margin-bottom:2px;\"><span style=\"font-weight:600;\">" + label + "</span><span style=\"font-weight:700; color:" + color + ";\">" + haTxt(value) + "</span></div>"
+       + "<div style=\"background:#e0e0e0; border-radius:4px; height:12px; width:100%; overflow:hidden;\"><div style=\"background:" + color + "; height:12px; width:" + pct + "%; border-radius:4px;\"></div></div></div>"
+}
+function docIcon(name) {
+  var n = Lower(Text(name))
+  if (Find(".pdf", n) > -1) { return "&#128196;" }
+  if (Find(".doc", n) > -1) { return "&#128221;" }
+  if (Find(".xls", n) > -1) { return "&#128202;" }
+  if (Find(".zip", n) > -1 || Find(".shp", n) > -1 || Find(".kml", n) > -1) { return "&#128506;" }
+  if (Find(".jpg", n) > -1 || Find(".png", n) > -1) { return "&#128444;" }
+  return "&#128196;"
+}
+
+var FLAG = { "CMR": "🇨🇲", "CAF": "🇨🇫", "COD": "🇨🇩", "COG": "🇨🇬", "GNQ": "🇬🇶", "GAB": "🇬🇦" }
+var SUBTYPE = { "national_park": ["Parc national", "#1b5e20", "&#127966;"], "world_heritage": ["Patrimoine mondial", "#4a148c", "&#127963;"], "biosphere_reserve": ["Réserve de biosphère", "#00695c", "&#127757;"],
+  "ramsar": ["Site Ramsar (zone humide)", "#0277bd", "&#128167;"], "sanctuary": ["Sanctuaire", "#2e7d32", "&#129421;"], "hunting_zone": ["Zone d'intérêt cynégétique", "#8d6e63", "&#127919;"],
+  "wildlife_reserve": ["Réserve de faune", "#388e3c", "&#128024;"], "forest_reserve": ["Réserve forestière", "#558b2f", "&#127795;"], "community_reserve": ["Réserve communautaire", "#43a047", "&#127968;"],
+  "botanical_garden": ["Jardin botanique / zoologique", "#7cb342", "&#127807;"], "natural_monument": ["Monument naturel", "#6d4c41", "&#129704;"], "strict_reserve": ["Réserve naturelle intégrale", "#004d40", "&#128274;"],
+  "nature_reserve": ["Réserve naturelle", "#2e7d32", "&#127794;"], "marine_protected_area": ["Aire marine protégée", "#01579b", "&#128032;"], "other_protected_area": ["Aire protégée", "#607d8b", "&#128737;"], "other": ["Aire protégée", "#607d8b", "&#128737;"] }
+var IUCN = { "IA": "Ia · Réserve naturelle intégrale", "IB": "Ib · Zone de nature sauvage", "II": "II · Parc national", "III": "III · Monument naturel", "IV": "IV · Gestion des habitats et espèces",
+  "V": "V · Paysage protégé", "VI": "VI · Utilisation durable des ressources", "NOT APPLICABLE": "Non applicable", "NOT REPORTED": "Non renseignée", "NOT ASSIGNED": "Non assignée" }
+var STATUS = { "attributed": ["Désignée", "#e8f5e9", "#2e7d32"], "provisional": ["Provisoire", "#fff8e1", "#ff8f00"], "final": ["Définitive", "#e8f5e9", "#1b5e20"], "in_process": ["Proposée / en cours", "#e3f2fd", "#1565c0"],
+  "not_attributed": ["Non désignée", "#eceff1", "#607d8b"], "rejected": ["Rejetée", "#ffebee", "#c62828"], "expired": ["Déclassée", "#efebe9", "#6d4c41"], "unknown": ["Statut non renseigné", "#eceff1", "#546e7a"] }
+var MGMT = { "approved": ["Plan d'aménagement approuvé", "#e8f5e9", "#2e7d32"], "in_preparation": ["Plan d'aménagement en cours", "#fff8e1", "#ff8f00"], "under_revision": ["Plan en révision", "#e3f2fd", "#1565c0"],
+  "not_planned": ["Sans plan d'aménagement", "#eceff1", "#607d8b"], "unknown": ["Aménagement non renseigné", "#eceff1", "#90a4ae"] }
+var DOCCAT = { "attribution_decree": ["Décrets, arrêtés et actes de création", "#5e35b1"], "convention": ["Conventions et contrats", "#1565c0"], "management_plan": ["Plans d'aménagement et de gestion", "#2e7d32"],
+  "simple_management_plan": ["Plans simples de gestion", "#2e7d32"], "specifications": ["Cahiers des charges", "#00838f"], "certificate": ["Certificats et permis", "#ef6c00"], "map": ["Cartes", "#3949ab"],
+  "attestation": ["Attestations", "#6d4c41"], "minutes": ["Procès-verbaux", "#546e7a"], "application": ["Dossiers", "#8d6e63"], "evaluation": ["Rapports et évaluations", "#7b1fa2"], "other": ["Autres documents", "#78909c"] }
+var NATIVE_WDPA = [["original_name", "Nom original"], ["wdpa_pid", "Identifiant WDPA (parcelle)"], ["reported_area", "Superficie déclarée (km²)"], ["gis_area", "Superficie SIG (km²)"], ["reported_marine_area", "Superficie marine déclarée (km²)"],
+  ["gis_marine_area", "Superficie marine SIG (km²)"], ["no_take", "Zone de non-prélèvement"], ["no_take_area", "Superficie non-prélèvement (km²)"], ["legal_status_updated_at", "Mise à jour du statut légal"], ["management_plan", "Plan de gestion"],
+  ["international_criteria", "Critères internationaux"], ["verif", "Vérification WDPA"], ["is_green_list", "Liste verte UICN"], ["is_oecm", "Autre mesure de conservation (OECM)"], ["marine", "Marine"], ["owner_type", "Type de propriétaire"], ["supplementary_info", "Informations complémentaires"]]
+var NATIVE_NAT = { "CMR": [["desc_type", "Type (atlas national)"], ["partenar", "Partenaire"], ["statu_crea", "Statut de création"], ["statu_amgt", "Statut d'aménagement"], ["date_prop", "Date de proposition"], ["date_crea", "Date de création"], ["date_amgt", "Date d'aménagement"], ["sup_mar_ha", "Superficie marine (ha)"]],
+  "COD": [["desc_type", "Type (atlas national)"], ["nom_orig", "Nom original"], ["province", "Province"], ["desig_type", "Type de désignation"], ["desig_eng", "Désignation (anglais)"], ["statu_leg", "Statut légal"], ["date_desig", "Date de désignation"], ["type_gouv", "Type de gouvernance"], ["aut_gest", "Autorité de gestion"], ["aut_amgt", "Autorité d'aménagement"], ["statu_amgt", "Statut d'aménagement"], ["wdpapid", "WDPA PID"]],
+  "COG": [["desc_type", "Type (atlas national)"], ["departemen", "Département"], ["aut_gest", "Autorité de gestion"]],
+  "GAB": [["desc_type", "Type (atlas national)"], ["nom_comple", "Nom complet"], ["code_ap", "Code de l'aire protégée"], ["statu_crea", "Statut de création"], ["annee_crea", "Année de création"], ["annee_prop", "Année de proposition"], ["statu_amgt", "Statut d'aménagement"], ["auth_gest", "Autorité de gestion"], ["type_gouv", "Gouvernance"], ["sup_mar_ha", "Superficie marine (ha)"]],
+  "CAF": [["desc_type", "Type (atlas national)"], ["gestionair", "Gestionnaire"], ["bailleur", "Bailleur"], ["statu_crea", "Statut de création"], ["date_crea", "Date de création"], ["statu_amgt", "Statut d'aménagement"], ["date_amgt", "Date d'aménagement"]] }
+
+var f = $feature
+var iso = f.iso3
+var stype = cat(SUBTYPE, f.sub_type_std, ["Aire protégée", "#607d8b", "&#128737;"])
+var ACCENT = stype[1]
+var fromWdpa = Find(":wdpa:", f.src_uid) > -1
+var st = cat(STATUS, f.status_std, null); var mg = cat(MGMT, f.status_mgmt_std, null)
+
+var banner = "<div style=\"background:" + ACCENT + "; color:white; padding:10px 12px; border-radius:6px 6px 0 0; margin:0 0 10px 0;\">"
+  + "<div style=\"font-size:15px; font-weight:700;\">" + stype[2] + " " + txt(DefaultValue(f.name, "Sans nom")) + "</div>"
+  + "<div style=\"font-size:11px; opacity:0.9; margin-top:2px;\">" + cat(FLAG, iso, "") + " " + txt(f.country) + IIf(!isBlank(f.mgmt_authority), " — " + txt(f.mgmt_authority), "") + "</div>"
+  + "<div style=\"font-size:10px; opacity:0.9; margin-top:4px; text-transform:uppercase; letter-spacing:0.8px;\">" + txt(DefaultValue(f.designation, stype[0])) + IIf(isBlank(f.wdpa_id), "", " · WDPA " + txt(f.wdpa_id)) + "</div></div>"
+
+var chips = chip(stype[0], "#fff", ACCENT)
+if (!isBlank(f.iucn_category)) { chips += chip("UICN " + txt(f.iucn_category), "#eceff1", "#37474f") }
+if (!IsEmpty(st)) { chips += chip(st[0], st[1], st[2]) }
+if (!IsEmpty(mg)) { chips += chip(mg[0], mg[1], mg[2]) }
+if (f.green_list == 1) { chips += chip("&#127793; Liste verte UICN", "#e8f5e9", "#00c853") }
+if (f.is_marine == 1) { chips += chip("&#127754; Marine", "#e1f5fe", "#0277bd") }
+if (f.is_oecm == 1) { chips += chip("OECM", "#f3e5f5", "#6a1b9a") }
+if (!isBlank(f.parent_ref) && Find("transboundary", f.parent_ref) > -1) { chips += chip("Transfrontalière", "#fff3e0", "#ef6c00") }
+if (f.retired == 1) { chips += chip("Retiré de la source", "#ffebee", "#c62828") }
+var chipsHtml = "<div style=\"display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;\">" + chips + "</div>"
+
+var crumbs = txt(f.country)
+if (!isBlank(f.province)) { crumbs += " › " + txt(f.province) }
+if (!isBlank(f.admin2)) { crumbs += " › " + txt(f.admin2) }
+var crumbHtml = "<div style=\"background:#e8f5e9; border-radius:6px; padding:7px 8px; margin-bottom:10px; font-size:12px; color:#2e7d32; font-weight:500;\">&#128205; " + crumbs + "</div>"
+
+// ---------- related data ---------------------------------------------------------------------------
+var uid = f.src_uid
+var docs = null; var nDocs = 0
+var dtb = fsGet(NAME_DOCS, ID_DOCS, ["parent_uid", "title", "category_std", "url", "size_bytes", "date_doc", "file_name", "retired"], false)
+if (!IsEmpty(dtb)) { docs = OrderBy(Filter(dtb, "parent_uid = @uid AND retired = 0"), "category_std ASC, date_doc DESC, title ASC"); nDocs = Count(docs) }
+if (nDocs == 0 && !isBlank(f.doc_count)) { nDocs = f.doc_count }
+var over = null; var nConc = 0; var overcf = null; var nCf = 0
+var conc = fsGet(NAME_CONC, ID_CONC, ["name", "sub_type_raw", "holder", "retired"], true)
+if (!IsEmpty(conc)) { over = Filter(Intersects(conc, Geometry(f)), "retired = 0"); nConc = Count(over) }
+var cfs = fsGet(NAME_CF, ID_CF, ["name", "sub_type_raw", "community", "retired"], true)
+if (!IsEmpty(cfs)) { overcf = Filter(Intersects(cfs, Geometry(f)), "retired = 0"); nCf = Count(overcf) }
+
+var area = f.area_adm_ha; var areaLbl = "Superficie déclarée"
+if (isBlank(area) || area <= 0) { area = f.area_sig_ha; areaLbl = "Superficie SIG" }
+if (isBlank(area) || area <= 0) { area = f.area_calc_ha; areaLbl = "Superficie calculée" }
+var tiles = "<div style=\"display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;\">"
+  + tile(DefaultValue(haTxt(area), "—"), areaLbl + IIf(isBlank(area), "", " · " + km2Txt(area)), ACCENT)
+  + tile(IIf(!isBlank(f.legal_status_year), Text(f.legal_status_year), IIf(IsEmpty(f.date_attr), "—", Text(Date(f.date_attr), "YYYY"))), "Désignation", "#607d8b")
+  + tile(IIf(nDocs > 0, Text(nDocs), "—"), "Documents", "#1565c0")
+  + tile(IIf(nConc + nCf > 0, Text(nConc + nCf), "0"), "Chevauchements", IIf(nConc + nCf > 0, "#d84315", "#4caf50")) + "</div>"
+
+var maxA = 0
+var arrA = [f.area_adm_ha, f.area_sig_ha, f.area_calc_ha, f.marine_area_ha]
+for (var ai in arrA) { var av = arrA[ai]; if (!isBlank(av) && av > maxA) { maxA = av } }
+var areaCard = section("Superficies", "#1565c0", bar("Déclarée", f.area_adm_ha, "#607d8b", maxA) + bar("SIG (source)", f.area_sig_ha, "#1565c0", maxA) + bar("Calculée (géodésique)", f.area_calc_ha, ACCENT, maxA) + bar("Dont marine", f.marine_area_ha, "#0277bd", maxA))
+
+var iucnKey = Upper(DefaultValue(f.iucn_category, ""))
+var govRows = row("Désignation", txt(f.designation) + IIf(isBlank(f.designation_type), "", " <span style=\"color:#888;\">(" + txt(f.designation_type) + ")</span>")) + row("Catégorie UICN", txt(cat(IUCN, iucnKey, f.iucn_category)))
+  + row("Statut légal", txt(f.legal_status)) + row("Gouvernance", txt(f.governance)) + row("Autorité de gestion", txt(f.mgmt_authority)) + row("Aménagement (source)", txt(f.status_mgmt_raw))
+  + row("Critères internationaux", txt(f.int_criteria)) + row("Royaume biogéographique", txt(f.realm)) + row("Non-prélèvement", txt(f.no_take)) + row("Vérification WDPA", txt(f.verification)) + row("Sites liés", txt(f.parent_ref))
+var dateRows = row("Date de désignation", dateTxt(f.date_attr)) + row("Proposition", dateTxt(f.date_conv_prov)) + row("Plan d'aménagement", dateTxt(f.date_plan))
+
+var native = Dictionary()
+if (!isBlank(f.src_attrs_json)) { native = Dictionary(f.src_attrs_json) }
+var fields = IIf(fromWdpa, NATIVE_WDPA, cat(NATIVE_NAT, iso, []))
+var nativeRows = ""
+for (var i in fields) {
+  var key = fields[i][0]
+  if (HasKey(native, key) && !isBlank(native[key])) {
+    var v = native[key]
+    if (TypeOf(v) == "Number" && v > 100000000000) { v = dateTxt(v) }
+    if (TypeOf(v) == "Boolean") { v = IIf(v, "oui", "non") }
+    nativeRows += row(fields[i][1], txt(v))
+  }
+}
+
+var links = ""
+if (!isBlank(f.wdpa_url)) { links += "<div style=\"font-size:12px; margin-bottom:4px;\">&#127760; <a href=\"" + f.wdpa_url + "\" target=\"_blank\" style=\"color:#1565c0;\">Fiche Protected Planet (WDPA " + txt(f.wdpa_id) + ") &#8599;</a></div>" }
+
+var docsCard = ""
+if (!IsEmpty(docs) && Count(docs) > 0) {
+  var lastCat = ""; var list = ""; var k = 0
+  for (var d in docs) {
+    k += 1
+    if (k > 60) { break }
+    if (d.category_std != lastCat) { var cc = cat(DOCCAT, d.category_std, ["Documents", "#78909c"]); list += "<div style=\"font-size:10px; font-weight:700; color:" + cc[1] + "; text-transform:uppercase; letter-spacing:0.6px; margin:8px 0 4px 0;\">" + cc[0] + "</div>"; lastCat = d.category_std }
+    var meta = ""
+    if (!isBlank(d.size_bytes)) { meta += Text(Round(d.size_bytes / 1048576, 1)) + " Mo" }
+    if (!IsEmpty(d.date_doc)) { meta += IIf(meta == "", "", " · ") + Text(Date(d.date_doc), "YYYY") }
+    list += "<div style=\"display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:6px 8px; margin-bottom:4px;\"><div style=\"font-size:16px;\">" + docIcon(d.file_name) + "</div>"
+      + "<div style=\"flex:1; min-width:0;\"><div style=\"font-size:12px; font-weight:600; color:#1a1a2e;\">" + txt(DefaultValue(d.title, d.file_name)) + "</div><div style=\"font-size:10px; color:#888;\">" + txt(DefaultValue(d.file_name, "")) + IIf(meta == "", "", " · " + meta) + "</div></div>"
+      + "<a href=\"" + d.url + "\" target=\"_blank\" style=\"background:#1565c0; color:#fff; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;\">Ouvrir &#8599;</a></div>"
+  }
+  docsCard = section("Documents · " + Text(Count(docs)), "#1565c0", list)
+} else if (nDocs > 0) {
+  var why = "la table « " + NAME_DOCS + " » est introuvable dans la carte : vérifiez son titre dans la liste <b>Tables</b> (attendu : CB_Documents ou Other areas of interest - CB_Documents), ajustez NAME_DOCS en tête du script, ou renseignez ITEM_ID."
+  if (!IsEmpty(dtb)) { why = "la table a été trouvée mais aucune ligne ne porte parent_uid = <code>" + txt(uid) + "</code> (documents non encore chargés pour cette entité ?)." }
+  docsCard = section("Documents · " + Text(nDocs), "#1565c0", "<div style=\"font-size:11px; color:#888;\">" + Text(nDocs) + " document(s) référencé(s) mais " + why + "</div>")
+}
+
+var overCard = ""
+if (nConc + nCf > 0) {
+  var items = ""; var k2 = 0
+  for (var o in over) { k2 += 1; if (k2 <= 8) { items += "<div style=\"font-size:11px; padding:3px 0; border-bottom:1px dashed #e0e0e0;\">&#129683; <b>" + txt(DefaultValue(o.name, o.sub_type_raw)) + "</b>" + IIf(isBlank(o.holder), "", " <span style=\"color:#888;\">· " + txt(o.holder) + "</span>") + "</div>" } }
+  k2 = 0
+  for (var o in overcf) { k2 += 1; if (k2 <= 8) { items += "<div style=\"font-size:11px; padding:3px 0; border-bottom:1px dashed #e0e0e0;\">&#127968; <b>" + txt(DefaultValue(o.name, o.sub_type_raw)) + "</b>" + IIf(isBlank(o.community), "", " <span style=\"color:#888;\">· " + txt(o.community) + "</span>") + "</div>" } }
+  if (nConc + nCf > 16) { items += "<div style=\"font-size:10px; color:#999; margin-top:4px;\">liste limitée aux 8 premiers de chaque type</div>" }
+  overCard = section("Chevauchements · " + Text(nConc) + " titre(s) forestier(s), " + Text(nCf) + " forêt(s) communautaire(s)", "#d84315", items)
+}
+
+var footer = "<div style=\"text-align:center; font-size:10px; color:#aaa; margin-top:10px; padding-top:8px; border-top:1px solid #eee;\">Source : " + txt(f.src_layer) + IIf(isBlank(f.src_vintage), "", " (" + txt(f.src_vintage) + ")")
+  + IIf(IsEmpty(f.src_last_edit), "", " &nbsp;|&nbsp; édition source " + dateTxt(f.src_last_edit)) + IIf(IsEmpty(f.loaded_at), "", " &nbsp;|&nbsp; chargé le " + dateTxt(f.loaded_at))
+  + IIf(isBlank(f.dedup_of), "", " &nbsp;|&nbsp; doublon de " + txt(f.dedup_of)) + " &nbsp;|&nbsp; situation " + txt(f.situation) + "</div>"
+
+var popup = "<div style=\"font-family:Segoe UI,sans-serif; font-size:13px; color:#1a1a2e;\">" + banner + chipsHtml + crumbHtml + tiles + areaCard
+  + section("Désignation et gouvernance", ACCENT, table(govRows)) + section("Dates", "#607d8b", table(dateRows))
+  + section(IIf(fromWdpa, "Fiche WDPA (Protected Planet)", "Détails de l'atlas national · " + txt(f.country)), "#00838f", table(nativeRows) + links)
+  + docsCard + overCard + footer + "</div>"
+return { type: "text", text: popup }

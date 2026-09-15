@@ -42,10 +42,30 @@ calcite-navigation {
   --calcite-navigation-background: #ffffff;
   border-bottom: 3px solid var(--pes-teal);
 }
-.undp-logo {
+.partner-logo {
   height: 34px;
-  margin: 0 12px;
+  margin: 0 8px;
   align-self: center;
+}
+calcite-navigation-logo {
+  --calcite-navigation-logo-heading-text-color: #0b2a5b;
+}
+
+/* tabbed side panel */
+#map-side {
+  height: 100%;
+}
+#map-tabs {
+  height: 100%;
+}
+#map-tabs calcite-tab {
+  overflow: auto;
+  height: 100%;
+}
+.map-search {
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  margin: 10px;
 }
 #lang {
   align-self: center;
@@ -184,7 +204,10 @@ calcite-label {
     flex-wrap: wrap;
     gap: 6px;
   }
-  .undp-logo {
+  .partner-logo {
     display: none;
+  }
+  .map-search {
+    width: 200px;
   }
 }

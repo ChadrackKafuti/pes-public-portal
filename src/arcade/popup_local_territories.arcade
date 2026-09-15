@@ -1,0 +1,152 @@
+// ============================================================
+//  CB_Local_Territories (PSAT terroirs villageois) — popup content (Arcade element)
+//  Reads "CB_Local_Territory_Zoning" from the web map by name (or SOURCE = "portal" + ITEM_ID).
+// ============================================================
+Expects($feature, "*")
+
+var SOURCE      = "map"
+var PORTAL_URL  = "https://geosmart.undp.org/arcgis"
+var ITEM_ID     = "8e3638153ad74d2f8df9a4656bec5bb0"   // item "Other areas of interest" (Hosted/Protected_areas)
+var NAME_ZONING = "CB_Local_Territory_Zoning";  var ID_ZONING = 6
+var ACCENT      = "#37474f"
+
+function isBlank(x) { return IsEmpty(x) || Text(x) == "" || Text(x) == "null" }
+function txt(x) { if (isBlank(x)) { return "" } var s = Text(x); s = Replace(s, "&", "&amp;"); s = Replace(s, "<", "&lt;"); return Replace(s, ">", "&gt;") }
+function haTxt(x) { if (isBlank(x)) { return "" } var n = Number(x); if (IsNan(n) || n <= 0) { return "" } return Text(Round(n, 0), "#,###") + " ha" }
+function dateTxt(x) { if (IsEmpty(x)) { return "" } return Text(Date(x), "DD MMM YYYY") }
+function cat(dict, key, dflt) { if (!isBlank(key) && HasKey(dict, key)) { return dict[key] } return dflt }
+function fsGet(name, id, fields, geom) {
+  // "portal" mode: read the sub-layer of the service by item id
+  if (SOURCE == "portal" && ITEM_ID != "PASTE_ITEM_ID_HERE") { return FeatureSetByPortalItem(Portal(PORTAL_URL), ITEM_ID, id, fields, geom) }
+  // "map" mode: Map Viewer titles a sub-layer added from a service "<service> - <layer>", so try the usual variants
+  var cands = [name, "Other areas of interest - " + name, "CB_Forest_Consolidated - " + name, "CB Forest Consolidated - " + name, Replace(name, "_", " "), "CB_Forest_Consolidated - " + Replace(name, "_", " ")]
+  for (var i in cands) {
+    var fs = FeatureSetByName($map, cands[i], fields, geom)
+    if (!IsEmpty(fs)) { return fs }
+  }
+  if (ITEM_ID != "PASTE_ITEM_ID_HERE") { return FeatureSetByPortalItem(Portal(PORTAL_URL), ITEM_ID, id, fields, geom) }
+  return null
+}
+function row(label, value) {
+  if (isBlank(value)) { return "" }
+  return "<tr><td style=\"color:#666; width:44%; padding:4px 6px 4px 0; font-size:12px; vertical-align:top;\">" + label + "</td><td style=\"font-weight:600; font-size:12px; padding:4px 0; vertical-align:top;\">" + value + "</td></tr>"
+}
+function table(rows) { if (isBlank(rows)) { return "" } return "<table style=\"width:100%; border-collapse:collapse;\">" + rows + "</table>" }
+function section(title, accent, body) {
+  if (isBlank(body)) { return "" }
+  return "<div style=\"background:#f7fafa; border-left:4px solid " + accent + "; border-radius:4px; margin-bottom:10px; padding:8px 10px 8px 8px;\">"
+       + "<div style=\"font-size:10px; font-weight:700; color:" + accent + "; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;\">" + title + "</div>" + body + "</div>"
+}
+function chip(label, bg, fg) { return "<div style=\"background:" + bg + "; color:" + fg + "; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:700;\">" + label + "</div>" }
+function tile(value, label, color) {
+  return "<div style=\"flex:1 1 30%; min-width:80px; background:#f5f9f9; border:1px solid #e0e0e0; border-radius:6px; padding:8px 4px; text-align:center;\">"
+       + "<div style=\"font-size:16px; font-weight:700; color:" + color + ";\">" + value + "</div><div style=\"font-size:9px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;\">" + label + "</div></div>"
+}
+function distBar(label, value, color, maxv) {
+  if (isBlank(value) || value <= 0 || maxv <= 0) { return "" }
+  var pct = Round((value / maxv) * 100, 0)
+  return "<div style=\"margin-bottom:6px;\"><div style=\"display:flex; justify-content:space-between; font-size:10px; color:#555; margin-bottom:2px;\"><span style=\"font-weight:600;\">" + label + "</span>"
+       + "<span style=\"font-weight:700; color:" + color + ";\">" + haTxt(value) + " (" + pct + " %)</span></div>"
+       + "<div style=\"background:#e0e0e0; border-radius:4px; height:12px; width:100%; overflow:hidden;\"><div style=\"background:" + color + "; height:12px; width:" + pct + "%; border-radius:4px;\"></div></div></div>"
+}
+
+var ZONE = { "production": ["Production", "#c98a2b"], "conservation": ["Conservation", "#2e7d32"], "protection": ["Protection", "#00695c"], "community_development": ["Développement rural", "#a0522d"],
+  "agriculture": ["Agriculture", "#d4b106"], "habitat": ["Habitat", "#8d6e63"], "savanna_protection": ["Mise en défens / reboisement", "#7cb342"], "concession": ["Zone concédée", "#5d4037"],
+  "community_forest": ["Forêt communautaire", "#43a047"], "conflict": ["Zone conflictuelle", "#d32f2f"], "research": ["Recherche", "#7e57c2"], "unclassified": ["Non classée", "#bdbdbd"], "other": ["Autre", "#607d8b"] }
+var STATUS = { "attributed": ["Validé / reconnu", "#e8f5e9", "#2e7d32"], "provisional": ["Provisoire", "#fff8e1", "#ff8f00"], "final": ["Définitif", "#e8f5e9", "#1b5e20"], "in_process": ["En cours", "#e3f2fd", "#1565c0"],
+  "not_attributed": ["Non validé", "#eceff1", "#607d8b"], "rejected": ["Rejeté", "#ffebee", "#c62828"], "expired": ["Expiré", "#efebe9", "#6d4c41"], "unknown": ["Non renseigné", "#eceff1", "#546e7a"] }
+
+var f = $feature
+var name = DefaultValue(f.name, "Terroir sans nom")
+var banner = "<div style=\"background:" + ACCENT + "; color:white; padding:10px 12px; border-radius:6px 6px 0 0; margin:0 0 10px 0;\">"
+  + "<div style=\"font-size:15px; font-weight:700;\">" + txt(name) + "</div>"
+  + "<div style=\"font-size:11px; opacity:0.9; margin-top:2px;\">🇨🇩 " + txt(f.country) + IIf(!isBlank(f.community) && f.community != name, " — groupement " + txt(f.community), "") + "</div>"
+  + "<div style=\"font-size:10px; opacity:0.9; margin-top:4px; text-transform:uppercase; letter-spacing:0.8px;\">" + txt(DefaultValue(f.sub_type_raw, "Terroir villageois")) + IIf(isBlank(f.programme), "", " · " + txt(f.programme)) + "</div></div>"
+
+var st = cat(STATUS, f.status_std, null)
+var chips = ""
+if (!IsEmpty(st)) { chips += chip(st[0], st[1], st[2]) }
+if (!isBlank(f.year_ref)) { chips += chip("PSAT " + Text(f.year_ref), "#eceff1", "#455a64") }
+if (!isBlank(f.cld) && Lower(f.cld) != "non") { chips += chip("&#127968; CLD " + txt(f.cld), "#e0f7fa", "#00838f") }
+if (f.geom_quality == "bbox") { chips += chip("&#9888; Emprise approximative", "#fbe9e7", "#d84315") }
+if (f.retired == 1) { chips += chip("Retiré de la source", "#ffebee", "#c62828") }
+var chipsHtml = IIf(chips == "", "", "<div style=\"display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;\">" + chips + "</div>")
+
+var crumbs = txt(f.country)
+if (!isBlank(f.province)) { crumbs += " › " + txt(f.province) }
+if (!isBlank(f.admin2)) { crumbs += " › Territoire de " + txt(f.admin2) }
+if (!isBlank(f.admin3)) { crumbs += " › Secteur " + txt(f.admin3) }
+if (!isBlank(f.admin4)) { crumbs += " › Groupement " + txt(f.admin4) }
+var crumbHtml = "<div style=\"background:#eceff1; border-radius:6px; padding:7px 8px; margin-bottom:10px; font-size:12px; color:" + ACCENT + "; font-weight:500;\">&#128205; " + crumbs + "</div>"
+
+// ---------- zoning of the PSAT -----------------------------------------------------------------------
+var uid = f.src_uid
+var rows = null; var nZones = 0; var tot = 0; var mine = null
+var zoneNote = ""
+var zs = fsGet(NAME_ZONING, ID_ZONING, ["parent_uid", "zone_type_std", "zone_type_raw", "zone_reason", "area_calc_ha", "retired"], false)
+if (IsEmpty(zs)) {
+  zoneNote = "couche « " + NAME_ZONING + " » introuvable dans la carte : vérifiez son titre (attendu : " + NAME_ZONING + " ou Other areas of interest - " + NAME_ZONING + "), ajustez NAME_ZONING ou renseignez ITEM_ID."
+} else {
+  mine = Filter(zs, "parent_uid = @uid AND retired = 0")
+  nZones = Count(mine)
+  if (nZones == 0) {
+    var zsg = fsGet(NAME_ZONING, ID_ZONING, ["parent_uid", "zone_type_std", "zone_type_raw", "zone_reason", "area_calc_ha", "retired"], true)
+    var g = Geometry(f)
+    if (!IsEmpty(zsg) && !IsEmpty(g)) {
+      var gin = Buffer(g, -100, "meters")
+      if (IsEmpty(gin)) { gin = g }
+      mine = Filter(Intersects(zsg, gin), "retired = 0")
+      nZones = Count(mine)
+      zoneNote = IIf(nZones > 0, "zones identifiées par superposition spatiale (aucun lien parent_uid)", "aucun zonage rattaché à ce terroir, ni superposé à son emprise")
+    }
+  }
+  if (nZones > 0) {
+    rows = OrderBy(GroupBy(mine, ["zone_type_std"], [{ name: "n", expression: "1", statistic: "COUNT" }, { name: "ha", expression: "area_calc_ha", statistic: "SUM" }]), "ha DESC")
+    for (var r in rows) { tot += DefaultValue(r.ha, 0) }
+  }
+}
+
+var area = IIf(isBlank(f.area_sig_ha) || f.area_sig_ha <= 0, f.area_calc_ha, f.area_sig_ha)
+var tiles = "<div style=\"display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;\">"
+  + tile(DefaultValue(haTxt(area), "—"), "Superficie du terroir", ACCENT)
+  + tile(IIf(nZones > 0, Text(nZones), "—"), "Zones du PSAT", "#2e7d32")
+  + tile(IIf(tot > 0 && !isBlank(area) && area > 0, Text(Round(100 * tot / area, 0)) + " %", "—"), "Terroir zoné", "#1565c0")
+  + tile(IIf(!isBlank(f.beneficiaries) && f.beneficiaries > 0, Text(f.beneficiaries, "#,###"), "—"), "Bénéficiaires", "#607d8b") + "</div>"
+
+var zoningCard = ""
+if (nZones > 0 && tot > 0) {
+  var grad = ""; var cum = 0; var legend = ""
+  for (var r in rows) {
+    var zz = cat(ZONE, r.zone_type_std, ["Autre", "#607d8b"])
+    var sh = Round(100 * DefaultValue(r.ha, 0) / tot, 1)
+    var start = cum; cum = Round(cum + sh, 1)
+    if (grad != "") { grad += ", " }
+    grad += zz[1] + " " + start + "% " + cum + "%"
+    legend += distBar(zz[0] + " (" + Text(r.n) + ")", r.ha, zz[1], tot)
+  }
+  if (cum < 100) { grad += ", #e0e0e0 " + cum + "% 100%" }
+  zoningCard = "<div style=\"background:#f7fafa; border-left:4px solid #2e7d32; border-radius:4px; margin-bottom:10px; padding:8px 10px 8px 8px;\">"
+    + "<div style=\"font-size:10px; font-weight:700; color:#2e7d32; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;\">Plan simple d'aménagement du territoire · " + Text(nZones) + " zones · " + haTxt(tot) + "</div>"
+    + "<div style=\"display:flex; align-items:flex-start; gap:14px;\"><div style=\"width:90px; height:90px; flex-shrink:0; border-radius:50%; background:conic-gradient(" + grad + "); display:flex; align-items:center; justify-content:center;\">"
+    + "<div style=\"width:58px; height:58px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center;\"><div><div style=\"font-size:12px; font-weight:700; color:#2e7d32;\">" + Text(nZones) + "</div><div style=\"font-size:8px; color:#888;\">zones</div></div></div></div>"
+    + "<div style=\"flex:1;\">" + legend + "</div></div></div>"
+  // declared usages (distinct reasons)
+  var gr = OrderBy(GroupBy(mine, ["zone_type_raw", "zone_reason"], [{ name: "ha", expression: "area_calc_ha", statistic: "SUM" }]), "ha DESC")
+  var det = ""
+  for (var r in gr) {
+    if (!isBlank(r.zone_reason)) { det += "<div style=\"font-size:11px; padding:3px 0; border-bottom:1px dashed #e0e0e0;\"><b>" + txt(r.zone_type_raw) + "</b> — " + txt(r.zone_reason) + " <span style=\"color:#999;\">(" + haTxt(r.ha) + ")</span></div>" }
+  }
+  zoningCard += section("Usages déclarés dans le PSAT", "#a0522d", det)
+  if (zoneNote != "") { zoningCard += "<div style=\"font-size:10px; color:#999; margin:-6px 0 10px 0;\">&#9432; " + zoneNote + "</div>" }
+} else {
+  zoningCard = section("Plan simple d'aménagement du territoire", "#9e9e9e", "<div style=\"font-size:11px; color:#888;\">&#9432; " + DefaultValue(zoneNote, "aucun zonage rattaché à ce terroir") + "</div>")
+}
+
+var rowsT = row("Financement", txt(f.funder)) + row("Agence", txt(f.agency)) + row("Partenaire de mise en œuvre", txt(f.partner)) + row("Comité local de développement", txt(f.cld))
+  + row("Statut (source)", txt(f.status_raw)) + row("Superficie SIG (source)", haTxt(f.area_sig_ha)) + row("Superficie calculée", haTxt(f.area_calc_ha)) + row("Fichier source", txt(f.src_file))
+var footer = "<div style=\"text-align:center; font-size:10px; color:#aaa; margin-top:10px; padding-top:8px; border-top:1px solid #eee;\">Source : " + txt(f.src_layer)
+  + IIf(IsEmpty(f.loaded_at), "", " &nbsp;|&nbsp; chargé le " + dateTxt(f.loaded_at)) + " &nbsp;|&nbsp; situation " + txt(f.situation) + "</div>"
+
+var popup = "<div style=\"font-family:Segoe UI,sans-serif; font-size:13px; color:#1a1a2e;\">" + banner + chipsHtml + crumbHtml + tiles + zoningCard
+  + section("Terroir et appui", ACCENT, table(rowsT)) + footer + "</div>"
+return { type: "text", text: popup }

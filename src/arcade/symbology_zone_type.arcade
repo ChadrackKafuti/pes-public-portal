@@ -1,0 +1,26 @@
+// =====================================================================================
+//  Symbology · unique values on an Arcade expression, for the three zoning layers
+//  (CB_Concession_Zoning, CB_Community_Forest_Zoning, CB_Local_Territory_Zoning).
+//  Map Viewer: Styles > + Expression > paste > Types (unique symbols).
+//  Pro: Symbology > Unique Values > Set an expression.
+//  Returns the display label; apply the colours listed in README_arcade.md (same palette as the popups).
+// =====================================================================================
+var LABEL = {
+  'production':            'Production (exploitation ligneuse)',
+  'conservation':          'Conservation',
+  'protection':            'Protection',
+  'community_development': 'Développement rural / communautaire',
+  'agriculture':           'Agriculture et agroforesterie',
+  'habitat':               'Habitat',
+  'savanna_protection':    'Mise en défens / reboisement',
+  'concession':            'Zone concédée (titres tiers)',
+  'community_forest':      'Forêt communautaire',
+  'conflict':              'Zone conflictuelle',
+  'research':              'Recherche',
+  'unclassified':          'Non classée',
+  'other':                 'Autre'
+};
+var k = $feature.zone_type_std;
+if (IsEmpty(k) || !HasKey(LABEL, k)) { return 'Non classée'; }
+if ($feature.retired == 1) { return 'Retiré de la source'; }
+return LABEL[k];

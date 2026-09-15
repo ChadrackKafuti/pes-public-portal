@@ -1,0 +1,12 @@
+// =====================================================================================
+//  Symbology (optional QA view) · zoning layers: is the zone linked to a parent unit,
+//  is its affectation typed, is the geometry reliable. Use as a second unique-value renderer
+//  or as the "Types" expression of a duplicated layer for data review.
+// =====================================================================================
+var typed = !IsEmpty($feature.zone_type_std) && $feature.zone_type_std != 'unclassified' && $feature.zone_type_std != 'other';
+if ($feature.retired == 1)                 { return '0 · Retiré de la source'; }
+if ($feature.geom_quality == 'bbox')       { return '1 · Emprise approximative (bbox)'; }
+if (IsEmpty($feature.parent_uid) && !typed){ return '2 · Sans unité parente, affectation inconnue'; }
+if (IsEmpty($feature.parent_uid))          { return '3 · Sans unité parente'; }
+if (!typed)                                { return '4 · Affectation non classée'; }
+return '5 · Rattachée et classée';

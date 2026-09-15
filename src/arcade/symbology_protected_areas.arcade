@@ -1,0 +1,27 @@
+// =====================================================================================
+//  Symbology · CB_Protected_Areas · unique values on the harmonised designation type.
+//  Colours: parc national #1b5e20, patrimoine mondial #4a148c, réserve de biosphère #00695c, site Ramsar #0277bd,
+//  sanctuaire #2e7d32, réserve de faune #388e3c, réserve naturelle #2e7d32, réserve intégrale #004d40,
+//  réserve forestière #558b2f, réserve communautaire #43a047, zone cynégétique #8d6e63, jardin #7cb342,
+//  monument naturel #6d4c41, aire marine #01579b, autre #607d8b. Fill transparency 40 %, outline #1b5e20 0.6 pt.
+// =====================================================================================
+var L = { 'national_park': 'Parc national', 'world_heritage': 'Patrimoine mondial', 'biosphere_reserve': 'Réserve de biosphère', 'ramsar': 'Site Ramsar',
+  'sanctuary': 'Sanctuaire', 'wildlife_reserve': 'Réserve de faune', 'nature_reserve': 'Réserve naturelle', 'strict_reserve': 'Réserve naturelle intégrale',
+  'forest_reserve': 'Réserve forestière', 'community_reserve': 'Réserve communautaire', 'hunting_zone': "Zone d'intérêt cynégétique", 'botanical_garden': 'Jardin botanique / zoologique',
+  'natural_monument': 'Monument naturel', 'marine_protected_area': 'Aire marine protégée', 'other_protected_area': 'Autre aire protégée', 'other': 'Autre aire protégée' };
+if ($feature.retired == 1) { return 'Retiré de la source'; }
+if ($feature.status_std == 'in_process') { return 'Proposée (non encore désignée)'; }
+var k = $feature.sub_type_std;
+if (IsEmpty(k) || !HasKey(L, k)) { return 'Autre aire protégée'; }
+return L[k];
+
+// --- alternative: IUCN category renderer (replace the block above) ----------------------------
+// var c = Upper(DefaultValue($feature.iucn_category, ''));
+// if (c == '') { return 'Non renseignée'; }
+// if (c == 'IA' || c == 'IB') { return 'I · Réserve intégrale / nature sauvage'; }
+// if (c == 'II') { return 'II · Parc national'; }
+// if (c == 'III') { return 'III · Monument naturel'; }
+// if (c == 'IV') { return 'IV · Gestion des habitats et espèces'; }
+// if (c == 'V') { return 'V · Paysage protégé'; }
+// if (c == 'VI') { return 'VI · Utilisation durable'; }
+// return 'Non applicable / non assignée';

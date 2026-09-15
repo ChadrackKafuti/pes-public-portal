@@ -1,4 +1,4 @@
-/** Map page: web map + side panel (filters, layers, legend, feature info, basemap). */
+/** Map page: web map + tabbed side panel (Overview, Filters, Layers) + application-code search. */
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import TileLayer from "@arcgis/core/layers/TileLayer";
 import OpenStreetMapLayer from "@arcgis/core/layers/OpenStreetMapLayer";
@@ -9,6 +9,9 @@ import { CONFIG } from "../config";
 import { t, applyTranslations } from "../i18n";
 import { buildWhere, emptyState, findField, uniqueValues, type FilterState } from "../filters";
 import { loadWebMap } from "../webmap";
+import { installForestLayers } from "../forestLayers";
+
+type TabName = "overview" | "filters" | "layers";
 
 const $ = <T extends Element>(sel: string, root: ParentNode = document): T => {
   const el = root.querySelector<T>(sel);
@@ -30,39 +33,31 @@ export class MapPage {
     if (this.started) return;
     this.started = true;
     this.buildFilterPanel();
-    this.wirePanels();
     this.wireBasemaps();
+    this.wireSearch();
     this.mapEl.addEventListener("arcgisViewReadyChange", () => void this.onViewReady());
     this.mapEl.addEventListener("arcgisLoadError", () => this.showError());
+    this.mapEl.addEventListener("arcgisViewClick", (e) => void this.onClick(e));
+    document.addEventListener("pes-lang-change", () => this.relabel());
     loadWebMap(CONFIG.webmaps.map)
-      .then((webmap) => {
+      .then(async (webmap) => {
+        await webmap.load(); // layers exist only once the web map JSON has been parsed
+        installForestLayers(webmap);
         this.mapEl.map = webmap;
       })
       .catch((err) => {
         console.error(err);
         this.showError();
       });
-    this.mapEl.addEventListener("arcgisViewClick", (e) => void this.onClick(e));
-    document.addEventListener("pes-lang-change", () => this.relabel());
   }
 
-  // ---------------------------------------------------------------- panels
-  private wirePanels(): void {
-    const actions = document.querySelectorAll<HTMLCalciteActionElement>("#map-actions calcite-action");
-    actions.forEach((action) => {
-      action.addEventListener("click", () => this.showPanel(action.dataset.panel!));
+  // ---------------------------------------------------------------- tabs
+  private selectTab(name: TabName): void {
+    document.querySelectorAll<HTMLCalciteTabTitleElement>("#map-tabs calcite-tab-title").forEach((title) => {
+      if (title.dataset.tab === name) title.selected = true;
     });
-  }
-
-  private showPanel(name: string): void {
-    document.querySelectorAll<HTMLCalciteActionElement>("#map-actions calcite-action").forEach((a) => {
-      a.active = a.dataset.panel === name;
-    });
-    document.querySelectorAll<HTMLCalcitePanelElement>("#map-panel calcite-panel").forEach((p) => {
-      p.hidden = p.dataset.panel !== name;
-    });
-    const shellPanel = $<HTMLCalciteShellPanelElement>("#map-panel");
-    shellPanel.collapsed = false;
+    const panel = $<HTMLCalciteShellPanelElement>("#map-panel");
+    panel.collapsed = false;
   }
 
   // ---------------------------------------------------------------- filters UI
@@ -124,12 +119,31 @@ export class MapPage {
       .toArray() as FeatureLayer[];
     await Promise.all(candidates.map((l) => l.load().catch(() => null)));
     this.layers = candidates.filter((l) => l.loaded);
+    this.ensurePopups();
     this.optionsLayer =
       this.layers.find((l) => CONFIG.applicationsLayerPattern.test(l.url ?? "")) ??
       this.layers.find((l) => findField(l, ["applicationcode"]) !== null) ??
       null;
     await this.loadOptions();
     await this.updateCount();
+  }
+
+  /**
+   * Layers without a popup in the web map (e.g. the applications points) borrow the popup of a layer with the
+   * same fields (the applications polygons); otherwise they get the default field list.
+   */
+  private ensurePopups(): void {
+    const isData = (name: string) => !/^(shape__|shape_|objectid$|globalid$)/i.test(name);
+    const withPopup = this.layers.filter((l) => l.popupTemplate);
+    for (const layer of this.layers) {
+      if (layer.popupTemplate) continue;
+      const fields = new Set((layer.fields ?? []).map((f) => f.name.toLowerCase()));
+      const donor = withPopup.find((d) =>
+        (d.fields ?? []).filter((f) => isData(f.name)).every((f) => fields.has(f.name.toLowerCase())),
+      );
+      const template = donor?.popupTemplate;
+      layer.popupTemplate = template ? template.clone() : layer.createPopupTemplate();
+    }
   }
 
   private showError(): void {
@@ -221,7 +235,59 @@ export class MapPage {
     }
   }
 
+  // ---------------------------------------------------------------- search by application code
+  private wireSearch(): void {
+    const input = $<HTMLCalciteInputElement>("#code-search");
+    input.addEventListener("calciteInputChange", () => void this.searchCode((input.value ?? "").trim()));
+    input.addEventListener("calciteInputInput", () => {
+      input.status = "idle";
+      input.validationMessage = "";
+    });
+  }
+
+  private async searchCode(code: string): Promise<void> {
+    const input = $<HTMLCalciteInputElement>("#code-search");
+    if (!code) return;
+    const escaped = code.toUpperCase().replaceAll("'", "''");
+    // applications first (points, then polygons), then contracts
+    const ordered = [
+      ...this.layers.filter((l) => CONFIG.applicationsLayerPattern.test(l.url ?? "")),
+      ...this.layers.filter((l) => !CONFIG.applicationsLayerPattern.test(l.url ?? "")),
+    ];
+    for (const layer of ordered) {
+      const field = findField(layer, [CONFIG.searchField, "contractcode"]);
+      if (!field) continue;
+      try {
+        const result = await layer.queryFeatures({
+          where: `UPPER(${field}) = '${escaped}'`,
+          outFields: ["*"],
+          returnGeometry: true,
+          num: 1,
+          outSpatialReference: this.mapEl.view?.spatialReference ?? undefined,
+        });
+        const g = result.features[0];
+        if (!g?.geometry) continue;
+        g.layer = layer;
+        layer.visible = true;
+        await this.mapEl.goTo(g.geometry.type === "point" ? { target: g.geometry, scale: 20000 } : g.geometry);
+        this.showFeature(g);
+        await this.setHighlight(g);
+        return;
+      } catch {
+        /* try the next layer */
+      }
+    }
+    input.status = "invalid";
+    input.validationMessage = t("search.notFound", { code });
+  }
+
   // ---------------------------------------------------------------- feature info
+  private showFeature(graphic: Graphic): void {
+    this.featureEl.graphic = graphic;
+    $<HTMLElement>("#info-empty").hidden = true;
+    this.selectTab("overview");
+  }
+
   private async onClick(event: Event): Promise<void> {
     const detail = (event as CustomEvent).detail as { x: number; y: number };
     if (!detail) return;
@@ -231,15 +297,13 @@ export class MapPage {
         .filter((r) => r.type === "graphic" && (r as { graphic?: Graphic }).graphic?.layer)
         .map((r) => (r as { graphic: Graphic }).graphic);
       if (graphics.length === 0) return;
-      // PES features first (applications, contracts, visits, photos), then anything else (admin units, concessions...)
+      // PES features first (applications, contracts, visits, photos), then anything else (forest areas, admin units...)
       const isPes = (g: Graphic) => CONFIG.filterableLayerPattern.test((g.layer as FeatureLayer)?.url ?? "");
       const hitGraphic = graphics.find(isPes) ?? graphics[0];
       // hit-test graphics only carry the attributes needed for drawing: fetch the complete feature so the
-      // web map's Arcade popup has every field it expects
+      // Arcade popups have every field they expect
       const graphic = (await this.fullFeature(hitGraphic)) ?? hitGraphic;
-      this.featureEl.graphic = graphic;
-      $<HTMLElement>("#info-empty").hidden = true;
-      this.showPanel("info");
+      this.showFeature(graphic);
       await this.setHighlight(graphic);
     } catch {
       /* ignore hit-test failures */

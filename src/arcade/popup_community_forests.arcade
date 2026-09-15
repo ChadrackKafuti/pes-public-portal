@@ -1,0 +1,291 @@
+// ============================================================
+//  CB_Community_Forests — popup content (Arcade element)
+//  House style (banner, chips, tiles, breadcrumb, PSG tracker, donut, document cards).
+//  Reads "CB_Community_Forest_Zoning" and the table "CB_Documents" from the web map
+//  by name (add them to the map, hidden is fine) or set SOURCE = "portal" + ITEM_ID.
+// ============================================================
+Expects($feature, "*")
+
+var SOURCE      = "map"
+var PORTAL_URL  = "https://geosmart.undp.org/arcgis"
+var ITEM_ID     = "8e3638153ad74d2f8df9a4656bec5bb0"   // item "Other areas of interest" (Hosted/Protected_areas)
+var NAME_ZONING = "CB_Community_Forest_Zoning";  var ID_ZONING = 4
+var NAME_DOCS   = "CB_Documents";                var ID_DOCS   = 7
+var ACCENT      = "#1b5e20"
+
+// ---------- helpers ------------------------------------------------------------------------
+function isBlank(x) { return IsEmpty(x) || Text(x) == "" || Text(x) == "null" }
+function txt(x) { if (isBlank(x)) { return "" } var s = Text(x); s = Replace(s, "&", "&amp;"); s = Replace(s, "<", "&lt;"); return Replace(s, ">", "&gt;") }
+function haTxt(x) { if (isBlank(x)) { return "" } var n = Number(x); if (IsNan(n) || n <= 0) { return "" } return Text(Round(n, 0), "#,###") + " ha" }
+function dateTxt(x) { if (IsEmpty(x)) { return "" } return Text(Date(x), "DD MMM YYYY") }
+function cat(dict, key, dflt) { if (!isBlank(key) && HasKey(dict, key)) { return dict[key] } return dflt }
+function fsGet(name, id, fields, geom) {
+  // "portal" mode: read the sub-layer of the service by item id
+  if (SOURCE == "portal" && ITEM_ID != "PASTE_ITEM_ID_HERE") { return FeatureSetByPortalItem(Portal(PORTAL_URL), ITEM_ID, id, fields, geom) }
+  // "map" mode: Map Viewer titles a sub-layer added from a service "<service> - <layer>", so try the usual variants
+  var cands = [name, "Other areas of interest - " + name, "CB_Forest_Consolidated - " + name, "CB Forest Consolidated - " + name, Replace(name, "_", " "), "CB_Forest_Consolidated - " + Replace(name, "_", " ")]
+  for (var i in cands) {
+    var fs = FeatureSetByName($map, cands[i], fields, geom)
+    if (!IsEmpty(fs)) { return fs }
+  }
+  if (ITEM_ID != "PASTE_ITEM_ID_HERE") { return FeatureSetByPortalItem(Portal(PORTAL_URL), ITEM_ID, id, fields, geom) }
+  return null
+}
+function row(label, value) {
+  if (isBlank(value)) { return "" }
+  return "<tr><td style=\"color:#666; width:44%; padding:4px 6px 4px 0; font-size:12px; vertical-align:top;\">" + label + "</td>"
+       + "<td style=\"font-weight:600; font-size:12px; padding:4px 0; vertical-align:top;\">" + value + "</td></tr>"
+}
+function table(rows) { if (isBlank(rows)) { return "" } return "<table style=\"width:100%; border-collapse:collapse;\">" + rows + "</table>" }
+function section(title, accent, body) {
+  if (isBlank(body)) { return "" }
+  return "<div style=\"background:#f7fafa; border-left:4px solid " + accent + "; border-radius:4px; margin-bottom:10px; padding:8px 10px 8px 8px;\">"
+       + "<div style=\"font-size:10px; font-weight:700; color:" + accent + "; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;\">" + title + "</div>" + body + "</div>"
+}
+function chip(label, bg, fg) { return "<div style=\"background:" + bg + "; color:" + fg + "; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:700;\">" + label + "</div>" }
+function tile(value, label, color) {
+  return "<div style=\"flex:1 1 30%; min-width:80px; background:#f5f9f9; border:1px solid #e0e0e0; border-radius:6px; padding:8px 4px; text-align:center;\">"
+       + "<div style=\"font-size:16px; font-weight:700; color:" + color + ";\">" + value + "</div>"
+       + "<div style=\"font-size:9px; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;\">" + label + "</div></div>"
+}
+function bar(label, value, color, maxv) {
+  if (isBlank(value) || value <= 0 || maxv <= 0) { return "" }
+  var pct = Round((value / maxv) * 100, 0)
+  return "<div style=\"margin-bottom:6px;\"><div style=\"display:flex; justify-content:space-between; font-size:10px; color:#555; margin-bottom:2px;\">"
+       + "<span style=\"font-weight:600;\">" + label + "</span><span style=\"font-weight:700; color:" + color + ";\">" + haTxt(value) + "</span></div>"
+       + "<div style=\"background:#e0e0e0; border-radius:4px; height:12px; width:100%; overflow:hidden;\"><div style=\"background:" + color + "; height:12px; width:" + pct + "%; border-radius:4px;\"></div></div></div>"
+}
+function docIcon(name) {
+  var n = Lower(Text(name))
+  if (Find(".pdf", n) > -1) { return "&#128196;" }
+  if (Find(".doc", n) > -1) { return "&#128221;" }
+  if (Find(".xls", n) > -1) { return "&#128202;" }
+  if (Find(".zip", n) > -1 || Find(".shp", n) > -1 || Find(".kml", n) > -1) { return "&#128506;" }
+  if (Find(".jpg", n) > -1 || Find(".png", n) > -1 || Find(".jpeg", n) > -1) { return "&#128444;" }
+  return "&#128196;"
+}
+
+// ---------- vocabularies -------------------------------------------------------------------
+var FLAG = { "CMR": "🇨🇲", "CAF": "🇨🇫", "COD": "🇨🇩", "COG": "🇨🇬", "GNQ": "🇬🇶", "GAB": "🇬🇦" }
+var SUBTYPE = { "community_forest": "Forêt communautaire", "cfcl": "Concession forestière des communautés locales (CFCL)", "cfcl_application": "Demande de CFCL en instruction",
+  "communal_forest": "Forêt communale", "bosque_comunal": "Bosque comunal" }
+var STATUS = { "attributed": ["Attribuée", "#e8f5e9", "#2e7d32"], "provisional": ["Convention provisoire", "#fff8e1", "#ff8f00"], "final": ["Convention définitive", "#e8f5e9", "#1b5e20"],
+  "in_process": ["En cours d'instruction", "#e3f2fd", "#1565c0"], "not_attributed": ["Non attribuée", "#eceff1", "#607d8b"], "rejected": ["Rejetée", "#ffebee", "#c62828"],
+  "expired": ["Expirée / résiliée", "#efebe9", "#6d4c41"], "unknown": ["Statut non renseigné", "#eceff1", "#546e7a"] }
+var MGMT = { "approved": ["PSG approuvé", "#e8f5e9", "#2e7d32"], "in_preparation": ["PSG en élaboration", "#fff8e1", "#ff8f00"], "under_revision": ["PSG en révision", "#e3f2fd", "#1565c0"],
+  "not_planned": ["Sans plan de gestion", "#eceff1", "#607d8b"], "unknown": ["PSG non renseigné", "#eceff1", "#90a4ae"] }
+var ZONE = { "production": ["Production", "#c98a2b"], "conservation": ["Conservation", "#2e7d32"], "protection": ["Protection", "#00695c"],
+  "community_development": ["Développement rural", "#a0522d"], "agriculture": ["Agriculture", "#d4b106"], "habitat": ["Habitat", "#8d6e63"],
+  "savanna_protection": ["Mise en défens / reboisement", "#7cb342"], "concession": ["Zone concédée", "#5d4037"], "community_forest": ["Forêt communautaire", "#43a047"],
+  "conflict": ["Zone conflictuelle", "#d32f2f"], "research": ["Recherche", "#7e57c2"], "unclassified": ["Non classée", "#bdbdbd"], "other": ["Autre", "#607d8b"] }
+var DOCCAT = { "attribution_decree": ["Arrêtés, décrets et lettres d'attribution", "#5e35b1"], "convention": ["Conventions et contrats", "#1565c0"], "management_plan": ["Plans d'aménagement", "#2e7d32"],
+  "simple_management_plan": ["Plans simples de gestion", "#2e7d32"], "specifications": ["Cahiers des charges", "#00838f"], "certificate": ["Certificats et permis", "#ef6c00"], "map": ["Cartes et données géographiques", "#3949ab"],
+  "attestation": ["Attestations et actes", "#6d4c41"], "minutes": ["Procès-verbaux", "#546e7a"], "application": ["Demandes et dossiers", "#8d6e63"], "evaluation": ["Rapports et évaluations", "#7b1fa2"], "other": ["Autres documents", "#78909c"] }
+var NATIVE = {
+  "CMR": [["type_attr", "Type d'attributaire (GIC, ASS, COOP…)"], ["statu_conv", "Statut de la convention"], ["statu_amgt", "Statut d'aménagement"], ["date_con_p", "Convention provisoire"],
+          ["date_con_d", "Convention définitive"], ["date_pgs", "Plan simple de gestion"], ["sup_adm_ha", "Superficie administrative (ha)"], ["sup_sig_ha", "Superficie SIG (ha)"]],
+  "COD": [["id", "N° dossier geocfcl"], ["application_stage", "Étape de la procédure"], ["status", "Statut"], ["approval_date", "Date d'attribution"], ["year_of_approval", "Année d'attribution"],
+          ["request_approval_entity", "Entité d'approbation"], ["community_org_type", "Type d'organisation communautaire"], ["operating_mode", "Mode d'exploitation"], ["potential_mode", "Potentiel identifié"],
+          ["smp_approved", "PSG approuvé"], ["management_plan_approval", "Approbation du PSG"], ["smp_approval_date", "Date d'approbation du PSG"], ["supporting_org", "ONG / expert accompagnateur"],
+          ["supporting_org_2", "Accompagnateur 2"], ["supporting_org_3", "Accompagnateur 3"], ["supporting_org_type", "Type d'accompagnateur"], ["group", "Groupement"], ["sector", "Secteur / chefferie"],
+          ["territory", "Territoire"], ["area", "Superficie déclarée (ha)"], ["modified", "Dernière mise à jour geocfcl"], ["num_for_com", "N° de concession (WRI)"], ["accompagnateur", "Accompagnateur (WRI)"],
+          ["gestionnaire", "Gestionnaire (WRI)"], ["pg_simple", "PSG (WRI)"], ["mode_gestion", "Mode de gestion (WRI)"], ["Programme", "Programme"], ["Finance", "Financement"], ["Agence", "Agence"],
+          ["Partenaire", "Partenaire"], ["Statut", "Statut (PIREDD)"], ["Foncier", "Sécurisation foncière"], ["Exploitati", "Exploitation"], ["Certificat", "Certification"]],
+  "GNQ": [["codigo", "Código"], ["num_regis", "N° de registro"], ["nom_pblado", "Poblado"], ["local_dist", "Distrito"], ["fech_atrb", "Fecha de atribución"], ["texto_ofic", "Texto oficial"],
+          ["auto_firma", "Autoridad firmante"], ["estad_atrb", "Estado de atribución"], ["empr_explo", "Empresa explotadora"], ["estad_expl", "Estado de explotación"], ["Sub_adm", "Superficie administrativa (ha)"]],
+  "GAB": [["nom_ass", "Association"], ["nom_com", "Communauté"], ["nom_ste", "Société partenaire"], ["mode_expl", "Mode d'exploitation"], ["statu_conv", "Statut de la convention"],
+          ["date_con_p", "Convention provisoire"], ["date_con_d", "Convention définitive"], ["date_psg", "Plan simple de gestion"], ["observatn", "Observations"], ["sup_adm_ha", "Superficie administrative (ha)"], ["sup_sig_ha", "Superficie SIG (ha)"]] }
+
+// ---------- core values ------------------------------------------------------------------------
+var f = $feature
+var iso = f.iso3
+var name = DefaultValue(f.name, DefaultValue(f.community, DefaultValue(f.reference, "Sans nom")))
+var subType = cat(SUBTYPE, f.sub_type_std, DefaultValue(f.sub_type_raw, "Forêt communautaire"))
+var st = cat(STATUS, f.status_std, null); var mg = cat(MGMT, f.status_mgmt_std, null)
+var fromGeocfcl = Find(":geocfcl:", f.src_uid) > -1
+
+// ---------- banner -------------------------------------------------------------------------------
+var banner = "<div style=\"background:" + ACCENT + "; color:white; padding:10px 12px; border-radius:6px 6px 0 0; margin:0 0 10px 0;\">"
+  + "<div style=\"font-size:15px; font-weight:700;\">" + txt(name) + "</div>"
+  + "<div style=\"font-size:11px; opacity:0.9; margin-top:2px;\">" + cat(FLAG, iso, "") + " " + txt(f.country) + IIf(!isBlank(f.community) && f.community != name, " — communauté " + txt(f.community), "") + "</div>"
+  + "<div style=\"font-size:10px; opacity:0.9; margin-top:4px; text-transform:uppercase; letter-spacing:0.8px;\">" + txt(subType) + "</div></div>"
+
+// ---------- chips ----------------------------------------------------------------------------------
+var chips = ""
+if (!IsEmpty(st)) { chips += chip(st[0], st[1], st[2]) }
+if (!IsEmpty(mg)) { chips += chip(mg[0], mg[1], mg[2]) }
+if (!isBlank(f.application_stage)) { chips += chip(txt(f.application_stage), "#eceff1", "#455a64") }
+if (!isBlank(f.tenure_status)) { chips += chip("&#128274; Foncier " + txt(f.tenure_status), "#f3e5f5", "#6a1b9a") }
+if (f.country_check == "mismatch") { chips += chip("&#9888; Pays incohérent", "#fbe9e7", "#d84315") }
+if (f.retired == 1) { chips += chip("Retiré de la source", "#ffebee", "#c62828") }
+var chipsHtml = IIf(chips == "", "", "<div style=\"display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;\">" + chips + "</div>")
+
+// ---------- CFCL procedure tracker (DRC geocfcl records) --------------------------------------------
+var tracker = ""
+if (fromGeocfcl) {
+  var stages = ["Identification communautaire", "Affichage public", "Enquête publique", "Attribution", "Gestion et exploitation"]
+  var reach = 0
+  var stg = Lower(DefaultValue(f.application_stage, ""))
+  if (Find("identification", stg) > -1) { reach = 1 }
+  if (Find("affichage", stg) > -1) { reach = 2 }
+  if (Find("enqu", stg) > -1) { reach = 3 }
+  if (f.status_std == "attributed") { reach = 4 }
+  if (Find("gestion", stg) > -1) { reach = 5 }
+  var fill = IIf(Find("contestation", stg) > -1, "#c62828", ACCENT)
+  var steps = ""
+  for (var i = 1; i <= 5; i++) { steps += "<div style=\"flex:1; height:9px; border-radius:3px; background:" + IIf(i <= reach, fill, "#e0e0e0") + ";\"></div>" }
+  tracker = "<div style=\"background:#f5f9f9; border-radius:6px; padding:8px 12px; margin-bottom:10px; border:1px solid #e0e0e0;\">"
+    + "<div style=\"display:flex; justify-content:space-between; font-size:9px; color:#999; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;\"><span>Demande</span><span>Gestion</span></div>"
+    + "<div style=\"display:flex; gap:3px;\">" + steps + "</div>"
+    + "<div style=\"text-align:center; font-size:11px; font-weight:700; color:" + fill + "; margin-top:5px;\">Étape " + Text(reach) + " sur 5 — " + txt(DefaultValue(f.application_stage, f.status_raw)) + "</div></div>"
+}
+
+// ---------- breadcrumb -------------------------------------------------------------------------------
+var crumbs = txt(f.country)
+if (!isBlank(f.province)) { crumbs += " › " + txt(f.province) }
+if (!isBlank(f.admin2)) { crumbs += " › " + txt(f.admin2) }
+if (!isBlank(f.admin3)) { crumbs += " › " + txt(f.admin3) }
+if (!isBlank(f.admin4)) { crumbs += " › " + txt(f.admin4) }
+var crumbHtml = "<div style=\"background:#e8f5e9; border-radius:6px; padding:7px 8px; margin-bottom:10px; font-size:12px; color:#2e7d32; font-weight:500;\">&#128205; " + crumbs + "</div>"
+
+// ---------- related data -----------------------------------------------------------------------------
+var uid = f.src_uid
+var zoneRows = null; var nZones = 0; var totZones = 0
+var zoneNote = ""
+var zs = fsGet(NAME_ZONING, ID_ZONING, ["parent_uid", "zone_type_std", "area_calc_ha", "retired"], false)
+if (IsEmpty(zs)) {
+  zoneNote = "couche « " + NAME_ZONING + " » introuvable dans la carte : vérifiez son titre dans la liste des couches (attendu : " + NAME_ZONING + " ou Other areas of interest - " + NAME_ZONING + "), ajustez NAME_ZONING ou renseignez ITEM_ID."
+} else {
+  var mine = Filter(zs, "parent_uid = @uid AND retired = 0")
+  nZones = Count(mine)
+  if (nZones == 0) {
+    // spatial fallback: zones lying inside the polygon (a 100 m inward buffer excludes neighbours that only touch the boundary)
+    var zsg = fsGet(NAME_ZONING, ID_ZONING, ["parent_uid", "zone_type_std", "area_calc_ha", "retired"], true)
+    var g = Geometry(f)
+    if (!IsEmpty(zsg) && !IsEmpty(g)) {
+      var gin = Buffer(g, -100, "meters")
+      if (IsEmpty(gin)) { gin = g }
+      mine = Filter(Intersects(zsg, gin), "retired = 0")
+      nZones = Count(mine)
+      zoneNote = IIf(nZones > 0, "zones identifiées par superposition spatiale (aucun lien parent_uid)", "aucune série rattachée à cette unité, ni superposée à son emprise")
+    }
+  }
+  if (nZones > 0) {
+    zoneRows = OrderBy(GroupBy(mine, ["zone_type_std"], [{ name: "n", expression: "1", statistic: "COUNT" }, { name: "ha", expression: "area_calc_ha", statistic: "SUM" }]), "ha DESC")
+    for (var z in zoneRows) { totZones += DefaultValue(z.ha, 0) }
+  }
+}
+var docs = null; var nDocs = 0
+var dt = fsGet(NAME_DOCS, ID_DOCS, ["parent_uid", "title", "category_std", "url", "size_bytes", "date_doc", "file_name", "retired"], false)
+if (!IsEmpty(dt)) { docs = OrderBy(Filter(dt, "parent_uid = @uid AND retired = 0"), "category_std ASC, date_doc DESC, title ASC"); nDocs = Count(docs) }
+if (nDocs == 0 && !isBlank(f.doc_count)) { nDocs = f.doc_count }
+
+// ---------- tiles ----------------------------------------------------------------------------------------
+var area = f.area_adm_ha; var areaLbl = "Superficie administrative"
+if (isBlank(area) || area <= 0) { area = f.area_sig_ha; areaLbl = "Superficie SIG" }
+if (isBlank(area) || area <= 0) { area = f.area_calc_ha; areaLbl = "Superficie calculée" }
+var attrDate = IIf(IsEmpty(f.date_attr), f.date_conv_def, f.date_attr)
+var tiles = "<div style=\"display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;\">"
+  + tile(DefaultValue(haTxt(area), "—"), areaLbl, ACCENT)
+  + tile(IIf(nZones > 0, Text(nZones), "—"), "Zones du PSG", "#2e7d32")
+  + tile(IIf(nDocs > 0, Text(nDocs), "—"), "Documents", "#1565c0")
+  + tile(IIf(IsEmpty(attrDate), "—", Text(Date(attrDate), "YYYY")), "Attribution", "#607d8b") + "</div>"
+
+// ---------- zoning donut ---------------------------------------------------------------------------------------
+var zoningCard = ""
+if (nZones > 0 && totZones > 0) {
+  var grad = ""; var cum = 0; var legend = ""
+  for (var z in zoneRows) {
+    var zz = cat(ZONE, z.zone_type_std, ["Autre", "#607d8b"])
+    var share = Round(100 * DefaultValue(z.ha, 0) / totZones, 1)
+    var start = cum; cum = Round(cum + share, 1)
+    if (grad != "") { grad += ", " }
+    grad += zz[1] + " " + start + "% " + cum + "%"
+    legend += "<div style=\"display:flex; justify-content:space-between; font-size:11px; margin-bottom:3px;\">"
+      + "<span><span style=\"display:inline-block; width:10px; height:10px; background:" + zz[1] + "; border-radius:2px; margin-right:6px;\"></span>" + txt(zz[0]) + " <span style=\"color:#999;\">(" + Text(z.n) + ")</span></span>"
+      + "<span style=\"font-weight:700; color:" + zz[1] + ";\">" + haTxt(z.ha) + " · " + share + " %</span></div>"
+  }
+  if (cum < 100) { grad += ", #e0e0e0 " + cum + "% 100%" }
+  zoningCard = "<div style=\"background:#f7fafa; border-left:4px solid #2e7d32; border-radius:4px; margin-bottom:10px; padding:8px 10px 8px 8px;\">"
+    + "<div style=\"font-size:10px; font-weight:700; color:#2e7d32; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;\">Zonage du plan simple de gestion · " + Text(nZones) + " zone(s)</div>"
+    + "<div style=\"display:flex; align-items:center; gap:14px;\">"
+    + "<div style=\"width:84px; height:84px; flex-shrink:0; border-radius:50%; background:conic-gradient(" + grad + "); display:flex; align-items:center; justify-content:center;\">"
+    + "<div style=\"width:54px; height:54px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center;\">"
+    + "<div><div style=\"font-size:11px; font-weight:700; color:#2e7d32;\">" + Text(Round(totZones / 1000, 1)) + "k</div><div style=\"font-size:8px; color:#888;\">ha zonés</div></div></div></div>"
+    + "<div style=\"flex:1;\">" + legend + "</div></div></div>"
+  if (zoneNote != "") { zoningCard += "<div style=\"font-size:10px; color:#999; margin:-6px 0 10px 0;\">&#9432; " + zoneNote + "</div>" }
+} else if (zoneNote != "") {
+  zoningCard = section("Zonage du plan simple de gestion", "#9e9e9e", "<div style=\"font-size:11px; color:#888;\">&#9432; " + zoneNote + "</div>")
+}
+
+// ---------- area comparison ---------------------------------------------------------------------------------------
+var maxA = 0
+var arrA = [f.area_adm_ha, f.area_sig_ha, f.area_calc_ha, totZones]
+for (var ai in arrA) { var av = arrA[ai]; if (!isBlank(av) && av > maxA) { maxA = av } }
+var areaCard = section("Comparaison des superficies", "#1565c0",
+    bar("Déclarée / administrative", f.area_adm_ha, "#607d8b", maxA) + bar("SIG (source)", f.area_sig_ha, "#1565c0", maxA)
+  + bar("Calculée (géodésique)", f.area_calc_ha, ACCENT, maxA) + bar("Zonée dans le PSG", totZones, "#2e7d32", maxA))
+
+// ---------- documents ------------------------------------------------------------------------------------------------
+var docsCard = ""
+if (!IsEmpty(docs) && Count(docs) > 0) {
+  var lastCat = ""; var list = ""; var k = 0
+  for (var d in docs) {
+    k += 1
+    if (k > 60) { break }
+    if (d.category_std != lastCat) {
+      var cc = cat(DOCCAT, d.category_std, ["Documents", "#78909c"])
+      list += "<div style=\"font-size:10px; font-weight:700; color:" + cc[1] + "; text-transform:uppercase; letter-spacing:0.6px; margin:8px 0 4px 0;\">" + cc[0] + "</div>"
+      lastCat = d.category_std
+    }
+    var meta = ""
+    if (!isBlank(d.size_bytes)) { meta += Text(Round(d.size_bytes / 1048576, 1)) + " Mo" }
+    if (!IsEmpty(d.date_doc)) { meta += IIf(meta == "", "", " · ") + Text(Date(d.date_doc), "YYYY") }
+    list += "<div style=\"display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e0e0e0; border-radius:6px; padding:6px 8px; margin-bottom:4px;\">"
+      + "<div style=\"font-size:16px;\">" + docIcon(d.file_name) + "</div>"
+      + "<div style=\"flex:1; min-width:0;\"><div style=\"font-size:12px; font-weight:600; color:#1a1a2e;\">" + txt(DefaultValue(d.title, d.file_name)) + "</div>"
+      + "<div style=\"font-size:10px; color:#888;\">" + txt(DefaultValue(d.file_name, "")) + IIf(meta == "", "", " · " + meta) + "</div></div>"
+      + "<a href=\"" + d.url + "\" target=\"_blank\" style=\"background:#1565c0; color:#fff; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;\">Ouvrir &#8599;</a></div>"
+  }
+  if (Count(docs) > 60) { list += "<div style=\"font-size:10px; color:#999;\">… " + Text(Count(docs) - 60) + " autre(s) document(s) non affiché(s)</div>" }
+  docsCard = section("Documents · " + Text(Count(docs)), "#1565c0", list)
+} else if (nDocs > 0) {
+  var why = "la table « " + NAME_DOCS + " » est introuvable dans la carte : vérifiez son titre dans la liste <b>Tables</b> (attendu : CB_Documents ou Other areas of interest - CB_Documents), ajustez NAME_DOCS en tête du script, ou renseignez ITEM_ID."
+  if (!IsEmpty(dt)) { why = "la table a été trouvée mais aucune ligne ne porte parent_uid = <code>" + txt(uid) + "</code> (documents non encore chargés pour cette entité ?)." }
+  docsCard = section("Documents · " + Text(nDocs), "#1565c0", "<div style=\"font-size:11px; color:#888;\">" + Text(nDocs) + " document(s) référencé(s) mais " + why + "</div>")
+}
+
+// ---------- sections ----------------------------------------------------------------------------------------------------
+var actorRows = row("Communauté / attributaire", txt(DefaultValue(f.community, f.holder))) + row("Gestionnaire", IIf(!isBlank(f.holder) && f.holder != f.community, txt(f.holder), ""))
+  + row("Exploitant / société", txt(f.operator)) + row("Accompagnement", txt(f.supporting_org)) + row("Mode de gestion", txt(f.mgmt_mode)) + row("Référence", txt(f.reference))
+  + row("Statut (source)", txt(f.status_raw)) + row("Plan simple de gestion", txt(f.psg_status))
+if (fromGeocfcl && !isBlank(f.src_oid)) {
+  actorRows += row("Base de données CFCL", "<a href=\"https://rdc.geocfcl.org/applications/" + Text(f.src_oid) + "/\" target=\"_blank\" style=\"color:#1565c0;\">Ouvrir le dossier sur rdc.geocfcl.org &#8599;</a>")
+}
+var dateRows = row("Attribution", dateTxt(f.date_attr)) + row("Convention provisoire", dateTxt(f.date_conv_prov)) + row("Convention définitive", dateTxt(f.date_conv_def))
+  + row("Plan simple de gestion", dateTxt(f.date_plan)) + row("Échéance", dateTxt(f.date_expiry))
+var native = Dictionary()
+if (!isBlank(f.src_attrs_json)) { native = Dictionary(f.src_attrs_json) }
+var fields = cat(NATIVE, iso, [])
+var nativeRows = ""
+for (var i in fields) {
+  var key = fields[i][0]
+  if (HasKey(native, key) && !isBlank(native[key])) {
+    var v = native[key]
+    if (TypeOf(v) == "Number" && v > 100000000000) { v = dateTxt(v) }
+    if (TypeOf(v) == "Boolean") { v = IIf(v, "oui", "non") }
+    nativeRows += row(fields[i][1], txt(v))
+  }
+}
+var footer = "<div style=\"text-align:center; font-size:10px; color:#aaa; margin-top:10px; padding-top:8px; border-top:1px solid #eee;\">Source : " + txt(f.src_layer)
+  + IIf(isBlank(f.src_vintage), "", " (" + txt(f.src_vintage) + ")") + IIf(IsEmpty(f.src_last_edit), "", " &nbsp;|&nbsp; édition source " + dateTxt(f.src_last_edit))
+  + IIf(IsEmpty(f.loaded_at), "", " &nbsp;|&nbsp; chargé le " + dateTxt(f.loaded_at)) + IIf(isBlank(f.dedup_of), "", " &nbsp;|&nbsp; doublon de " + txt(f.dedup_of))
+  + IIf(f.geom_quality == "multipart", " &nbsp;|&nbsp; géométrie multi-parties", "") + " &nbsp;|&nbsp; situation " + txt(f.situation) + "</div>"
+
+var popup = "<div style=\"font-family:Segoe UI,sans-serif; font-size:13px; color:#1a1a2e;\">"
+  + banner + chipsHtml + tracker + crumbHtml + tiles + zoningCard + areaCard
+  + section("Communauté et gestion", ACCENT, table(actorRows))
+  + section("Dates", "#607d8b", table(dateRows))
+  + section("Attributs nationaux · " + txt(f.country), "#00838f", table(nativeRows))
+  + docsCard + footer + "</div>"
+return { type: "text", text: popup }

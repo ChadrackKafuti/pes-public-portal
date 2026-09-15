@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Public GIS portal of the CAFI Payments for Environmental Services (PES) programme in the Congo Basin." />
-    <link rel="icon" type="image/png" href="branding/cafi-logo.png" />
-    <title>PES GIS Portal</title>
+    <meta name="description" content="CAFI Monitor: Earth Observation and Land-Use Intelligence Platform for the CAFI Payments for Environmental Services (PES) programme in the Congo Basin." />
+    <link rel="icon" type="image/png" href="branding/cafi-monitor-icon.png" />
+    <title>CAFI Monitor</title>
   </head>
   <body>
     <calcite-shell id="app">
@@ -13,7 +13,7 @@
       <calcite-navigation slot="header">
         <calcite-navigation-logo
           slot="logo"
-          thumbnail="branding/cafi-logo.png"
+          thumbnail="branding/cafi-monitor-icon.png"
           data-i18n-attr="heading:app.title;description:app.subtitle"
           href="#/map"
         ></calcite-navigation-logo>
@@ -26,67 +26,69 @@
           <calcite-segmented-control-item value="en">EN</calcite-segmented-control-item>
           <calcite-segmented-control-item value="fr">FR</calcite-segmented-control-item>
         </calcite-segmented-control>
-        <img slot="content-end" class="undp-logo" src="branding/undp-logo.svg" alt="UNDP" />
+        <img slot="content-end" class="partner-logo" src="branding/cafi-logo.png" alt="CAFI" />
+        <img slot="content-end" class="partner-logo" src="branding/undp-logo.svg" alt="UNDP" />
       </calcite-navigation>
 
       <!-- ============================== MAP page ============================== -->
       <section class="page" data-page="map" id="page-map">
         <calcite-shell>
           <calcite-shell-panel slot="panel-start" position="start" width="m" id="map-panel" display-mode="dock" resizable>
-            <calcite-action-bar slot="action-bar" id="map-actions">
-              <calcite-action data-panel="filters" icon="filter" active data-i18n-attr="text:panel.filters"></calcite-action>
-              <calcite-action data-panel="layers" icon="layers" data-i18n-attr="text:panel.layers"></calcite-action>
-              <calcite-action data-panel="legend" icon="legend" data-i18n-attr="text:panel.legend"></calcite-action>
-              <calcite-action data-panel="info" icon="information" data-i18n-attr="text:panel.info"></calcite-action>
-              <calcite-action data-panel="basemap" icon="basemap" data-i18n-attr="text:panel.basemap"></calcite-action>
-            </calcite-action-bar>
+            <calcite-panel id="map-side">
+              <calcite-tabs id="map-tabs" layout="inline" scale="s">
+                <calcite-tab-nav slot="title-group">
+                  <calcite-tab-title data-tab="overview" selected data-i18n="panel.overview"></calcite-tab-title>
+                  <calcite-tab-title data-tab="filters" data-i18n="panel.filters"></calcite-tab-title>
+                  <calcite-tab-title data-tab="layers" data-i18n="panel.layers"></calcite-tab-title>
+                </calcite-tab-nav>
 
-            <calcite-panel data-panel="filters" data-i18n-attr="heading:panel.filters">
-              <div class="panel-body">
-                <div id="filter-fields"></div>
-                <calcite-label>
-                  <span data-i18n="filter.code"></span>
-                  <calcite-input id="flt-code" scale="s" clearable data-i18n-attr="placeholder:filter.codePlaceholder"></calcite-input>
-                </calcite-label>
-                <calcite-label>
-                  <span data-i18n="filter.period"></span>
-                  <div class="date-row">
-                    <calcite-input-date-picker id="flt-from" scale="s" overlay-positioning="fixed"></calcite-input-date-picker>
-                    <calcite-input-date-picker id="flt-to" scale="s" overlay-positioning="fixed"></calcite-input-date-picker>
+                <calcite-tab data-tab="overview" selected>
+                  <p id="info-empty" class="panel-body muted" data-i18n="info.empty"></p>
+                  <arcgis-feature id="feature-info" reference-element="map-view"></arcgis-feature>
+                </calcite-tab>
+
+                <calcite-tab data-tab="filters">
+                  <div class="panel-body">
+                    <div id="filter-fields"></div>
+                    <calcite-label>
+                      <span data-i18n="filter.code"></span>
+                      <calcite-input id="flt-code" scale="s" clearable data-i18n-attr="placeholder:filter.codePlaceholder"></calcite-input>
+                    </calcite-label>
+                    <calcite-label>
+                      <span data-i18n="filter.period"></span>
+                      <div class="date-row">
+                        <calcite-input-date-picker id="flt-from" scale="s" overlay-positioning="fixed"></calcite-input-date-picker>
+                        <calcite-input-date-picker id="flt-to" scale="s" overlay-positioning="fixed"></calcite-input-date-picker>
+                      </div>
+                    </calcite-label>
+                    <div class="button-row">
+                      <calcite-button id="flt-apply" icon-start="check" width="full" data-i18n="filter.apply"></calcite-button>
+                      <calcite-button id="flt-reset" appearance="outline" icon-start="reset" data-i18n="filter.reset"></calcite-button>
+                    </div>
+                    <p id="filter-status" class="muted"></p>
+                    <p id="filter-count" class="count"></p>
                   </div>
-                </calcite-label>
-                <div class="button-row">
-                  <calcite-button id="flt-apply" icon-start="check" width="full" data-i18n="filter.apply"></calcite-button>
-                  <calcite-button id="flt-reset" appearance="outline" icon-start="reset" data-i18n="filter.reset"></calcite-button>
-                </div>
-                <p id="filter-status" class="muted"></p>
-                <p id="filter-count" class="count"></p>
-              </div>
-            </calcite-panel>
+                </calcite-tab>
 
-            <calcite-panel data-panel="layers" hidden data-i18n-attr="heading:panel.layers">
-              <arcgis-layer-list reference-element="map-view" show-collapse-button visibility-appearance="checkbox"></arcgis-layer-list>
-            </calcite-panel>
-
-            <calcite-panel data-panel="legend" hidden data-i18n-attr="heading:panel.legend">
-              <arcgis-legend reference-element="map-view" hide-layers-not-in-current-view respect-layer-definition-expression></arcgis-legend>
-            </calcite-panel>
-
-            <calcite-panel data-panel="info" hidden data-i18n-attr="heading:panel.info">
-              <p id="info-empty" class="panel-body muted" data-i18n="info.empty"></p>
-              <arcgis-feature id="feature-info" reference-element="map-view"></arcgis-feature>
-            </calcite-panel>
-
-            <calcite-panel data-panel="basemap" hidden data-i18n-attr="heading:panel.basemap">
-              <div class="panel-body">
-                <calcite-segmented-control id="basemap-select" layout="vertical" width="full"></calcite-segmented-control>
-              </div>
+                <calcite-tab data-tab="layers">
+                  <arcgis-layer-list reference-element="map-view" show-collapse-button visibility-appearance="checkbox"></arcgis-layer-list>
+                  <calcite-block collapsible data-i18n-attr="heading:panel.legend">
+                    <arcgis-legend reference-element="map-view" hide-layers-not-in-current-view respect-layer-definition-expression></arcgis-legend>
+                  </calcite-block>
+                  <calcite-block collapsible data-i18n-attr="heading:panel.basemap">
+                    <calcite-segmented-control id="basemap-select" layout="vertical" width="full"></calcite-segmented-control>
+                  </calcite-block>
+                </calcite-tab>
+              </calcite-tabs>
             </calcite-panel>
           </calcite-shell-panel>
 
           <arcgis-map id="map-view" popup-disabled>
             <arcgis-zoom slot="top-left"></arcgis-zoom>
             <arcgis-home slot="top-left"></arcgis-home>
+            <div slot="top-right" class="map-search">
+              <calcite-input id="code-search" icon="search" clearable scale="m" data-i18n-attr="placeholder:search.placeholder"></calcite-input>
+            </div>
             <arcgis-scale-bar slot="bottom-left" unit="metric"></arcgis-scale-bar>
           </arcgis-map>
           <calcite-notice id="map-error" kind="danger" icon="exclamation-mark-triangle" closable class="floating-notice">

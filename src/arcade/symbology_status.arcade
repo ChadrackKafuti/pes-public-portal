@@ -1,0 +1,11 @@
+// =====================================================================================
+//  Symbology · unique values for CB_Logging_Concessions and CB_Community_Forests
+//  (attribution status combined with management-plan status).
+// =====================================================================================
+var S = { 'attributed': 'Attribuée', 'provisional': 'Convention provisoire', 'final': 'Convention définitive', 'in_process': 'En cours d’instruction',
+          'not_attributed': 'Non attribuée', 'rejected': 'Rejetée', 'expired': 'Expirée / résiliée', 'unknown': 'Statut non renseigné' };
+var M = { 'approved': 'plan approuvé', 'in_preparation': 'plan en préparation', 'under_revision': 'plan en révision', 'not_planned': 'sans plan' };
+if ($feature.retired == 1) { return 'Retiré de la source'; }
+var s = 'Statut non renseigné'; if (!IsEmpty($feature.status_std) && HasKey(S, $feature.status_std)) { s = S[$feature.status_std]; }
+var m = ''; if (!IsEmpty($feature.status_mgmt_std) && HasKey(M, $feature.status_mgmt_std)) { m = ' · ' + M[$feature.status_mgmt_std]; }
+return s + m;

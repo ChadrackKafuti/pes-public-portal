@@ -1,10 +1,19 @@
-# PES GIS Portal — public web app
+# CAFI Monitor — public web app
 
-Hand-coded public product replacing the two Experience Builder apps ("PES GIS Portal MapApp", "PES Map Viewer 1.0").
-Built with Vite + TypeScript, the ArcGIS Maps SDK for JavaScript 5.x (map components) and Calcite components.
+Hand-coded public version of the "CAFI Monitor, Earth Observation and Land-Use Intelligence Platform" Experience Builder
+app (portal item iMonitor_App). Built with Vite + TypeScript, the ArcGIS Maps SDK for JavaScript 5.x (map components) and
+Calcite components. Live: https://chadrackkafuti.github.io/pes-public-portal/
 
-Pages: **Map** (filters, layers, legend, feature info, basemaps), **Analyses** (contract picker, tree cover and tree cover
-loss per year from the contracts analysis table), **Alerts** (placeholder). English / French.
+Pages: **Map** (side panel with Overview / Filters / Layers tabs, "find by application code" search, country overview
+dashboard and feature popups from the web map, the seven Congo Basin forest-governance layers with their Arcade popups),
+**Analyses** (contract picker, tree cover and tree cover loss per year from the contracts analysis table), **Alerts**
+(placeholder). English / French.
+
+The forest-governance layers ("Other areas of interest": concessions, community forests, local territories, their zoning,
+protected areas, documents table) come from the public service `Hosted/Protected_areas` built by `cb_forest_ingest.py`
+and replace the three legacy layers of the web map at load time (`src/forestLayers.ts`; popups and symbology in
+`src/arcade/`, copied from `CAFI Spatial Reporting/arcade`). Their titles are fixed because the popups find related layers
+by name.
 
 ## How it gets its content
 

@@ -47,6 +47,15 @@ export const CONFIG = {
   /** Date field used by the period filter, per layer, first match wins. */
   dateFields: ["applicationdate", "monitoringdate", "contractstartdate"],
 
+  /** Forest-governance layers (public item "Other areas of interest", built by cb_forest_ingest.py). */
+  forestServiceUrl: "https://geosmarthosting.undp.org/arcgis/rest/services/Hosted/Protected_areas/FeatureServer",
+  forestGroupTitle: "Other areas of interest",
+  /** Legacy web-map layers replaced by the forest group (removed from the map at load). */
+  replacedLayerTitles: ["Community Forest", "Protected areas", "Logging concessions"],
+
+  /** "Find by application code" search box: field and layer. */
+  searchField: "applicationcode",
+
   /** Analyses page sources. */
   contractsLayerUrl:
     "https://geosmarthosting.undp.org/arcgis/rest/services/Hosted/PES_API_Data_Contracts_Prod_view/FeatureServer/0",
