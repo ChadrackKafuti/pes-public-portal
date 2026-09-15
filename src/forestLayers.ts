@@ -50,25 +50,25 @@ const ZONE_COLORS: Array<[string, string]> = [
 
 /** Popup title expressions (from titles.arcade). */
 const TITLES: Record<string, string> = {
-  concessions: `var T = {'ufa':'UFA','communal_forest':'Forêt communale','timber_sale':'Vente de coupe','pea':'PEA','ccf_exploitation':'CCF','ccf_conservation':'Concession de conservation','concession':'Concession','parcel':'Parcela','permit':'Permis','ufa_cfad':'UFA/CFAD'};
-var s = $feature.sub_type_std; var t = 'Titre'; if (!IsEmpty(s)) { if (HasKey(T, s)) { t = T[s]; } }
+  concessions: `var LBL = {'ufa':'UFA','communal_forest':'Forêt communale','timber_sale':'Vente de coupe','pea':'PEA','ccf_exploitation':'CCF','ccf_conservation':'Concession de conservation','concession':'Concession','parcel':'Parcela','permit':'Permis','ufa_cfad':'UFA/CFAD'};
+var s = $feature.sub_type_std; var t = 'Titre'; if (!IsEmpty(s)) { if (HasKey(LBL, s)) { t = LBL[s]; } }
 var n = $feature.name; if (IsEmpty(n)) { n = $feature.reference; } if (IsEmpty(n)) { n = 'sans nom'; }
 var c = $feature.iso3; if (IsEmpty(c)) { c = ''; }
 return t + ' · ' + n + ' (' + c + ')';`,
-  community_forests: `var T = {'community_forest':'Forêt communautaire','cfcl':'CFCL','cfcl_application':'Demande CFCL','communal_forest':'Forêt communale','bosque_comunal':'Bosque comunal'};
-var s = $feature.sub_type_std; var t = 'Forêt communautaire'; if (!IsEmpty(s)) { if (HasKey(T, s)) { t = T[s]; } }
+  community_forests: `var LBL = {'community_forest':'Forêt communautaire','cfcl':'CFCL','cfcl_application':'Demande CFCL','communal_forest':'Forêt communale','bosque_comunal':'Bosque comunal'};
+var s = $feature.sub_type_std; var t = 'Forêt communautaire'; if (!IsEmpty(s)) { if (HasKey(LBL, s)) { t = LBL[s]; } }
 var n = $feature.name; if (IsEmpty(n)) { n = $feature.community; } if (IsEmpty(n)) { n = 'sans nom'; }
 var c = $feature.iso3; if (IsEmpty(c)) { c = ''; }
 return t + ' · ' + n + ' (' + c + ')';`,
-  zoning: `var Z = {'production':'Production','conservation':'Conservation','protection':'Protection','community_development':'Développement rural','agriculture':'Agriculture','habitat':'Habitat','savanna_protection':'Mise en défens','concession':'Zone concédée','community_forest':'Forêt communautaire','conflict':'Zone conflictuelle','research':'Recherche','unclassified':'Non classée','other':'Autre'};
-var k = $feature.zone_type_std; var z = 'Zone'; if (!IsEmpty(k)) { if (HasKey(Z, k)) { z = Z[k]; } }
+  zoning: `var LBL = {'production':'Production','conservation':'Conservation','protection':'Protection','community_development':'Développement rural','agriculture':'Agriculture','habitat':'Habitat','savanna_protection':'Mise en défens','concession':'Zone concédée','community_forest':'Forêt communautaire','conflict':'Zone conflictuelle','research':'Recherche','unclassified':'Non classée','other':'Autre'};
+var k = $feature.zone_type_std; var z = 'Zone'; if (!IsEmpty(k)) { if (HasKey(LBL, k)) { z = LBL[k]; } }
 var p = $feature.parent_name; if (IsEmpty(p)) { return z; }
 return z + ' · ' + p;`,
   local_territories: `var n = $feature.name; if (IsEmpty(n)) { n = 'sans nom'; }
 var a = $feature.admin2; if (IsEmpty(a)) { return 'Terroir ' + n; }
 return 'Terroir ' + n + ' · ' + a;`,
-  protected_areas: `var P = {'national_park':'Parc national','world_heritage':'Patrimoine mondial','biosphere_reserve':'Réserve de biosphère','ramsar':'Site Ramsar','sanctuary':'Sanctuaire','wildlife_reserve':'Réserve de faune','nature_reserve':'Réserve naturelle','strict_reserve':'Réserve intégrale','forest_reserve':'Réserve forestière','community_reserve':'Réserve communautaire','hunting_zone':'ZIC','botanical_garden':'Jardin','natural_monument':'Monument naturel','marine_protected_area':'AMP'};
-var s = $feature.sub_type_std; var t = 'Aire protégée'; if (!IsEmpty(s)) { if (HasKey(P, s)) { t = P[s]; } }
+  protected_areas: `var LBL = {'national_park':'Parc national','world_heritage':'Patrimoine mondial','biosphere_reserve':'Réserve de biosphère','ramsar':'Site Ramsar','sanctuary':'Sanctuaire','wildlife_reserve':'Réserve de faune','nature_reserve':'Réserve naturelle','strict_reserve':'Réserve intégrale','forest_reserve':'Réserve forestière','community_reserve':'Réserve communautaire','hunting_zone':'ZIC','botanical_garden':'Jardin','natural_monument':'Monument naturel','marine_protected_area':'AMP'};
+var s = $feature.sub_type_std; var t = 'Aire protégée'; if (!IsEmpty(s)) { if (HasKey(LBL, s)) { t = LBL[s]; } }
 var n = $feature.name; if (IsEmpty(n)) { n = 'sans nom'; }
 var c = $feature.iso3; if (IsEmpty(c)) { c = ''; }
 return t + ' · ' + n + ' (' + c + ')';`,
