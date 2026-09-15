@@ -1,0 +1,52 @@
+.stage {
+  position: absolute;
+  inset: 0;
+  background: var(--map-bg-deep);
+}
+.searchSlot {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+}
+.loading {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--map-panel-strong);
+  color: var(--map-text);
+  font-size: var(--fs-sm);
+  z-index: 5;
+}
+.error {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 420px;
+  z-index: 5;
+}
+/* map UI theming: the SDK controls take the glass look */
+.stage :global(.esri-ui .esri-widget--button),
+.stage :global(.esri-ui .esri-component) {
+  background: var(--map-panel-strong);
+  color: var(--map-text);
+  border-radius: var(--radius-sm);
+}
+.stage :global(.esri-ui .esri-widget--button:hover) {
+  background: rgba(3, 28, 44, 1);
+  color: var(--map-accent);
+}
+.stage :global(.esri-attribution) {
+  background: rgba(3, 28, 44, 0.7);
+  color: var(--map-text-muted);
+}
+.stage :global(.esri-attribution a) {
+  color: var(--map-text);
+}

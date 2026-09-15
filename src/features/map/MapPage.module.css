@@ -1,0 +1,41 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.overlay > * {
+  pointer-events: auto;
+}
+.panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  bottom: 12px;
+  width: var(--panel-width);
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-panel);
+  transition: width 0.2s ease;
+}
+.collapsed {
+  width: 48px;
+  bottom: auto;
+}
+.toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+}
+.collapsed .toggle {
+  position: static;
+  margin: 6px;
+}
+.panel :global([role="tablist"]) {
+  padding-right: 44px;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px 16px;
+}

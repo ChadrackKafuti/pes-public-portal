@@ -1,0 +1,21 @@
+.group {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+}
+.item {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.item[aria-pressed="true"] {
+  background: #fff;
+  color: var(--color-primary);
+}
