@@ -1,8 +1,8 @@
 # CAFI Monitor — public web app
 
 Hand-coded public version of the "CAFI Monitor, Earth Observation and Land-Use Intelligence Platform" Experience Builder
-app (portal item iMonitor_App). Built with Vite + TypeScript, the ArcGIS Maps SDK for JavaScript 5.x (map components) and
-Calcite components. Live: https://chadrackkafuti.github.io/pes-public-portal/
+app (portal item iMonitor_App). Built with React 19 + TypeScript (Vite), the ArcGIS Maps SDK for JavaScript 5.x (map
+components), Calcite components, Zustand and react-router. Live: https://chadrackkafuti.github.io/pes-public-portal/
 
 Pages: **Map** (side panel with Overview / Filters / Layers tabs, "find by application code" search, country overview
 dashboard and feature popups from the web map, the seven Congo Basin forest-governance layers with their Arcade popups),
@@ -11,9 +11,26 @@ dashboard and feature popups from the web map, the seven Congo Basin forest-gove
 
 The forest-governance layers ("Other areas of interest": concessions, community forests, local territories, their zoning,
 protected areas, documents table) come from the public service `Hosted/Protected_areas` built by `cb_forest_ingest.py`
-and replace the three legacy layers of the web map at load time (`src/forestLayers.ts`; popups and symbology in
+and replace the three legacy layers of the web map at load time (`src/services/forestLayers.ts`; popups and symbology in
 `src/arcade/`, copied from `CAFI Spatial Reporting/arcade`). Their titles are fixed because the popups find related layers
-by name.
+by name; the layer list shows translated display names instead (`src/i18n/forestLabels.ts`).
+
+## Code layout
+
+```
+src/app/         main.tsx, routes.tsx (hash router, lazy pages), AppShell.tsx (top bar, shared map stage, footer)
+src/core/        store.ts (Zustand: filters, panel UI, selection, AOI, KPI, contract), url.ts, hooks.ts
+src/services/    webmap.ts, forestLayers.ts, layers.ts (PES layers, popups, presets), query.ts (cache + abort), analysis.ts
+src/features/    map/ (MapStage: the single <arcgis-map>, MapPage panels, layers/legend/basemap), filters/, inspector/
+                 (feature panel, code search), analyses/, alerts/, landing/
+src/components/  ui/ (glass atoms, KPI cards, tabs, bottom sheet, notices)  -  CSS Modules on the tokens in src/theme/
+src/i18n/        typed dictionaries (en.ts is the key source, fr.ts must match), plurals, number/date formatting
+src/theme/       tokens.css (design tokens), tokens.ts (mirror for Chart.js / ArcGIS symbols, parity-tested), global.css
+```
+
+There is exactly one `MapView` for the whole app: `MapStage` is mounted once by the shell and the Map and Analyses routes
+only overlay their panels on it (Analyses switches to a "contracts only" visibility preset and restores it on leave).
+Quality gates: `npm run lint`, `npm run typecheck`, `npm test` (Vitest), `npm run build` (includes a bundle-size budget).
 
 ## How it gets its content
 

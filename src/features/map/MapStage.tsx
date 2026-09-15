@@ -87,11 +87,12 @@ export default function MapStage() {
       <arcgis-map ref={ref} popupDisabled onarcgisViewReadyChange={onReady} onarcgisViewClick={onClick} aria-label={t("nav.map")}>
         <arcgis-zoom slot="top-left" />
         <arcgis-home slot="top-left" />
-        <div slot="top-right" className={s.searchSlot}>
-          <CodeSearch />
-        </div>
         <arcgis-scale-bar slot="bottom-left" unit="metric" />
       </arcgis-map>
+      {/* outside the map element: it stops key events from bubbling, which breaks React's delegated handlers */}
+      <div className={s.searchSlot}>
+        <CodeSearch />
+      </div>
       {status === "loading" && (
         <div className={s.loading} role="status">
           <Spinner label={t("map.loading")} /> <span>{t("map.loading")}</span>

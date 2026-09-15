@@ -45,6 +45,7 @@ export const chart = {
   treeCover: "#008300",
   loss: "#eb6834",
   grid: "rgba(0,0,0,0.08)",
+  gridDark: "rgba(255,255,255,0.1)",
   ink: color.inkMuted,
 } as const;
 
