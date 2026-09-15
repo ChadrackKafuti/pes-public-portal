@@ -43,7 +43,9 @@ export function CodeSearch() {
         void run();
       }}
     >
-      <Search size={16} aria-hidden="true" className={s.icon} />
+      <button type="submit" className={s.submit} aria-label={t("search.label")} disabled={!ready || busy}>
+        <Search size={16} aria-hidden="true" />
+      </button>
       <input
         className={s.input}
         type="search"
@@ -56,6 +58,13 @@ export function CodeSearch() {
         onChange={(e) => {
           setValue(e.target.value);
           setError(null);
+        }}
+        onKeyDown={(e) => {
+          // the map element stops key events from bubbling to the form: submit here
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void run();
+          }
         }}
       />
       {value && (

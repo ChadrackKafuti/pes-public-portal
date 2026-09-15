@@ -13,9 +13,23 @@
   padding: 0 10px;
   color: var(--map-text);
 }
-.icon {
+.submit {
   flex-shrink: 0;
-  opacity: 0.8;
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.85;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.submit:hover:not(:disabled) {
+  color: var(--map-accent);
+}
+.submit:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 .input {
   flex: 1;

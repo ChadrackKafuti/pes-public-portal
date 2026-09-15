@@ -16,6 +16,22 @@ import { useMapStore } from "./mapStore";
 import { CodeSearch } from "@/features/inspector/CodeSearch";
 import s from "./MapStage.module.css";
 
+async function bootstrap(el: HTMLArcgisMapElement): Promise<void> {
+  const store = useMapStore.getState();
+  if (store.status !== "idle") return;
+  store.set({ el, status: "loading" });
+  if (import.meta.env.DEV) (window as unknown as { __cafi: unknown }).__cafi = { el, store: useMapStore };
+  try {
+    const webmap = await loadWebMap(CONFIG.webmaps.map);
+    const forestGroup = installForestLayers(webmap, getLang());
+    useMapStore.getState().set({ map: webmap, forestGroup, originalBasemap: webmap.basemap ?? null });
+    el.map = webmap;
+  } catch (err) {
+    console.error(err);
+    useMapStore.getState().set({ status: "error", error: String((err as Error).message ?? err) });
+  }
+}
+
 export default function MapStage() {
   const ref = useRef<HTMLArcgisMapElement>(null);
   const t = useT();
@@ -23,30 +39,10 @@ export default function MapStage() {
   const status = useMapStore((m) => m.status);
   const error = useMapStore((m) => m.error);
 
-  // bootstrap once
+  // bootstrap once (StrictMode re-runs effects: the guard lives in the store, not in a cleanup flag)
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    const store = useMapStore.getState();
-    if (store.el === el || store.status !== "idle") return;
-    store.set({ el, status: "loading" });
-    let cancelled = false;
-    (async () => {
-      try {
-        const webmap = await loadWebMap(CONFIG.webmaps.map);
-        if (cancelled) return;
-        const forestGroup = installForestLayers(webmap, getLang());
-        store.set({ map: webmap, forestGroup, originalBasemap: webmap.basemap ?? null });
-        el.map = webmap;
-        if (import.meta.env.DEV) (window as unknown as { __cafi: unknown }).__cafi = { el, store: useMapStore };
-      } catch (err) {
-        console.error(err);
-        store.set({ status: "error", error: String((err as Error).message ?? err) });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (el) void bootstrap(el);
   }, []);
 
   // legend labels follow the language

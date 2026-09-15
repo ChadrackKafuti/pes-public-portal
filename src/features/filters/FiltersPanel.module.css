@@ -2,7 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  --calcite-color-foreground-1: rgba(255, 255, 255, 0.06);
+  /* solid: the combobox / date-picker floating lists inherit it */
+  --calcite-color-foreground-1: #0b2a40;
+  --calcite-color-foreground-2: #12354d;
+  --calcite-color-foreground-3: #1a4160;
   --calcite-color-text-1: var(--map-text);
   --calcite-color-border-input: var(--map-border-strong);
   --calcite-color-brand: var(--map-accent);
