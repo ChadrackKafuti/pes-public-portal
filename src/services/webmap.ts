@@ -1,8 +1,8 @@
-/** Builds WebMap instances from the JSON snapshots produced by scripts/fetch-webmap.mjs. */
+/** Builds the WebMap from the JSON snapshot produced by scripts/fetch-webmap.mjs (the portal blocks CORS). */
 import WebMap from "@arcgis/core/WebMap";
 import Extent from "@arcgis/core/geometry/Extent";
 import Viewpoint from "@arcgis/core/Viewpoint";
-import { CONFIG } from "./config";
+import { CONFIG } from "@/config";
 
 const cache = new Map<string, Promise<unknown>>();
 
@@ -20,16 +20,18 @@ async function loadJson(itemId: string): Promise<unknown> {
   return pending;
 }
 
-/** Every caller gets its own WebMap instance: a map cannot be shared by two views. */
+export function basinExtent(): Extent {
+  const e = CONFIG.initialExtent ?? { xmin: 5, ymin: -14, xmax: 32, ymax: 12 };
+  return new Extent({ ...e, spatialReference: { wkid: 4326 } });
+}
+
+/** Every caller gets its own loaded WebMap instance (a map cannot be shared by two views). */
 export async function loadWebMap(itemId: string): Promise<WebMap> {
   const json = await loadJson(itemId);
   const webmap = WebMap.fromJSON(json);
-  const e = CONFIG.initialExtent;
-  if (e) {
-    // initial view and "home" target: the whole Congo Basin instead of the web map's saved extent
-    webmap.initialViewProperties.viewpoint = new Viewpoint({
-      targetGeometry: new Extent({ ...e, spatialReference: { wkid: 4326 } }),
-    });
+  if (CONFIG.initialExtent) {
+    webmap.initialViewProperties.viewpoint = new Viewpoint({ targetGeometry: basinExtent() });
   }
+  await webmap.load();
   return webmap;
 }

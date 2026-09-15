@@ -1,0 +1,72 @@
+/* Design tokens — single source of truth (mirrored in tokens.ts for JS consumers). */
+:root {
+  /* Light dashboard surfaces (institutional blue) */
+  --color-primary: #1b365d;
+  --color-primary-deep: #0f2340;
+  --color-primary-container: #00468b;
+  --color-primary-fixed: #d1e4ff;
+  --color-accent: #0d6e95;
+  --color-brand: #1aa48f; /* CAFI teal: decorative only */
+  --color-brand-ink: #0f7a6b; /* teal for text on white (4.6:1) */
+  --ink: #191c1e;
+  --ink-muted: #44474e;
+  --muted: #64748b;
+  --border: #e1e6ed;
+  --surface: #f8f9fc;
+  --surface-low: #f1f3f6;
+  --surface-lowest: #ffffff;
+  --surface-high: #e7e8eb;
+  --success: #2d6a4f;
+  --warning: #b45309;
+  --danger: #ba1a1a;
+
+  /* Dark glass UI over the map (World Bank Land Data Map palette) */
+  --map-bg: #012f54;
+  --map-bg-gradient: linear-gradient(180deg, #012f54 0%, #1d576f 100%);
+  --map-bg-deep: #031c2c;
+  --map-panel-bg: rgba(3, 28, 44, 0.82);
+  --map-panel-strong: rgba(3, 28, 44, 0.94);
+  --map-border: rgba(255, 255, 255, 0.16);
+  --map-border-strong: rgba(255, 255, 255, 0.34);
+  --map-text: #ffffff;
+  --map-text-muted: rgba(255, 255, 255, 0.72);
+  --map-text-faint: rgba(255, 255, 255, 0.45);
+  --map-accent: #56c7f4;
+  --map-accent-soft: rgba(86, 199, 244, 0.16);
+  --map-accent-border: rgba(86, 199, 244, 0.6);
+  --map-warn: #f4a261;
+  --map-danger: #f87171;
+  --map-blur: blur(14px);
+  --map-shadow: 0 12px 32px rgba(1, 20, 40, 0.45);
+
+  /* Top bar */
+  --topbar-gradient: linear-gradient(90deg, #022448 0%, #0d3d68 100%);
+  --topbar-height: 60px;
+
+  /* Shape, elevation, type */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --shadow-card: 0 4px 20px rgba(24, 28, 30, 0.08);
+  --shadow-panel: 0 8px 24px rgba(29, 53, 87, 0.08);
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+  --fs-2xl: 32px;
+
+  /* Layout */
+  --rail-width: 56px;
+  --panel-width: 360px;
+  --bp-sm: 640px;
+  --bp-md: 900px;
+  --bp-lg: 1200px;
+  --z-panel: 10;
+  --z-sheet: 20;
+  --z-topbar: 30;
+  --z-overlay: 40;
+}

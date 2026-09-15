@@ -8,7 +8,7 @@
  * Runs automatically before `npm run build` (see package.json "prebuild") and in the GitHub Pages workflow,
  * so every deployment (including the daily scheduled one) picks up the latest web map definition.
  */
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -25,13 +25,24 @@ function sanitizeLayers(layers) {
   }
 }
 
+const strict = process.argv.includes("--strict");
 const ids = [...new Set(Object.values(config.items))];
 for (const id of ids) {
   const url = `${config.portalUrl}/sharing/rest/content/items/${id}/data?f=json`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
-  const json = await res.json();
-  if (json.error) throw new Error(`${url} -> ${JSON.stringify(json.error)}`);
+  const file = path.join(outDir, `${id}.json`);
+  let json;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    json = await res.json();
+    if (json.error) throw new Error(JSON.stringify(json.error));
+  } catch (err) {
+    // The committed snapshot keeps the build deployable when the portal is unreachable (use --strict to fail instead).
+    const hasSnapshot = await stat(file).then(() => true, () => false);
+    if (strict || !hasSnapshot) throw new Error(`${url} -> ${err.message}`);
+    console.warn(`web map ${id}: portal unreachable (${err.message}); keeping the committed snapshot ${path.relative(root, file)}`);
+    continue;
+  }
 
   sanitizeLayers(json.operationalLayers);
   if (json.baseMap) {
@@ -46,7 +57,6 @@ for (const id of ids) {
   delete json.authoringApp;
   delete json.authoringAppVersion;
 
-  const file = path.join(outDir, `${id}.json`);
   await writeFile(file, JSON.stringify(json), "utf8");
   const n = (json.operationalLayers ?? []).length;
   console.log(`web map ${id}: ${n} top-level layer(s), basemap "${json.baseMap?.title}" -> ${path.relative(root, file)}`);
