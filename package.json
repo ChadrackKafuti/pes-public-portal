@@ -1,0 +1,23 @@
+{
+  "name": "pes-public-portal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "fetch:webmaps": "node scripts/fetch-webmap.mjs",
+    "prebuild": "npm run fetch:webmaps"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  },
+  "dependencies": {
+    "@arcgis/core": "^5.1.24",
+    "@arcgis/map-components": "^5.1.24",
+    "@esri/calcite-components": "^5.1.2",
+    "chart.js": "^4.5.1"
+  }
+}
