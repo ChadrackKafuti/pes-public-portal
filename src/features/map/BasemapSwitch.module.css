@@ -1,0 +1,18 @@
+.group {
+  display: grid;
+  gap: 4px;
+}
+.item {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--map-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--map-text);
+  cursor: pointer;
+}
+.item[aria-checked="true"] {
+  border-color: var(--map-accent-border);
+  background: var(--map-accent-soft);
+  color: var(--map-accent);
+}

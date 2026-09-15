@@ -1,0 +1,16 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  --calcite-color-foreground-1: transparent;
+  --calcite-color-foreground-2: rgba(255, 255, 255, 0.06);
+  --calcite-color-text-1: var(--map-text);
+  --calcite-color-text-2: var(--map-text-muted);
+  --calcite-color-text-3: var(--map-text-faint);
+  --calcite-color-border-3: var(--map-border);
+  --calcite-color-brand: var(--map-accent);
+}
+.panel arcgis-layer-list,
+.panel arcgis-legend {
+  display: block;
+}
