@@ -24,6 +24,8 @@ def _config() -> PipelineConfig:
 def _client(monkeypatch, handler) -> PesApiClient:
     monkeypatch.setenv("CAFI_RS_PES_CLIENT_ID", "cafi-rs")
     monkeypatch.setenv("CAFI_RS_PES_CLIENT_SECRET", "s3cret")
+    monkeypatch.setenv("CAFI_RS_PES_USERNAME", "svc-user")
+    monkeypatch.setenv("CAFI_RS_PES_PASSWORD", "svc-pass")
     return PesApiClient(_config(), transport=httpx.MockTransport(handler))
 
 
@@ -33,7 +35,10 @@ def test_token_flow_and_paging(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/token":
             calls["token"] += 1
-            assert b"client_credentials" in request.read()
+            body = request.read()
+            # Password grant (the PES realm's flow): user creds + client creds.
+            assert b"grant_type=password" in body
+            assert b"username=svc-user" in body and b"client_secret=s3cret" in body
             return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
         assert request.headers["Authorization"] == "Bearer T"
         page = int(request.url.params["page"])
@@ -95,3 +100,18 @@ def test_normalize_visit_without_parent_is_exception():
 def test_normalize_bad_date_is_exception():
     with pytest.raises(ValueError, match="bad_object_date"):
         normalize_application({"id": "A", "activitytype": "Reforestation"})
+
+
+def test_client_credentials_grant_via_env(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/token":
+            body = request.read()
+            assert b"grant_type=client_credentials" in body
+            assert b"username" not in body
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        return httpx.Response(200, json={"items": []})
+
+    monkeypatch.setenv("CAFI_RS_PES_GRANT_TYPE", "client_credentials")
+    client = _client(monkeypatch, handler)
+    assert client.fetch_applications() == []
+    client.close()

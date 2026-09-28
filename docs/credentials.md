@@ -8,35 +8,40 @@ settings and are not stored in the tool or output tables").
 
 ## 1. PES Open API (Keycloak client credentials)
 
-**What to request from the PES system team** (whoever administers the PES
-management system's Keycloak realm):
+**The actual values** (confirmed with the PES team, Sept 2026 — these are the
+PRODUCTION endpoints; the user/secret values are confidential):
 
-> A machine-to-machine OAuth2 client for the RS platform, using the
-> *client credentials* grant, with read scope on `/api/v1/applications` and
-> `/api/v1/monitoring-visits`.
-
-You should receive four values:
-
-| Value | Environment variable | Example |
+| Value | Environment variable | Value |
 |---|---|---|
-| API base URL | `CAFI_RS_PES_API_BASE` | `https://pes.example.org` |
-| Token endpoint | `CAFI_RS_PES_OIDC_TOKEN_URL` | `https://sso.example.org/realms/pes/protocol/openid-connect/token` |
-| Client id | `CAFI_RS_PES_CLIENT_ID` | `cafi-rs-platform` |
+| API base URL | `CAFI_RS_PES_API_BASE` | `https://api.cafi-pse.org` |
+| Token endpoint | `CAFI_RS_PES_OIDC_TOKEN_URL` | `https://keycloak.cafi-pse.org/realms/UNPES/protocol/openid-connect/token` |
+| Client id | `CAFI_RS_PES_CLIENT_ID` | `arcgis-pes-client` |
 | Client secret | `CAFI_RS_PES_CLIENT_SECRET` | *(secret)* |
+| Service username | `CAFI_RS_PES_USERNAME` | *(secret)* |
+| Service password | `CAFI_RS_PES_PASSWORD` | *(secret)* |
 
-The token URL is standard Keycloak:
-`https://<sso-host>/realms/<realm>/protocol/openid-connect/token`.
+The realm uses the OAuth2 **password grant** (resource-owner credentials):
+the token request sends `grant_type=password` with the client id/secret AND
+the service user's username/password, as `application/x-www-form-urlencoded`.
+The pipeline client does this by default; `CAFI_RS_PES_GRANT_TYPE=client_credentials`
+switches the flow if the realm ever offers a machine-to-machine client.
 
 **Verify** (prints a token, then one page of applications):
 
 ```bash
 TOKEN=$(curl -s -X POST "$CAFI_RS_PES_OIDC_TOKEN_URL" \
-  -d grant_type=client_credentials \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d grant_type=password \
   -d client_id="$CAFI_RS_PES_CLIENT_ID" \
-  -d client_secret="$CAFI_RS_PES_CLIENT_SECRET" | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+  -d client_secret="$CAFI_RS_PES_CLIENT_SECRET" \
+  -d username="$CAFI_RS_PES_USERNAME" \
+  -d password="$CAFI_RS_PES_PASSWORD" | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 curl -s -H "Authorization: Bearer $TOKEN" \
   "$CAFI_RS_PES_API_BASE/api/v1/applications?page=1&pageSize=2" | head -c 2000
 ```
+
+These are production credentials: read-only use, never committed, never
+pasted into chats or logs.
 
 While you have that sample payload, compare its field names against
 `FIELD_CANDIDATES` in `services/pipeline/pes_rs_pipeline/pes_api.py` — that

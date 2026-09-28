@@ -147,17 +147,35 @@ class PesApiClient:
     def close(self) -> None:
         self._http.close()
 
+    @staticmethod
+    def _token_request_data() -> dict[str, str]:
+        """Credentials come only from the environment (spec §2.1).
+
+        The PES Keycloak realm uses the resource-owner *password* grant
+        (confirmed with the PES team, Sept 2026): client id/secret plus a
+        service user's username/password. CAFI_RS_PES_GRANT_TYPE switches
+        back to client_credentials if the realm ever offers it.
+        """
+        import os
+
+        grant = os.environ.get("CAFI_RS_PES_GRANT_TYPE", "password")
+        data = {
+            "grant_type": grant,
+            "client_id": os.environ["CAFI_RS_PES_CLIENT_ID"],
+        }
+        secret = os.environ.get("CAFI_RS_PES_CLIENT_SECRET")
+        if secret:
+            data["client_secret"] = secret
+        if grant == "password":
+            data["username"] = os.environ["CAFI_RS_PES_USERNAME"]
+            data["password"] = os.environ["CAFI_RS_PES_PASSWORD"]
+        return data
+
     def _access_token(self) -> str:
         if self._token is None or time.monotonic() >= self._token_expiry - 60:
-            import os
-
             resp = self._http.post(
                 self._config.pes_oidc_token_url,
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": os.environ["CAFI_RS_PES_CLIENT_ID"],
-                    "client_secret": os.environ["CAFI_RS_PES_CLIENT_SECRET"],
-                },
+                data=self._token_request_data(),
             )
             resp.raise_for_status()
             payload = resp.json()
