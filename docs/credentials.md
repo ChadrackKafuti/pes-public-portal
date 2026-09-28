@@ -110,6 +110,31 @@ One-time setup in the CAFI Google Cloud project (console.cloud.google.com):
 python -c "import ee; ee.Initialize(); print(ee.Image('USGS/SRTMGL1_003').getInfo()['id'])"
 ```
 
+## 2b. Governance ingest (WDPA + public GIS sources)
+
+`services/governance` (the ported `cb_forest_ingest` workflow) needs:
+
+| Variable | Value |
+|---|---|
+| `WDPA_TOKEN` | Protected Planet API token (https://api.protectedplanet.net/request) |
+| `GOV_LOCAL_DATA_DIR` | Optional: folder holding the CAFI consolidated shapefiles (`CFCL_*`, `PSAT_*`). Sources are skipped with a warning when absent |
+| `GOV_COUNTRIES` / `GOV_LAYERS` | Optional subsets for bounded runs, e.g. `GOV_COUNTRIES=GNQ` |
+
+> **Rotate the WDPA token.** The old token sits in plain text inside the
+> `PROD_Other_areas` notebook; request a fresh one and set it only as an
+> environment secret (it is deliberately not in the repo).
+
+The ingest fetches from public services that must be on the environment's
+network allowlist before a live run:
+
+- `services3.arcgis.com`, `services9.arcgis.com`, `services2.arcgis.com`,
+  `services6.arcgis.com`, `services7.arcgis.com` (WRI country atlases)
+- `gis.forest-atlas.org` (Forest Atlas MapServer + document attachments)
+- `rdc.geocfcl.org` (DRC CFCL registry + document pages)
+- `api.protectedplanet.net` (WDPA)
+- `geosmarthosting.undp.org` (CAFI admin 0/1 lookup only — the last ArcGIS
+  dependency; snapshotting admin boundaries into the repo would remove it)
+
 ## 3. Where the variables go
 
 - **Local:** copy `services/pipeline/.env.example` to `.env` (same for

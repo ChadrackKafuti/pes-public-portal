@@ -114,6 +114,7 @@ The insight that makes D cheap: **everything the frontend consumes today is plai
 | Arcade popups & symbology (`src/arcade/`) | Ported to TypeScript once (the logic is lookups + string formatting; `FeatureSetByName` becomes an API join) |
 | FeatureServer `/query` from the browser | API endpoints + vector tiles; FeatureServer consumed server-side during transition |
 | Suitability MapServers (`*_allowed`) | Exported once to raster tiles / PMTiles (they are static products) |
+| `cb_forest_ingest` notebook publishing `Hosted/Protected_areas` (governance layers 0–6 + `CB_Documents`) | **Ported** — `services/governance` runs the same ETL (WDPA, WRI atlases, geocfcl, CAFI shapefiles) into `gov_areas`/`gov_documents`; the API serves them as GeoJSON and the map renders them with the ported symbology/popups. The hosted-service publish step retires |
 | ArcGIS Enterprise GP tool + SDE (per spec) | RS Analysis Service + PostGIS |
 | Esri basemaps | Free MapLibre-compatible sources (OSM, Esri's open tiles where licence allows, Protomaps) + Sentinel-2 cloudless imagery |
 
