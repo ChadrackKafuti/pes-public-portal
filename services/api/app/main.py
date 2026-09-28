@@ -3,10 +3,9 @@
 The single data door for the web app (design doc §3.2, §6.2). Serves the
 RS pipeline's output tables; the frontend never talks to upstream systems.
 
-Keyed by APPLICATION for now: the platform database keys indicator families
-by application_id (spec §6.1). /api/contracts/... will join the
-contract↔application linkage once the PES Open API's contract payload is
-confirmed, and then becomes the primary route for M2 dossiers.
+Families are keyed by application_id; contract_code is carried on every
+record (confirmed against the PES system's synced layers), so contract
+routes filter on it directly.
 
 Auth note (P1): endpoints are open while OIDC wiring lands; the privacy
 curation of spec §9 (public tier: tabular only, surrogate ids) applies to
@@ -37,7 +36,8 @@ def health() -> dict:
 
 
 _APPLICATION_LIST_SQL = """
-SELECT p.application_id, p.application_date, p.pes_activity, p.estimated_area_ha,
+SELECT p.application_id, p.application_code, p.contract_code,
+       p.application_date, p.pes_activity, p.estimated_area_ha,
        o.parcel_area_ha, o.tree_cover_ha, o.defor_5yr_ha_yr, o.status,
        (SELECT count(*) FROM pes_rs_objects v
          WHERE v.application_id = p.application_id
@@ -49,7 +49,9 @@ LEFT JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
 WHERE (%(activity)s::text IS NULL OR p.pes_activity = %(activity)s)
   AND (%(status)s::text IS NULL OR o.status::text = %(status)s)
-  AND (%(q)s::text IS NULL OR p.application_id ILIKE '%%' || %(q)s || '%%')
+  AND (%(q)s::text IS NULL OR p.application_id ILIKE '%%' || %(q)s || '%%'
+       OR p.application_code ILIKE '%%' || %(q)s || '%%'
+       OR p.contract_code ILIKE '%%' || %(q)s || '%%')
 ORDER BY p.application_date DESC, p.application_id
 LIMIT %(limit)s OFFSET %(offset)s
 """
@@ -59,7 +61,7 @@ LIMIT %(limit)s OFFSET %(offset)s
 def list_applications(
     activity: str | None = None,
     status: str | None = None,
-    q: str | None = Query(None, description="application id substring (code search)"),
+    q: str | None = Query(None, description="id / application code / contract code substring"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     conn=Depends(get_conn),
@@ -72,15 +74,17 @@ def list_applications(
     items = [
         ApplicationSummary(
             application_id=r[0],
-            application_date=r[1],
-            pes_activity=r[2],
-            estimated_area_ha=r[3],
-            parcel_area_ha=r[4],
-            tree_cover_ha=r[5],
-            defor_5yr_ha_yr=r[6],
-            status=r[7],
-            visit_count=r[8],
-            last_processed_utc=r[9],
+            application_code=r[1],
+            contract_code=r[2],
+            application_date=r[3],
+            pes_activity=r[4],
+            estimated_area_ha=r[5],
+            parcel_area_ha=r[6],
+            tree_cover_ha=r[7],
+            defor_5yr_ha_yr=r[8],
+            status=r[9],
+            visit_count=r[10],
+            last_processed_utc=r[11],
         )
         for r in rows
     ]
@@ -88,7 +92,8 @@ def list_applications(
 
 
 _INDICATOR_COLUMNS = """
-object_id, object_type, object_date, pes_activity, parcel_area_ha,
+object_id, object_type, object_date, application_code, contract_code,
+pes_activity, parcel_area_ha,
 tree_cover_ha, defor_5yr_ha_yr, defor_current_ha, defor_alerts_5yr,
 defor_alerts_current, fire_alerts_5yr, fire_alerts_current,
 burned_area_5yr_ha, burned_area_current_ha, current_start, geom_source,
@@ -120,6 +125,26 @@ def application_indicators(application_id: str, conn=Depends(get_conn)) -> list[
         ).fetchone()
         if known is None:
             raise HTTPException(status_code=404, detail="unknown application")
+    return [_row_out(r) for r in rows]
+
+
+@app.get("/api/contracts/{contract_code}/indicators", response_model=list[IndicatorRowOut])
+def contract_indicators(contract_code: str, conn=Depends(get_conn)) -> list[IndicatorRowOut]:
+    """Every family row under a contract code — the M2 contract dossier."""
+    rows = conn.execute(
+        f"""
+        SELECT {_INDICATOR_COLUMNS} FROM pes_rs_objects
+        WHERE contract_code = %s
+        ORDER BY object_date, object_id
+        """,
+        (contract_code,),
+    ).fetchall()
+    if not rows:
+        known = conn.execute(
+            "SELECT 1 FROM pes_parcels WHERE contract_code = %s", (contract_code,)
+        ).fetchone()
+        if known is None:
+            raise HTTPException(status_code=404, detail="unknown contract")
     return [_row_out(r) for r in rows]
 
 

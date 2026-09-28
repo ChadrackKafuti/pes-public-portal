@@ -23,6 +23,8 @@ class ApiModel(BaseModel):
 
 class ApplicationSummary(ApiModel):
     application_id: str
+    application_code: str | None
+    contract_code: str | None
     application_date: date
     pes_activity: str | None
     estimated_area_ha: float | None
@@ -45,6 +47,8 @@ class IndicatorRowOut(ApiModel):
     object_id: str
     object_type: str
     object_date: date
+    application_code: str | None
+    contract_code: str | None
     pes_activity: str | None
     parcel_area_ha: float
     tree_cover_ha: float | None

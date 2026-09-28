@@ -22,7 +22,9 @@ export interface PesRsObject {
   objectId: string;
   objectDate: string; // ISO date
   objectType: ObjectType;
-  pesActivity: string;
+  applicationCode: string | null;
+  contractCode: string | null;
+  pesActivity: string | null;
   parcelAreaHa: number;
   treeCoverHa: number | null;
   defor5yrHaYr: number | null;
@@ -51,6 +53,42 @@ export type ExceptionReason =
   | "geometry_too_complex"
   | "own_failed"
   | "parent_failed";
+
+/** One row of GET /api/applications. */
+export interface ApplicationSummary {
+  applicationId: string;
+  applicationCode: string | null;
+  contractCode: string | null;
+  applicationDate: string;
+  pesActivity: string | null;
+  estimatedAreaHa: number | null;
+  parcelAreaHa: number | null;
+  treeCoverHa: number | null;
+  defor5yrHaYr: number | null;
+  status: string | null;
+  visitCount: number;
+  lastProcessedUtc: string | null;
+}
+
+export interface ApplicationList {
+  items: ApplicationSummary[];
+  total: number;
+}
+
+export interface RunHealth {
+  runId: number;
+  startUtc: string;
+  endUtc: string | null;
+  durationS: number | null;
+  fetchedApp: number | null;
+  fetchedMon: number | null;
+  selected: number | null;
+  ok: number | null;
+  partial: number | null;
+  skipped: number | null;
+  queued: number | null;
+  stoppedReason: string | null;
+}
 
 export interface ContractSummary {
   contractCode: string;

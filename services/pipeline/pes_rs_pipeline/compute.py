@@ -70,6 +70,8 @@ def compute_indicators(
         object_type=obj.object_type,
         object_date=obj.object_date,
         application_id=obj.application_id,
+        application_code=obj.application_code,
+        contract_code=obj.contract_code,
         pes_activity=obj.pes_activity,
         parcel_area_ha=backend.parcel_area_ha(parcel),
         geom_source=source,

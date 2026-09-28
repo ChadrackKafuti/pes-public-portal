@@ -22,15 +22,19 @@ from .models import ObjectType, PesObject
 
 PAGE_SIZE = 200
 
+# Field names confirmed against the PES_API_* feature services synced from the
+# PES system (see the web map snapshot); earlier guesses kept as fallbacks.
 FIELD_CANDIDATES: dict[str, list[str]] = {
-    "id": ["id", "applicationid", "applicationId", "recordid"],
-    "visit_id": ["id", "monitoringvisitid", "visitid"],
-    "application_ref": ["applicationid", "applicationId", "parentrecordid", "contractapplicationid"],
-    "application_date": ["applicationdate", "applicationDate", "enrolmentdate", "createddate"],
-    "visit_date": ["visitdate", "monitoringdate", "objectdate", "date"],
-    "activity": ["activitytype", "activity", "pesactivity"],
-    "shape": ["shape", "geometry", "polygon", "parcelshape"],
-    "point": ["point", "location", "coordinates"],
+    "id": ["applicationid", "id", "recordid"],
+    "visit_id": ["monitoringvisitcode", "monitoringvisitid", "id", "visitid"],
+    "application_ref": ["applicationid", "parentrecordid", "contractapplicationid"],
+    "application_code": ["applicationcode"],
+    "contract_code": ["contractcode"],
+    "application_date": ["applicationdate", "enrolmentdate", "createddate"],
+    "visit_date": ["monitoringdate", "visitdate", "objectdate", "date"],
+    "activity": ["activitytype", "pesactivityname", "activity", "pesactivity"],
+    "shape": ["shapewkt", "shape", "geometry", "polygon", "parcelshape"],
+    "point": ["pointraw", "point", "location", "coordinates"],
     "estimated_area": ["estimatedarea", "estimatedareaha", "areaha", "estimated_area"],
 }
 
@@ -90,6 +94,8 @@ def normalize_application(record: dict[str, Any]) -> PesObject:
         object_date=app_date,
         application_date=app_date,
         application_id=str(_pick(record, "id")),
+        application_code=_pick(record, "application_code"),
+        contract_code=_pick(record, "contract_code"),
         pes_activity=_pick(record, "activity"),
         shape_wkt=_as_shape(_pick(record, "shape")),
         point=_as_point(_pick(record, "point")),
@@ -114,6 +120,8 @@ def normalize_visit(record: dict[str, Any], application_dates: dict[str, date]) 
         object_date=visit_date,
         application_date=app_date,
         application_id=app_id,
+        application_code=_pick(record, "application_code"),
+        contract_code=_pick(record, "contract_code"),
         pes_activity=_pick(record, "activity"),
         shape_wkt=_as_shape(_pick(record, "shape")),
         point=_as_point(_pick(record, "point")),

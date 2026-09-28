@@ -37,6 +37,8 @@ class PesObject:
     object_date: date
     application_date: date  # own date for applications; parent's for visits
     application_id: str
+    application_code: str | None = None
+    contract_code: str | None = None
     pes_activity: str | None = None
     shape_wkt: str | None = None  # polygon geometry as delivered by the PES API
     point: tuple[float, float] | None = None  # lon, lat
@@ -51,6 +53,8 @@ class IndicatorRow:
     object_type: ObjectType
     object_date: date
     application_id: str
+    application_code: str | None
+    contract_code: str | None
     pes_activity: str | None
     parcel_area_ha: float
     geom_source: GeomSource

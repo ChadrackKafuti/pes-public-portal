@@ -15,6 +15,8 @@ CREATE TABLE pes_rs_objects (
   object_type            object_type NOT NULL,
   object_date            date NOT NULL,
   application_id         text NOT NULL,
+  application_code       text,
+  contract_code          text,
   pes_activity           text,
   parcel_area_ha         double precision NOT NULL,
   tree_cover_ha          double precision,
@@ -38,6 +40,7 @@ CREATE TABLE pes_rs_objects (
   processed_utc          timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX ON pes_rs_objects (application_id);
+CREATE INDEX ON pes_rs_objects (contract_code);
 CREATE INDEX ON pes_rs_objects (object_date);
 
 -- §6.2 records that could not be processed.
@@ -72,6 +75,8 @@ CREATE TABLE pes_rs_queue (
 -- Raw inputs, verbatim from the PES API: shape as WKT/JSON text, point as lon/lat.
 CREATE TABLE pes_parcels (
   application_id    text PRIMARY KEY,
+  application_code  text,
+  contract_code     text,
   application_date  date NOT NULL,
   shape_raw         text,
   point_lon         double precision,

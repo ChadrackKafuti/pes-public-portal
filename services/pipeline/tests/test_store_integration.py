@@ -104,6 +104,8 @@ def _row(object_id="A1", status=Status.OK, **kw) -> IndicatorRow:
         object_type=ObjectType.APPLICATION,
         object_date=date(2024, 6, 1),
         application_id=object_id,
+        application_code=f"APP-{object_id}",
+        contract_code=f"CTR-{object_id}",
         pes_activity="Agroforestry",
         parcel_area_ha=12.5,
         geom_source=GeomSource.POLYGON,

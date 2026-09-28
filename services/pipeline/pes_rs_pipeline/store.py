@@ -85,7 +85,8 @@ class Store:
             conn.execute(
                 """
                 INSERT INTO pes_rs_objects (
-                  object_id, object_type, object_date, application_id, pes_activity,
+                  object_id, object_type, object_date, application_id,
+                  application_code, contract_code, pes_activity,
                   parcel_area_ha, tree_cover_ha, defor_5yr_ha_yr, defor_current_ha,
                   defor_alerts_5yr, defor_alerts_current, fire_alerts_5yr,
                   fire_alerts_current, burned_area_5yr_ha, burned_area_current_ha,
@@ -93,11 +94,13 @@ class Store:
                   baseline_years, status, failed_indicators, attempts,
                   geom_input_hash, processed_utc
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                          %s,%s,%s,%s, now())
+                          %s,%s,%s,%s,%s,%s, now())
                 ON CONFLICT (object_id) DO UPDATE SET
                   object_type = EXCLUDED.object_type,
                   object_date = EXCLUDED.object_date,
                   application_id = EXCLUDED.application_id,
+                  application_code = EXCLUDED.application_code,
+                  contract_code = EXCLUDED.contract_code,
                   pes_activity = EXCLUDED.pes_activity,
                   parcel_area_ha = EXCLUDED.parcel_area_ha,
                   tree_cover_ha = EXCLUDED.tree_cover_ha,
@@ -122,7 +125,7 @@ class Store:
                 """,
                 (
                     row.object_id, row.object_type.value, row.object_date,
-                    row.application_id,
+                    row.application_id, row.application_code, row.contract_code,
                     row.pes_activity, row.parcel_area_ha, row.tree_cover_ha,
                     row.defor_5yr_ha_yr, row.defor_current_ha, row.defor_alerts_5yr,
                     row.defor_alerts_current, row.fire_alerts_5yr,
@@ -205,10 +208,13 @@ class Store:
             conn.execute(
                 """
                 INSERT INTO pes_parcels
-                  (application_id, application_date, shape_raw, point_lon, point_lat,
+                  (application_id, application_code, contract_code, application_date,
+                   shape_raw, point_lon, point_lat,
                    estimated_area_ha, pes_activity, geom_input_hash, updated_utc)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s, now())
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
                 ON CONFLICT (application_id) DO UPDATE SET
+                  application_code = EXCLUDED.application_code,
+                  contract_code = EXCLUDED.contract_code,
                   application_date = EXCLUDED.application_date,
                   shape_raw = EXCLUDED.shape_raw,
                   point_lon = EXCLUDED.point_lon,
@@ -219,7 +225,8 @@ class Store:
                   updated_utc = now()
                 """,
                 (
-                    app.application_id, app.application_date, app.shape_wkt,
+                    app.application_id, app.application_code, app.contract_code,
+                    app.application_date, app.shape_wkt,
                     lon, lat, app.estimated_area_ha, app.pes_activity,
                     geom_input_hash(app.shape_wkt, app.point),
                 ),
@@ -249,8 +256,8 @@ class Store:
             return {}
         rows = conn.execute(
             """
-            SELECT application_id, application_date, shape_raw, point_lon, point_lat,
-                   estimated_area_ha, pes_activity
+            SELECT application_id, application_code, contract_code, application_date,
+                   shape_raw, point_lon, point_lat, estimated_area_ha, pes_activity
             FROM pes_parcels WHERE application_id = ANY(%s)
             """,
             (application_ids,),
@@ -259,13 +266,15 @@ class Store:
             r[0]: PesObject(
                 object_id=r[0],
                 object_type=ObjectType.APPLICATION,
-                object_date=r[1],
-                application_date=r[1],
+                object_date=r[3],
+                application_date=r[3],
                 application_id=r[0],
-                pes_activity=r[6],
-                shape_wkt=r[2],
-                point=(r[3], r[4]) if r[3] is not None else None,
-                estimated_area_ha=r[5],
+                application_code=r[1],
+                contract_code=r[2],
+                pes_activity=r[8],
+                shape_wkt=r[4],
+                point=(r[5], r[6]) if r[5] is not None else None,
+                estimated_area_ha=r[7],
             )
             for r in rows
         }

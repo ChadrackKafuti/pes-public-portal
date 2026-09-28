@@ -52,3 +52,17 @@ def test_known_application_without_rows_is_empty_list(client):
 
 def test_unknown_application_404(client):
     assert client.get("/api/applications/NOPE/indicators").status_code == 404
+
+
+def test_contract_dossier(client):
+    rows = client.get("/api/contracts/CTR-001/indicators").json()
+    assert [r["objectId"] for r in rows] == ["A1", "M1"]
+    assert all(r["contractCode"] == "CTR-001" for r in rows)
+    assert client.get("/api/contracts/NOPE/indicators").status_code == 404
+
+
+def test_codes_in_listing_and_search(client):
+    items = client.get("/api/applications").json()["items"]
+    a1 = next(i for i in items if i["applicationId"] == "A1")
+    assert (a1["applicationCode"], a1["contractCode"]) == ("APP-001", "CTR-001")
+    assert client.get("/api/applications", params={"q": "ctr-001"}).json()["total"] == 1

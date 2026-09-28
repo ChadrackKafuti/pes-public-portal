@@ -17,19 +17,22 @@ SCHEMA = Path(__file__).resolve().parents[3] / "infra" / "db" / "init" / "001_co
 
 SEED = """
 INSERT INTO pes_parcels
-  (application_id, application_date, shape_raw, estimated_area_ha, pes_activity, geom_input_hash)
+  (application_id, application_code, contract_code, application_date, shape_raw,
+   estimated_area_ha, pes_activity, geom_input_hash)
 VALUES
-  ('A1', '2024-06-01', 'POLYGON((0 0,1 0,1 1,0 0))', 3.5, 'Agroforestry', 'h1'),
-  ('A2', '2024-07-01', NULL, 2.0, 'Reforestation', 'h2');
+  ('A1', 'APP-001', 'CTR-001', '2024-06-01', 'POLYGON((0 0,1 0,1 1,0 0))',
+   3.5, 'Agroforestry', 'h1'),
+  ('A2', 'APP-002', NULL, '2024-07-01', NULL, 2.0, 'Reforestation', 'h2');
 
 INSERT INTO pes_rs_objects
-  (object_id, object_type, object_date, application_id, pes_activity, parcel_area_ha,
+  (object_id, object_type, object_date, application_id, application_code,
+   contract_code, pes_activity, parcel_area_ha,
    tree_cover_ha, defor_5yr_ha_yr, geom_source, baseline_years, status,
    failed_indicators, geom_input_hash)
 VALUES
-  ('A1', 'application', '2024-06-01', 'A1', 'Agroforestry', 3.4,
+  ('A1', 'application', '2024-06-01', 'A1', 'APP-001', 'CTR-001', 'Agroforestry', 3.4,
    2.1, 0.05, 'polygon', 5, 'ok', '{}', 'h1'),
-  ('M1', 'monitoring_visit', '2025-03-15', 'A1', 'Agroforestry', 3.4,
+  ('M1', 'monitoring_visit', '2025-03-15', 'A1', 'APP-001', 'CTR-001', 'Agroforestry', 3.4,
    2.0, 0.05, 'polygon_inherited', 5, 'partial', '{fire_alerts}', 'h1');
 
 INSERT INTO pes_rs_runs
