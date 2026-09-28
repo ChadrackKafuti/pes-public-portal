@@ -116,3 +116,33 @@ export interface ContractSummary {
 }
 
 export type Locale = "en" | "fr";
+
+/** One forest-governance layer's production-filtered inventory. */
+export interface GovLayerInfo {
+  layer: GovLayerKey;
+  total: number;
+  byCountry: Record<string, number>;
+  lastLoadedUtc: string | null;
+}
+
+export type GovLayerKey =
+  | "protected_areas"
+  | "concessions"
+  | "concession_zoning"
+  | "community_forests"
+  | "community_forest_zoning"
+  | "local_territories"
+  | "local_territory_zoning";
+
+/** One gov_documents row (public link). */
+export interface GovDocument {
+  docUid: string;
+  title: string | null;
+  categoryStd: string | null;
+  fileName: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  dateDoc: string | null;
+  url: string | null;
+  srcSystem: string | null;
+}

@@ -1,4 +1,12 @@
-import type { ApplicationList, FilterOptions, PesRsObject, RunHealth } from "@cafi/shared";
+import type {
+  ApplicationList,
+  FilterOptions,
+  GovDocument,
+  GovLayerInfo,
+  GovLayerKey,
+  PesRsObject,
+  RunHealth,
+} from "@cafi/shared";
 import { authEnabled, authHeaders, useAuth } from "../auth";
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
@@ -33,4 +41,9 @@ export const api = {
   contractIndicators: (code: string) =>
     get<PesRsObject[]>(`/contracts/${encodeURIComponent(code)}/indicators`),
   runs: () => get<RunHealth[]>("/health/runs"),
+  governanceLayers: () => get<GovLayerInfo[]>("/governance/layers"),
+  governanceGeojson: (layer: GovLayerKey) =>
+    get<GeoJSON.FeatureCollection>(`/governance/${layer}.geojson`),
+  governanceDocuments: (srcUid: string) =>
+    get<GovDocument[]>(`/governance/features/${encodeURIComponent(srcUid)}/documents`),
 };

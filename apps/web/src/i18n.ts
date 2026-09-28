@@ -55,6 +55,9 @@ const en = {
   signin_hint: "Staff and verifier access. Sign in with your PES account.",
   export_csv: "Export CSV",
   export_pdf: "Print / PDF",
+  gov_layers: "Governance layers",
+  gov_documents: "Documents",
+  gov_zone_legend: "Zoning class",
 } as const;
 
 type Key = keyof typeof en;
@@ -112,6 +115,9 @@ const fr: Record<Key, string> = {
   signin_hint: "Accès personnel et vérificateurs. Connectez-vous avec votre compte PES.",
   export_csv: "Exporter CSV",
   export_pdf: "Imprimer / PDF",
+  gov_layers: "Couches de gouvernance",
+  gov_documents: "Documents",
+  gov_zone_legend: "Affectation",
 };
 
 const dictionaries: Record<Locale, Record<Key, string>> = { en, fr };
