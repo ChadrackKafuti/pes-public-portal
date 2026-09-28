@@ -37,6 +37,7 @@ class GeeBackend:
         materialise_gee_credentials(config.gee_service_account)
         self._ee = ee
         self._config = config
+        self._mask_cache: dict[tuple[int, date], tuple[object, float, int] | None] = {}
         key_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if config.gee_service_account and key_file:
             # ServiceAccountCredentials needs the key file explicitly;
@@ -107,7 +108,16 @@ class GeeBackend:
     def _tree_mask_adaptive(self, parcel, at: date) -> tuple[object, float, int] | None:
         """Walk the widening ladder; return (mask, coverage, window_days) for
         the first rung reaching min_coverage_frac, else the widest rung with
-        any imagery; None when no window has imagery at all."""
+        any imagery; None when no window has imagery at all.
+
+        Memoised per (parcel, date): tree_cover and tree_cover_loss resolve
+        the same object-date mask (for applications the loss interval ends at
+        object_date), and each ladder walk costs several getInfo round trips
+        — measured ~33% of per-object time in the confirmation run.
+        """
+        key = (id(parcel), at)
+        if key in self._mask_cache:
+            return self._mask_cache[key]
         ladder = tc_window_ladder(self._config.tc_window_days)
         best: tuple[object, float, int] | None = None
         for candidate in ladder:
@@ -117,6 +127,9 @@ class GeeBackend:
                 best = (mask, coverage, candidate)
             if coverage >= self._config.min_coverage_frac:
                 break
+        if len(self._mask_cache) > 64:  # a handful of dates per object
+            self._mask_cache.clear()
+        self._mask_cache[key] = best
         return best
 
     def tree_cover(self, parcel, at: date) -> tuple[float, int, float]:
