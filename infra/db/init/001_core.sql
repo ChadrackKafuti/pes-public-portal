@@ -1,8 +1,8 @@
--- CAFI RS Platform — core schema.
--- The pes_rs_* tables port the RS specification §6 (SDE -> PostGIS).
--- v2 additions (AOIs, subscriptions, jurisdictional stats) land in P2 migrations.
-
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- CAFI RS Platform — core pipeline schema (RS specification §6, SDE -> Postgres).
+-- Deliberately PostGIS-free: parcels cache the RAW geometry inputs as delivered
+-- by the PES API (spec §6.4); PostGIS arrives in 002_gis.sql with the mirrored
+-- vector layers. v2 additions (AOIs, subscriptions, jurisdictional stats) land
+-- in P2 migrations.
 
 CREATE TYPE object_type AS ENUM ('application', 'monitoring_visit');
 CREATE TYPE geom_source AS ENUM
@@ -69,15 +69,18 @@ CREATE TABLE pes_rs_queue (
 );
 
 -- §6.4 application parcel cache (visits inherit the parent parcel across runs).
+-- Raw inputs, verbatim from the PES API: shape as WKT/JSON text, point as lon/lat.
 CREATE TABLE pes_parcels (
   application_id    text PRIMARY KEY,
-  shape             geometry(MultiPolygon, 4326),
-  point             geometry(Point, 4326),
+  application_date  date NOT NULL,
+  shape_raw         text,
+  point_lon         double precision,
+  point_lat         double precision,
   estimated_area_ha double precision,
+  pes_activity      text,
   geom_input_hash   text NOT NULL,
   updated_utc       timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX ON pes_parcels USING gist (shape);
 
 -- §6.5 run-health log: one row per scheduled run.
 CREATE TABLE pes_rs_runs (

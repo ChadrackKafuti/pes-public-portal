@@ -1,21 +1,21 @@
 """Run orchestration — spec §4 workflow and §5 autonomous operation.
 
-The scheduled entrypoint (Cloud Scheduler, 20-minute cadence). Fetch,
-normalisation, parcel resolution and indicator computation are wired; the
-PostGIS persistence layer (results/queue/exceptions/parcel cache, run lock,
-incremental selection against stored geom hashes) is the remaining P1 piece
-and is marked below.
+The scheduled entrypoint (Cloud Scheduler, 20-minute cadence): advisory run
+lock, incremental selection against stored state, fetch, normalisation,
+parcel resolution (with the cached-parent fallback), indicator computation
+under the wall-clock budget, and persistence of every output table.
 """
 
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from .compute import IndicatorBackend, compute_indicators
 from .config import PipelineConfig
 from .geometry import resolve_geom_source
 from .models import IndicatorRow, ObjectType, PesObject
 from .pes_api import PesApiClient, normalize_application, normalize_visit
+from .selection import Decision, decide
 
 log = logging.getLogger(__name__)
 
@@ -81,14 +81,26 @@ def process_objects(
     result: RunResult,
     *,
     today: date | None = None,
+    cached_parents: dict[str, PesObject] | None = None,
+    deadline: datetime | None = None,
 ) -> None:
-    """Spec §4 steps 4–7 for a batch of normalised objects."""
-    parents = {
-        o.application_id: o for o in objects if o.object_type is ObjectType.APPLICATION
-    }
+    """Spec §4 steps 4–7 for a batch of normalised objects.
+
+    `cached_parents` supplies application parcels from pes_parcels for visits
+    whose parent was not in this fetch (spec §6.4). `deadline` is the
+    wall-clock budget (spec §5): unfinished objects are simply left for the
+    next run, which reselects them.
+    """
+    parents = dict(cached_parents or {})
+    parents.update(
+        {o.application_id: o for o in objects if o.object_type is ObjectType.APPLICATION}
+    )
     today = today or date.today()
 
     for obj in objects:
+        if deadline is not None and datetime.now(UTC) >= deadline:
+            result.stopped_reason = "time_budget"
+            break
         # Defer future monitoring visits until their object date (spec §1).
         if obj.object_type is ObjectType.MONITORING_VISIT and obj.object_date > today:
             result.deferred.append(obj.object_id)
@@ -119,32 +131,91 @@ def process_objects(
         result.rows.append(row)
 
 
-def run_once(config: PipelineConfig, backend: IndicatorBackend | None = None) -> dict:
-    """One scheduled run. Returns the health-row payload (spec §6.5).
+def run_once(
+    config: PipelineConfig,
+    backend: IndicatorBackend | None = None,
+    store=None,
+) -> dict:
+    """One scheduled run (spec §4 + §5). Returns the health-row payload.
 
-    Remaining P1 wiring (PostGIS): run lock (pg_advisory_lock, spec §5),
-    incremental selection via stored geom_input_hash + processed dates,
-    persisting rows/exceptions/queue/parcel cache, and the time budget
-    (config.max_run_minutes) checked between objects.
+    Without a store (local experiments) it computes and returns; with one, it
+    takes the advisory run lock, selects incrementally, persists every output
+    table and writes the run-health row.
     """
+    if store is None:
+        from .store import Store
+
+        store = Store(config.database_url)
+
     result = RunResult(start_utc=datetime.now(UTC))
+    with store.connection() as conn:
+        if not store.try_acquire_lock(conn):
+            log.info("another run holds the lock; skipping (spec §5)")
+            result.stopped_reason = "lock_held"
+            return result.health_row()
+        try:
+            client = PesApiClient(config)
+            try:
+                applications = client.fetch_applications()
+                visits = client.fetch_monitoring_visits()
+            finally:
+                client.close()
+            result.fetched_app, result.fetched_mon = len(applications), len(visits)
 
-    client = PesApiClient(config)
-    try:
-        applications = client.fetch_applications()
-        visits = client.fetch_monitoring_visits()
-    finally:
-        client.close()
-    result.fetched_app, result.fetched_mon = len(applications), len(visits)
+            objects, bad = normalize_all(applications, visits)
+            result.exceptions.extend(bad)
 
-    objects, bad = normalize_all(applications, visits)
-    result.exceptions.extend(bad)
+            # Incremental selection (spec §3): keep only objects with work due.
+            today = date.today()
+            stored = store.load_state(conn, [o.object_id for o in objects])
+            objects = [
+                o
+                for o in objects
+                if decide(o, stored.get(o.object_id), config, today) is Decision.PROCESS
+            ]
 
-    if backend is None:
-        from .indicators.gee import GeeBackend
+            # Cached parents for visits whose application is not in this batch.
+            missing_parents = {
+                o.application_id
+                for o in objects
+                if o.object_type is ObjectType.MONITORING_VISIT
+            } - {o.application_id for o in objects if o.object_type is ObjectType.APPLICATION}
+            cached_parents = store.load_parent_parcels(conn, sorted(missing_parents))
 
-        backend = GeeBackend(config)
-    process_objects(objects, backend, config, result)
+            if backend is None:
+                from .indicators.gee import GeeBackend
+
+                backend = GeeBackend(config)
+
+            deadline = result.start_utc + timedelta(minutes=config.max_run_minutes)
+            process_objects(
+                objects,
+                backend,
+                config,
+                result,
+                today=today,
+                cached_parents=cached_parents,
+                deadline=deadline,
+            )
+
+            store.upsert_parcels(
+                conn,
+                [o for o in objects if o.object_type is ObjectType.APPLICATION],
+            )
+            store.upsert_rows(
+                conn, result.rows, stored, max_partial_retries=config.max_partial_retries
+            )
+            store.sync_queue(
+                conn,
+                result.rows,
+                [o for o in objects if o.object_id in set(result.deferred)],
+                today=today,
+            )
+            store.record_exceptions(conn, result.exceptions)
+            store.insert_run(conn, result.health_row())
+            conn.commit()
+        finally:
+            store.release_lock(conn)
 
     return result.health_row()
 

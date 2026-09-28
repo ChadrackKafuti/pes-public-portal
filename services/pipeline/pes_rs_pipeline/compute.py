@@ -62,14 +62,20 @@ def compute_indicators(
     `geometry.resolve_geom_source` (the object itself, or its parent
     application for inherited parcels).
     """
+    from .geometry import geom_input_hash
+
     parcel = backend.resolve_parcel(bearer, source)
     row = IndicatorRow(
         object_id=obj.object_id,
         object_type=obj.object_type,
         object_date=obj.object_date,
+        application_id=obj.application_id,
         pes_activity=obj.pes_activity,
         parcel_area_ha=backend.parcel_area_ha(parcel),
         geom_source=source,
+        # Fingerprint of the object's OWN inputs (spec §3) — selection compares
+        # against this on later runs, even when the parcel was inherited.
+        geom_input_hash=geom_input_hash(obj.shape_wkt, obj.point),
     )
 
     app_ref = obj.application_date

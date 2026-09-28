@@ -150,3 +150,15 @@ def test_geodesic_oversize_caught_after_compute():
     )
     assert result.rows == []
     assert result.exceptions == [("A1", "oversize_gt_5000ha")]
+
+
+def test_time_budget_stops_processing():
+    from datetime import UTC, datetime, timedelta
+
+    result = RunResult(start_utc=datetime.now(UTC))
+    process_objects(
+        [_application()], FakeBackend(), PipelineConfig(), result,
+        today=TODAY, deadline=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    assert result.rows == []
+    assert result.stopped_reason == "time_budget"  # spec §5: next run continues

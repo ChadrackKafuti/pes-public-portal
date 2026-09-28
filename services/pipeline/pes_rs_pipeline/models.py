@@ -50,9 +50,11 @@ class IndicatorRow:
     object_id: str
     object_type: ObjectType
     object_date: date
+    application_id: str
     pes_activity: str | None
     parcel_area_ha: float
     geom_source: GeomSource
+    geom_input_hash: str = ""
     tree_cover_ha: float | None = None
     defor_5yr_ha_yr: float | None = None
     defor_current_ha: float | None = None
