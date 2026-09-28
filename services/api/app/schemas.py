@@ -82,6 +82,29 @@ class IndicatorRowOut(ApiModel):
     processed_utc: datetime
 
 
+class GovLayerInfo(ApiModel):
+    """One governance layer's production-filtered inventory."""
+
+    layer: str
+    total: int
+    by_country: dict[str, int]
+    last_loaded_utc: datetime | None
+
+
+class GovDocumentOut(ApiModel):
+    """One gov_documents row (public link, never a file we host)."""
+
+    doc_uid: str
+    title: str | None
+    category_std: str | None
+    file_name: str | None
+    content_type: str | None
+    size_bytes: int | None
+    date_doc: datetime | None
+    url: str | None
+    src_system: str | None
+
+
 class RunHealth(ApiModel):
     run_id: int
     start_utc: datetime

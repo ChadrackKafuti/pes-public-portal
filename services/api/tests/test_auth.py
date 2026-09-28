@@ -84,3 +84,8 @@ def test_client_in_aud_accepted(client, oidc_enabled):
 
 def test_health_stays_open(client, oidc_enabled):
     assert client.get("/api/health").status_code == 200
+
+
+def test_governance_routes_also_guarded(client, oidc_enabled):
+    assert client.get("/api/governance/layers").status_code == 401
+    assert client.get("/api/governance/concessions.geojson").status_code == 401

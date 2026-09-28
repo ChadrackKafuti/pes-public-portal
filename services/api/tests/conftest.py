@@ -13,7 +13,38 @@ from pathlib import Path
 
 import pytest
 
-SCHEMA = Path(__file__).resolve().parents[3] / "infra" / "db" / "init" / "001_core.sql"
+_INIT = Path(__file__).resolve().parents[3] / "infra" / "db" / "init"
+SCHEMA = _INIT / "001_core.sql"
+GOV_SCHEMA = _INIT / "003_governance.sql"
+
+GOV_SEED = """
+INSERT INTO gov_areas
+  (src_uid, layer, country, iso3, name, reference, sub_type_std, status_std,
+   situation, retired, area_calc_ha, doc_count, parent_uid, extras, geom_geojson, loaded_at)
+VALUES
+  ('COG:conc:1', 'concessions', 'Republic of Congo', 'COG', 'Ngombe', 'UFA-NGOMBE',
+   'ufa', 'attributed', 'complete', 0, 12000.0, 1, NULL,
+   '{"cert_type": "FSC"}'::jsonb,
+   '{"type": "Polygon", "coordinates": [[[15,-1],[15,-1.1],[15.1,-1.1],[15,-1]]]}'::jsonb, now()),
+  ('COG:series:1', 'concession_zoning', 'Republic of Congo', 'COG', 'Serie 1', NULL,
+   NULL, NULL, 'complete', 0, 400.0, 0, 'COG:conc:1',
+   '{"zone_type_std": "production", "parent_name": "Ngombe"}'::jsonb,
+   '{"type": "Polygon", "coordinates": [[[15,-1],[15,-1.05],[15.05,-1.05],[15,-1]]]}'::jsonb, now()),
+  ('COD:conc:9', 'concessions', 'Democratic Republic of Congo', 'COD', 'Retired one', NULL,
+   'ccf', NULL, 'complete', 1, 10.0, 0, NULL, '{}'::jsonb,
+   '{"type": "Polygon", "coordinates": [[[16,-1],[16,-1.1],[16.1,-1.1],[16,-1]]]}'::jsonb, now()),
+  ('COD:conc:10', 'concessions', 'Democratic Republic of Congo', 'COD', 'No data one', NULL,
+   'ccf', NULL, 'no_data', 0, 10.0, 0, NULL, '{}'::jsonb,
+   '{"type": "Polygon", "coordinates": [[[17,-1],[17,-1.1],[17.1,-1.1],[17,-1]]]}'::jsonb, now());
+
+INSERT INTO gov_documents
+  (doc_uid, parent_uid, parent_layer, country, iso3, title, category_std,
+   file_name, url, src_system, retired, loaded_at)
+VALUES
+  ('COG:conc:1:doc:1', 'COG:conc:1', 'concessions', 'Republic of Congo', 'COG',
+   'Plan d''aménagement', 'management_plan', 'PA.pdf', 'https://example.org/pa.pdf',
+   'agol_attachment', 0, now());
+"""
 
 SEED = """
 INSERT INTO pes_parcels
@@ -94,7 +125,9 @@ def client():
             try:
                 with psycopg.connect(url) as conn:
                     conn.execute(SCHEMA.read_text())
+                    conn.execute(GOV_SCHEMA.read_text())
                     conn.execute(SEED)
+                    conn.execute(GOV_SEED)
                     conn.commit()
                 break
             except psycopg.OperationalError:
