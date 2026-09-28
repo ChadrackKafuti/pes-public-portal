@@ -262,17 +262,21 @@ class Store:
             """,
             (application_ids,),
         ).fetchall()
+        def _text(v):
+            # psycopg returns text as bytes under a SQL_ASCII server encoding
+            return v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
+
         return {
-            r[0]: PesObject(
-                object_id=r[0],
+            _text(r[0]): PesObject(
+                object_id=_text(r[0]),
                 object_type=ObjectType.APPLICATION,
                 object_date=r[3],
                 application_date=r[3],
                 application_id=r[0],
-                application_code=r[1],
-                contract_code=r[2],
-                pes_activity=r[8],
-                shape_wkt=r[4],
+                application_code=_text(r[1]),
+                contract_code=_text(r[2]),
+                pes_activity=_text(r[8]),
+                shape_wkt=_text(r[4]),
                 point=(r[5], r[6]) if r[5] is not None else None,
                 estimated_area_ha=r[7],
             )

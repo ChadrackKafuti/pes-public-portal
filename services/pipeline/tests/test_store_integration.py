@@ -62,7 +62,7 @@ def dsn(tmp_path_factory):
             sh.chown(d, "nobody", "nogroup")
             d.chmod(0o777)
     subprocess.run(
-        _as_unprivileged([f"{bin_dir}/initdb", "-D", str(data), "-U", "cafi", "-A", "trust"]),
+        _as_unprivileged([f"{bin_dir}/initdb", "-D", str(data), "-U", "cafi", "-A", "trust", "-E", "UTF8", "--locale=C"]),
         check=True, capture_output=True,
     )
     proc = subprocess.Popen(

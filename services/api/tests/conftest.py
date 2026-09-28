@@ -18,11 +18,12 @@ SCHEMA = Path(__file__).resolve().parents[3] / "infra" / "db" / "init" / "001_co
 SEED = """
 INSERT INTO pes_parcels
   (application_id, application_code, contract_code, application_date, shape_raw,
-   estimated_area_ha, pes_activity, geom_input_hash)
+   point_lon, point_lat, estimated_area_ha, pes_activity, geom_input_hash)
 VALUES
-  ('A1', 'APP-001', 'CTR-001', '2024-06-01', 'POLYGON((0 0,1 0,1 1,0 0))',
-   3.5, 'Agroforestry', 'h1'),
-  ('A2', 'APP-002', NULL, '2024-07-01', NULL, 2.0, 'Reforestation', 'h2');
+  ('A1', 'APP-001', 'CTR-001', '2024-06-01', 'POLYGON((15 -1,15.01 -1,15.01 -0.99,15 -1))',
+   NULL, NULL, 3.5, 'Agroforestry', 'h1'),
+  ('A2', 'APP-002', NULL, '2024-07-01', NULL, 15.5, -2.25, 2.0, 'Reforestation', 'h2'),
+  ('A4', 'APP-004', NULL, '2024-08-01', NULL, NULL, NULL, 1.0, 'Regeneration', 'h4');
 
 INSERT INTO pes_rs_objects
   (object_id, object_type, object_date, application_id, application_code,
@@ -72,7 +73,7 @@ def client():
             shutil.chown(d, "nobody", "nogroup")
             d.chmod(0o777)
     subprocess.run(
-        _as_unprivileged([f"{bin_dir}/initdb", "-D", str(data), "-U", "cafi", "-A", "trust"]),
+        _as_unprivileged([f"{bin_dir}/initdb", "-D", str(data), "-U", "cafi", "-A", "trust", "-E", "UTF8", "--locale=C"]),
         check=True, capture_output=True,
     )
     proc = subprocess.Popen(

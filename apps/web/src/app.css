@@ -250,7 +250,79 @@ table.data a {
   font-size: 11px;
 }
 
+.map-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .map-stage {
   flex: 1;
   min-height: 0;
+}
+
+.map-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-overlay input {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  width: 230px;
+}
+
+.map-miss {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+}
+
+.map-overlay .lang {
+  background: var(--surface);
+}
+
+.maplibregl-popup-content {
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font: 0.85rem system-ui, sans-serif;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--surface);
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--surface);
+}
+
+.maplibregl-popup-close-button {
+  color: var(--fg-muted);
+  font-size: 1rem;
+}
+
+.map-popup-btn {
+  margin-top: 0.45rem;
+  background: var(--series-1);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
 }

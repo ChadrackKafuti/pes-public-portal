@@ -39,6 +39,11 @@ const en = {
   application: "Application",
   runs_title: "Pipeline runs",
   blank_hint: "— means not measured (a failed or unavailable indicator), never zero.",
+  open_dossier: "Open dossier",
+  map_find_placeholder: "Find a parcel by code…",
+  map_no_match: "No match",
+  basemap_imagery: "Imagery",
+  basemap_streets: "Streets",
 } as const;
 
 type Key = keyof typeof en;
@@ -80,6 +85,11 @@ const fr: Record<Key, string> = {
   application: "Demande",
   runs_title: "Exécutions du pipeline",
   blank_hint: "— signifie non mesuré (indicateur en échec ou indisponible), jamais zéro.",
+  open_dossier: "Ouvrir le dossier",
+  map_find_placeholder: "Trouver une parcelle par code…",
+  map_no_match: "Aucun résultat",
+  basemap_imagery: "Imagerie",
+  basemap_streets: "Rues",
 };
 
 const dictionaries: Record<Locale, Record<Key, string>> = { en, fr };

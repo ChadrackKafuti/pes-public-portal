@@ -107,6 +107,46 @@ def _row_out(r) -> IndicatorRowOut:
     return IndicatorRowOut(**dict(zip(cols, r, strict=True)))
 
 
+@app.get("/api/applications.geojson")
+def applications_geojson(conn=Depends(get_conn)) -> dict:
+    """Every parcel as a GeoJSON FeatureCollection for the map workspace.
+    Polygon from shape_raw when it parses, point fallback otherwise;
+    records with no usable geometry are omitted."""
+    from .geo import shape_to_geometry
+
+    rows = conn.execute(
+        """
+        SELECT p.application_id, p.application_code, p.contract_code, p.pes_activity,
+               p.application_date, p.shape_raw, p.point_lon, p.point_lat,
+               o.status, o.tree_cover_ha
+        FROM pes_parcels p
+        LEFT JOIN pes_rs_objects o
+          ON o.object_id = p.application_id AND o.object_type = 'application'
+        """
+    ).fetchall()
+    features = []
+    for r in rows:
+        geometry = shape_to_geometry(r[5], r[6], r[7])
+        if geometry is None:
+            continue
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": geometry,
+                "properties": {
+                    "applicationId": r[0],
+                    "applicationCode": r[1],
+                    "contractCode": r[2],
+                    "pesActivity": r[3],
+                    "applicationDate": r[4].isoformat(),
+                    "status": r[8],
+                    "treeCoverHa": r[9],
+                },
+            }
+        )
+    return {"type": "FeatureCollection", "features": features}
+
+
 @app.get("/api/applications/{application_id}/indicators", response_model=list[IndicatorRowOut])
 def application_indicators(application_id: str, conn=Depends(get_conn)) -> list[IndicatorRowOut]:
     """The family's rows (application + monitoring visits), oldest first —

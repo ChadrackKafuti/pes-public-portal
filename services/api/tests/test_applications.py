@@ -2,7 +2,7 @@ def test_list_applications(client):
     r = client.get("/api/applications")
     assert r.status_code == 200
     body = r.json()
-    assert body["total"] == 2
+    assert body["total"] == 3
     by_id = {item["applicationId"]: item for item in body["items"]}
 
     a1 = by_id["A1"]
@@ -66,3 +66,24 @@ def test_codes_in_listing_and_search(client):
     a1 = next(i for i in items if i["applicationId"] == "A1")
     assert (a1["applicationCode"], a1["contractCode"]) == ("APP-001", "CTR-001")
     assert client.get("/api/applications", params={"q": "ctr-001"}).json()["total"] == 1
+
+
+def test_geojson_features(client):
+    fc = client.get("/api/applications.geojson").json()
+    assert fc["type"] == "FeatureCollection"
+    by_id = {f["properties"]["applicationId"]: f for f in fc["features"]}
+
+    # A1: WKT polygon parsed server-side, with joined indicator properties.
+    a1 = by_id["A1"]
+    assert a1["geometry"]["type"] == "Polygon"
+    assert a1["properties"]["contractCode"] == "CTR-001"
+    assert a1["properties"]["status"] == "ok"
+    assert a1["properties"]["treeCoverHa"] == 2.1
+
+    # A2: no shape -> point fallback; unprocessed -> null indicator props.
+    a2 = by_id["A2"]
+    assert a2["geometry"] == {"type": "Point", "coordinates": [15.5, -2.25]}
+    assert a2["properties"]["status"] is None
+
+    # A4 has neither shape nor point -> omitted.
+    assert "A4" not in by_id

@@ -9,6 +9,7 @@ dependencies = [
     "pydantic-settings>=2.4",
     "psycopg[binary]>=3.2",
     "psycopg-pool>=3.2",
+    "shapely>=2.0",
 ]
 
 [project.optional-dependencies]
