@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [api, pipeline]
+        service: [api, pipeline, governance]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
