@@ -238,8 +238,13 @@ M5 full jurisdictional dashboards + exports. M6 site check & feedback with mobil
 
 ## 8. Open questions for stakeholders
 
-1. **Hosting ownership:** which organisation operates the cloud project (UNDP ICPSD, CAFI Secretariat, a partner)? Determines IAM, billing, and data-processing agreements.
-2. **System of record end-state:** does ArcGIS Enterprise remain the long-term store for PES vectors, or does the PES management system eventually write to the platform's PostGIS directly (removing the last Esri dependency)?
+Resolved (P0 kickoff, Sept 2026):
+
+1. ~~**Hosting ownership**~~ — **CAFI operates the cloud project.** IAM, billing and data-processing agreements sit with the CAFI Secretariat.
+2. ~~**System of record end-state**~~ — **the PES management system delivers data through its Open API.** The platform's PostGIS is therefore the system of record for RS outputs and mirrored PES vectors; ArcGIS Enterprise is not in the v2 data path (it remains only behind the frozen portal-v1 viewer until P2 retires it).
+
+Still open:
+
 3. **Alert SLA:** what latency and false-positive tolerance do verifiers actually need? Drives the RADD polling cadence and triage design in M4.
 4. **Public-tier policy:** confirm the §9 line (tabular-only) also applies to *contract locations at admin-unit granularity* on public dashboards, or whether coarse choropleths are acceptable.
 5. **Partner sequencing:** which R&D socket lands first (FAO DDD land cover, CTrees biomass, WUR indicators)? Shapes P3.

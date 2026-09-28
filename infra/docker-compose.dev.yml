@@ -1,0 +1,37 @@
+# Local development stack. Production runs on the CAFI-operated cloud project
+# (Cloud Run + managed Postgres); this compose file mirrors it for laptops.
+#   docker compose -f infra/docker-compose.dev.yml up
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: cafi
+      POSTGRES_PASSWORD: cafi
+      POSTGRES_DB: cafi_rs
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - dbdata:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+
+  api:
+    build: ../services/api
+    environment:
+      CAFI_DATABASE_URL: postgresql://cafi:cafi@db:5432/cafi_rs
+      CAFI_OIDC_ISSUER: "" # local dev: auth disabled
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+volumes:
+  dbdata:

@@ -1,0 +1,36 @@
+name: Platform CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/web/**", "packages/**", "services/**", "package.json"]
+  pull_request:
+    paths: ["apps/web/**", "packages/**", "services/**", "package.json"]
+  workflow_dispatch:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run build:web
+
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, pipeline]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+        working-directory: services/${{ matrix.service }}
+      - run: python -m pytest
+        working-directory: services/${{ matrix.service }}

@@ -1,0 +1,49 @@
+:root {
+  --bg: #0f172a;
+  --fg: #e2e8f0;
+  --accent: #34d399;
+  --down: #f87171;
+  font-family: system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #1e293b;
+}
+
+.api-badge {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.api-up {
+  color: var(--accent);
+}
+
+.api-down {
+  color: var(--down);
+}
+
+.map-stage {
+  flex: 1;
+  min-height: 0;
+}

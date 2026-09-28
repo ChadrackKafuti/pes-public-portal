@@ -1,92 +1,47 @@
-# CAFI Monitor — public web app
+# CAFI RS Platform
 
-Hand-coded public version of the "CAFI Monitor, Earth Observation and Land-Use Intelligence Platform" Experience Builder
-app (portal item iMonitor_App). Built with React 19 + TypeScript (Vite), the ArcGIS Maps SDK for JavaScript 5.x (map
-components), Calcite components, Zustand and react-router. Live: https://chadrackkafuti.github.io/pes-public-portal/
+Monorepo for the CAFI Remote Sensing Platform — near-real-time monitoring of CAFI-funded
+activities in the Congo Basin. Design baseline: [docs/rs-platform-v2.md](docs/rs-platform-v2.md).
 
-Pages: **Map** (side panel with Overview / Filters / Layers tabs, "find by application code" search, country overview
-dashboard and feature popups from the web map, the seven Congo Basin forest-governance layers with their Arcade popups),
-**Analyses** (contract picker, tree cover and tree cover loss per year from the contracts analysis table), **Alerts**
-(placeholder). English / French.
+Decisions locked in P0: the platform is **hosted by CAFI**, and the **PES management system
+delivers data through its Open API** — so PostGIS is the platform's system of record and
+ArcGIS Enterprise is not in the v2 data path.
 
-The forest-governance layers ("Other areas of interest": concessions, community forests, local territories, their zoning,
-protected areas, documents table) come from the public service `Hosted/Protected_areas` built by `cb_forest_ingest.py`
-and replace the three legacy layers of the web map at load time (`src/services/forestLayers.ts`; popups and symbology in
-`src/arcade/`, copied from `CAFI Spatial Reporting/arcade`). Their titles are fixed because the popups find related layers
-by name; the layer list shows translated display names instead (`src/i18n/forestLabels.ts`).
-
-## Code layout
+## Layout
 
 ```
-src/app/         main.tsx, routes.tsx (hash router, lazy pages), AppShell.tsx (top bar, shared map stage, footer)
-src/core/        store.ts (Zustand: filters, panel UI, selection, AOI, KPI, contract), url.ts, hooks.ts
-src/services/    webmap.ts, forestLayers.ts, layers.ts (PES layers, popups, presets), query.ts (cache + abort), analysis.ts
-src/features/    map/ (MapStage: the single <arcgis-map>, MapPage panels, layers/legend/basemap), filters/, inspector/
-                 (feature panel, code search), analyses/, alerts/, landing/
-src/components/  ui/ (glass atoms, KPI cards, tabs, bottom sheet, notices)  -  CSS Modules on the tokens in src/theme/
-src/i18n/        typed dictionaries (en.ts is the key source, fr.ts must match), plurals, number/date formatting
-src/theme/       tokens.css (design tokens), tokens.ts (mirror for Chart.js / ArcGIS symbols, parity-tested), global.css
+apps/portal-v1/     the current public portal (CAFI Monitor), frozen; still deploys to
+                    GitHub Pages daily. Not an npm workspace member on purpose — its
+                    dependency graph must not change. See its own README.
+apps/web/           v2 frontend: React 19 + MapLibre GL. Skeleton (map + API health).
+packages/shared/    shared TypeScript types (spec §6 object model).
+services/api/       FastAPI — the single data door (indicators, contracts, tiles, auth tiers).
+services/pipeline/  RS Analysis Service — the PES RS spec v1.1 pipeline as a containerized
+                    worker (PES Open API → parcels → GEE indicators → PostGIS). The pure
+                    logic (config §8, temporal windows §11.7, point buffer §11.8) is
+                    implemented and tested; fetch/GEE/DB wiring lands in P1.
+infra/              local dev stack (PostGIS + Keycloak + API) and the core SQL schema.
+docs/               design documents.
 ```
 
-There is exactly one `MapView` for the whole app: `MapStage` is mounted once by the shell and the Map and Analyses routes
-only overlay their panels on it (Analyses switches to a "contracts only" visibility preset and restores it on leave).
-Quality gates: `npm run lint`, `npm run typecheck`, `npm test` (Vitest), `npm run build` (includes a bundle-size budget).
-
-## How it gets its content
-
-The app is driven by the public web map **"PES GIS Portal Map"** (item `4c1d00b58291441b8ed0b2e5874af871`).
-Layers, symbology, popups and layer groups are therefore managed in the portal's Map Viewer, not in code.
-
-The geosmart.undp.org portal does not send CORS headers, so a browser on another domain cannot read portal items.
-`scripts/fetch-webmap.mjs` therefore snapshots the web map JSON into `public/webmaps/` (item ids in
-[webmaps.config.json](webmaps.config.json)); the app builds the map with `WebMap.fromJSON()` and the layers load live
-from geosmarthosting.undp.org, which does allow cross-origin requests. The snapshot is refreshed by
-`npm run fetch:webmaps` (automatic before every build, and the GitHub Pages workflow also rebuilds daily), so a change
-made in the Map Viewer is online at the next deployment. Portal-proxied basemap layers ("UN Image Map" image services)
-are dropped from the snapshot; Esri World Imagery remains.
-
-Filters are applied as definition expressions to every feature layer of the map whose URL contains `Hosted/PES_API_`
-(fields that a layer does not have are ignored). Everything that points at the GIS platform is in
-[src/config.ts](src/config.ts).
-
-The design proposal for the next generation of the platform (RS analysis backend, ArcGIS-free frontend, alerts,
-AOI analyses, jurisdictional dashboards) is in [docs/rs-platform-v2.md](docs/rs-platform-v2.md).
-
-## Run locally
+## Develop
 
 ```bash
-npm install
-npm run dev
+# v2 frontend (proxies /api to localhost:8000)
+npm install && npm run dev:web
+
+# backend stack
+docker compose -f infra/docker-compose.dev.yml up
+
+# pipeline tests
+cd services/pipeline && pip install -e ".[dev]" && pytest
+
+# legacy portal (self-contained)
+cd apps/portal-v1 && npm install && npm run dev
 ```
 
-Build: `npm run build` (output in `dist/`), preview the build: `npm run preview`.
+## Phasing
 
-To build locally with the GitHub Pages base path, set `BASE_PATH` first. In PowerShell: `$env:BASE_PATH = "/pes-public-portal/"; npm run build`.
-In Git Bash prefix the command with `MSYS_NO_PATHCONV=1`, otherwise the shell rewrites the value into a Windows path.
-
-## Publish on GitHub Pages
-
-1. Create an empty repository on GitHub (e.g. `pes-public-portal`), then in this folder:
-   ```bash
-   git init
-   git add .
-   git commit -m "PES GIS Portal public web app"
-   git branch -M main
-   git remote add origin https://github.com/<user>/pes-public-portal.git
-   git push -u origin main
-   ```
-2. In the repository settings, **Pages → Build and deployment → Source: GitHub Actions**.
-3. Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml) and publishes
-   `https://<user>.github.io/pes-public-portal/`. For a custom domain set `BASE_PATH: /` in the workflow.
-
-## Branding
-
-- `public/branding/cafi-logo.png` — CAFI logo (recovered from the Experience Builder app).
-- `public/branding/undp-logo.svg` — **placeholder**; replace with the official UNDP logo (keep the file name).
-
-## Notes
-
-- Basemaps: the web map's own basemap (Esri World Imagery, key-free classic tile service) plus Topographic, Streets and
-  OpenStreetMap. No API key is needed.
-- The Survey123 link is hidden while `CONFIG.links.survey` is empty (the current form item is not public).
-- The Alerts page is a placeholder; wire the alerts table in `src/pages/alertsPage.ts` when it is published.
+P0 (this scaffold) → P1 staff/verifier MVP (pipeline at spec parity, API v1, map workspace,
+monitoring dossiers) → P2 AOI analyses + alerts + public tier (retires portal-v1) →
+P3 jurisdictional dashboards + site check & feedback. Details in the design doc §7.

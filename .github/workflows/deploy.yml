@@ -25,15 +25,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/portal-v1/package-lock.json
       - uses: actions/configure-pages@v5
       - run: npm ci
+        working-directory: apps/portal-v1
       - run: npm run build
+        working-directory: apps/portal-v1
         env:
           # served at https://<user>.github.io/<repository>/ ; set to "/" for a custom domain
           BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: apps/portal-v1/dist
 
   deploy:
     needs: build
