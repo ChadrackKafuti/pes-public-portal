@@ -104,42 +104,57 @@ class GeeBackend:
         )
         return float(stats.get("trees").getInfo() or 0.0)
 
-    def tree_cover(self, parcel, at: date) -> tuple[float, int, float]:
-        """Shortest window on the ladder reaching min_coverage_frac wins."""
+    def _tree_mask_adaptive(self, parcel, at: date) -> tuple[object, float, int] | None:
+        """Walk the widening ladder; return (mask, coverage, window_days) for
+        the first rung reaching min_coverage_frac, else the widest rung with
+        any imagery; None when no window has imagery at all."""
         ladder = tc_window_ladder(self._config.tc_window_days)
-        coverage = 0.0
-        window_days = ladder[-1]
-        mask = None
+        best: tuple[object, float, int] | None = None
         for candidate in ladder:
-            candidate_mask, col = self._tree_mask(parcel, at, candidate)
+            mask, col = self._tree_mask(parcel, at, candidate)
             coverage = self._coverage(col, parcel)
-            window_days = candidate
             if coverage > 0.0:
-                mask = candidate_mask
+                best = (mask, coverage, candidate)
             if coverage >= self._config.min_coverage_frac:
                 break
-        if mask is None:  # no Dynamic World imagery in any window
+        return best
+
+    def tree_cover(self, parcel, at: date) -> tuple[float, int, float]:
+        """Shortest window on the ladder reaching min_coverage_frac wins."""
+        best = self._tree_mask_adaptive(parcel, at)
+        if best is None:  # no Dynamic World imagery in any window
+            ladder = tc_window_ladder(self._config.tc_window_days)
             raise RuntimeError(f"no Dynamic World imagery within {ladder[-1]} days of {at}")
+        mask, coverage, window_days = best
         ha = self._mask_area_ha(mask.selfMask(), parcel, scale=10)
         return ha, window_days, coverage
 
     def tree_cover_loss(self, parcel, interval: Interval) -> float:
-        """loss(A, B) = area(tree(A) AND NOT tree(B)) — spec §11.3."""
-        window = self._config.tc_window_days
-        tree_a, col_a = self._tree_mask(parcel, interval.start, window)
-        if self._coverage(col_a, parcel) < self._config.min_coverage_frac:
+        """loss(A, B) = area(tree(A) AND NOT tree(B)) — spec §11.3.
+
+        Both endpoint masks use the same widening ladder as tree_cover: a
+        fixed 7-day window at a years-old baseline date is rarely populated
+        (validated live — every parcel needed the 60-day rung)."""
+        start = self._tree_mask_adaptive(parcel, interval.start)
+        if start is None or start[1] < self._config.min_coverage_frac:
             # Spec §11.3: blank when imagery near the start date is unavailable.
             raise RuntimeError("insufficient Dynamic World coverage at interval start")
-        tree_b, col_b = self._tree_mask(parcel, interval.end, window)
-        if self._coverage(col_b, parcel) == 0.0:
+        end = self._tree_mask_adaptive(parcel, interval.end)
+        if end is None:
             raise RuntimeError("no Dynamic World imagery at interval end")
+        tree_a, tree_b = start[0], end[0]
         return self._mask_area_ha(tree_a.And(tree_b.Not()).selfMask(), parcel, scale=10)
 
     # -- RADD alerts (spec §11.4) -----------------------------------------
 
     def radd_alerts(self, parcel, interval: Interval) -> int:
         ee = self._ee
-        img = ee.ImageCollection(self._config.radd_asset).filterBounds(parcel).mosaic()
+        img = (
+            ee.ImageCollection(self._config.radd_asset)
+            .filterMetadata("layer", "contains", "alert")
+            .filterBounds(parcel)
+            .mosaic()
+        )
         # Raster stores yyDDD; decode to yyyyDDD (indicators.common.radd_decode).
         serial = img.select("Date").divide(1000).floor().add(2000).multiply(1000).add(
             img.select("Date").mod(1000)
