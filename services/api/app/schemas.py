@@ -27,6 +27,10 @@ class ApplicationSummary(ApiModel):
     contract_code: str | None
     application_date: date
     pes_activity: str | None
+    country: str | None
+    province: str | None
+    implementing_org: str | None
+    project_name: str | None
     estimated_area_ha: float | None
     parcel_area_ha: float | None
     tree_cover_ha: float | None
@@ -39,6 +43,14 @@ class ApplicationSummary(ApiModel):
 class ApplicationList(ApiModel):
     items: list[ApplicationSummary]
     total: int
+
+
+class FilterOptions(ApiModel):
+    countries: list[str]
+    provinces: list[str]
+    organisations: list[str]
+    projects: list[str]
+    activities: list[str]
 
 
 class IndicatorRowOut(ApiModel):

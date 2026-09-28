@@ -61,6 +61,10 @@ export interface ApplicationSummary {
   contractCode: string | null;
   applicationDate: string;
   pesActivity: string | null;
+  country: string | null;
+  province: string | null;
+  implementingOrg: string | null;
+  projectName: string | null;
   estimatedAreaHa: number | null;
   parcelAreaHa: number | null;
   treeCoverHa: number | null;
@@ -73,6 +77,14 @@ export interface ApplicationSummary {
 export interface ApplicationList {
   items: ApplicationSummary[];
   total: number;
+}
+
+export interface FilterOptions {
+  countries: string[];
+  provinces: string[];
+  organisations: string[];
+  projects: string[];
+  activities: string[];
 }
 
 export interface RunHealth {

@@ -40,6 +40,12 @@ class PesObject:
     application_code: str | None = None
     contract_code: str | None = None
     pes_activity: str | None = None
+    country: str | None = None
+    province: str | None = None
+    territory: str | None = None
+    village: str | None = None
+    implementing_org: str | None = None
+    project_name: str | None = None
     shape_wkt: str | None = None  # polygon geometry as delivered by the PES API
     point: tuple[float, float] | None = None  # lon, lat
     estimated_area_ha: float | None = None

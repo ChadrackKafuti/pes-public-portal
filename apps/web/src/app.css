@@ -344,3 +344,36 @@ table.data a {
   text-align: center;
   max-width: 320px;
 }
+
+.dossier-actions {
+  float: right;
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+@media print {
+  .topbar,
+  .no-print,
+  .map-overlay {
+    display: none !important;
+  }
+
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --border: #cccccc;
+    --fg: #000000;
+    --fg-muted: #444444;
+    --grid: #dddddd;
+    --axis: #999999;
+  }
+
+  .page {
+    max-width: none;
+    overflow: visible;
+  }
+
+  .shell {
+    height: auto;
+  }
+}

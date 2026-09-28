@@ -1,23 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import type { ApplicationList } from "@cafi/shared";
-import { api } from "../api/client";
+import type { ApplicationList, FilterOptions } from "@cafi/shared";
+import { api, type ApplicationFilters } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
 import { StatusBadge } from "./bits";
+
+const EMPTY: ApplicationFilters = {};
 
 export function ApplicationsPage() {
   const t = useT();
   const locale = useI18n((s) => s.locale);
   const [data, setData] = useState<ApplicationList | null>(null);
+  const [options, setOptions] = useState<FilterOptions | null>(null);
   const [error, setError] = useState(false);
-  const [q, setQ] = useState("");
-  const [activity, setActivity] = useState("");
-  const [status, setStatus] = useState("");
+  const [filters, setFilters] = useState<ApplicationFilters>(EMPTY);
+
+  const set = (patch: ApplicationFilters) =>
+    setFilters((f) => {
+      const next = { ...f, ...patch };
+      // Changing country invalidates a province from another country.
+      if ("country" in patch) next.province = undefined;
+      return next;
+    });
+
+  useEffect(() => {
+    api.filters(filters.country).then(setOptions).catch(() => setError(true));
+  }, [filters.country]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
       api
-        .applications({ q, activity, status })
+        .applications(filters)
         .then((d) => {
           setData(d);
           setError(false);
@@ -25,11 +38,20 @@ export function ApplicationsPage() {
         .catch(() => setError(true));
     }, 200); // debounce the search box
     return () => clearTimeout(handle);
-  }, [q, activity, status]);
+  }, [filters]);
 
-  const activities = useMemo(
-    () => [...new Set((data?.items ?? []).map((i) => i.pesActivity).filter(Boolean))] as string[],
-    [data],
+  const select = (
+    value: string | undefined,
+    key: keyof ApplicationFilters,
+    all: string,
+    values: string[],
+  ) => (
+    <select value={value ?? ""} onChange={(e) => set({ [key]: e.target.value || undefined })}>
+      <option value="">{all}</option>
+      {values.map((v) => (
+        <option key={v}>{v}</option>
+      ))}
+    </select>
   );
 
   return (
@@ -37,18 +59,20 @@ export function ApplicationsPage() {
       <div className="filters" role="search">
         <input
           type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={filters.q ?? ""}
+          onChange={(e) => set({ q: e.target.value || undefined })}
           placeholder={t("search_placeholder")}
           aria-label={t("search_placeholder")}
         />
-        <select value={activity} onChange={(e) => setActivity(e.target.value)}>
-          <option value="">{t("all_activities")}</option>
-          {activities.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        {select(filters.country, "country", t("all_countries"), options?.countries ?? [])}
+        {select(filters.province, "province", t("all_provinces"), options?.provinces ?? [])}
+        {select(filters.org, "org", t("all_organisations"), options?.organisations ?? [])}
+        {select(filters.project, "project", t("all_projects"), options?.projects ?? [])}
+        {select(filters.activity, "activity", t("all_activities"), options?.activities ?? [])}
+        <select
+          value={filters.status ?? ""}
+          onChange={(e) => set({ status: e.target.value || undefined })}
+        >
           <option value="">{t("all_statuses")}</option>
           <option value="ok">ok</option>
           <option value="partial">partial</option>
@@ -67,6 +91,8 @@ export function ApplicationsPage() {
               <th>{t("th_application")}</th>
               <th>{t("th_contract")}</th>
               <th>{t("th_activity")}</th>
+              <th>{t("th_location")}</th>
+              <th>{t("th_organisation")}</th>
               <th>{t("th_date")}</th>
               <th className="num">{t("th_area")}</th>
               <th className="num">{t("th_tree_cover")}</th>
@@ -84,6 +110,10 @@ export function ApplicationsPage() {
                 </td>
                 <td>{item.contractCode ?? "—"}</td>
                 <td>{item.pesActivity ?? "—"}</td>
+                <td>
+                  {[item.province, item.country].filter(Boolean).join(", ") || "—"}
+                </td>
+                <td>{item.implementingOrg ?? "—"}</td>
                 <td>{fmtDate(item.applicationDate, locale)}</td>
                 <td className="num">{fmtNum(item.parcelAreaHa ?? item.estimatedAreaHa, locale)}</td>
                 <td className="num">{fmtNum(item.treeCoverHa, locale)}</td>

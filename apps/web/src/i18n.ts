@@ -16,6 +16,12 @@ const en = {
   th_status: "Status",
   th_visits: "Visits",
   all_activities: "All activities",
+  all_countries: "All countries",
+  all_provinces: "All provinces",
+  all_organisations: "All organisations",
+  all_projects: "All projects",
+  th_location: "Location",
+  th_organisation: "Organisation",
   all_statuses: "All statuses",
   no_results: "No applications match.",
   not_measured: "not measured",
@@ -47,6 +53,8 @@ const en = {
   sign_in: "Sign in",
   sign_out: "Sign out",
   signin_hint: "Staff and verifier access. Sign in with your PES account.",
+  export_csv: "Export CSV",
+  export_pdf: "Print / PDF",
 } as const;
 
 type Key = keyof typeof en;
@@ -65,6 +73,12 @@ const fr: Record<Key, string> = {
   th_status: "Statut",
   th_visits: "Visites",
   all_activities: "Toutes les activités",
+  all_countries: "Tous les pays",
+  all_provinces: "Toutes les provinces",
+  all_organisations: "Toutes les organisations",
+  all_projects: "Tous les projets",
+  th_location: "Localisation",
+  th_organisation: "Organisation",
   all_statuses: "Tous les statuts",
   no_results: "Aucune demande ne correspond.",
   not_measured: "non mesuré",
@@ -96,6 +110,8 @@ const fr: Record<Key, string> = {
   sign_in: "Se connecter",
   sign_out: "Se déconnecter",
   signin_hint: "Accès personnel et vérificateurs. Connectez-vous avec votre compte PES.",
+  export_csv: "Exporter CSV",
+  export_pdf: "Imprimer / PDF",
 };
 
 const dictionaries: Record<Locale, Record<Key, string>> = { en, fr };

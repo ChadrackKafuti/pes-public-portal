@@ -83,6 +83,12 @@ CREATE TABLE pes_parcels (
   point_lat         double precision,
   estimated_area_ha double precision,
   pes_activity      text,
+  country           text,
+  province          text,
+  territory         text,
+  village           text,
+  implementing_org  text,
+  project_name      text,
   geom_input_hash   text NOT NULL,
   updated_utc       timestamptz NOT NULL DEFAULT now()
 );

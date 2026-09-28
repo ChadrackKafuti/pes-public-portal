@@ -18,7 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import CurrentUser, Principal
 from .db import get_conn
-from .schemas import ApplicationList, ApplicationSummary, IndicatorRowOut, RunHealth
+from .schemas import (
+    ApplicationList,
+    ApplicationSummary,
+    FilterOptions,
+    IndicatorRowOut,
+    RunHealth,
+)
 from .settings import settings
 
 app = FastAPI(title="CAFI RS Platform API", version="0.1.0")
@@ -39,7 +45,9 @@ def health() -> dict:
 
 _APPLICATION_LIST_SQL = """
 SELECT p.application_id, p.application_code, p.contract_code,
-       p.application_date, p.pes_activity, p.estimated_area_ha,
+       p.application_date, p.pes_activity,
+       p.country, p.province, p.implementing_org, p.project_name,
+       p.estimated_area_ha,
        o.parcel_area_ha, o.tree_cover_ha, o.defor_5yr_ha_yr, o.status,
        (SELECT count(*) FROM pes_rs_objects v
          WHERE v.application_id = p.application_id
@@ -50,6 +58,10 @@ FROM pes_parcels p
 LEFT JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
 WHERE (%(activity)s::text IS NULL OR p.pes_activity = %(activity)s)
+  AND (%(country)s::text IS NULL OR p.country = %(country)s)
+  AND (%(province)s::text IS NULL OR p.province = %(province)s)
+  AND (%(org)s::text IS NULL OR p.implementing_org = %(org)s)
+  AND (%(project)s::text IS NULL OR p.project_name = %(project)s)
   AND (%(status)s::text IS NULL OR o.status::text = %(status)s)
   AND (%(q)s::text IS NULL OR p.application_id ILIKE '%%' || %(q)s || '%%'
        OR p.application_code ILIKE '%%' || %(q)s || '%%'
@@ -62,6 +74,10 @@ LIMIT %(limit)s OFFSET %(offset)s
 @app.get("/api/applications", response_model=ApplicationList)
 def list_applications(
     activity: str | None = None,
+    country: str | None = None,
+    province: str | None = None,
+    org: str | None = None,
+    project: str | None = None,
     status: str | None = None,
     q: str | None = Query(None, description="id / application code / contract code substring"),
     limit: int = Query(50, ge=1, le=500),
@@ -71,7 +87,17 @@ def list_applications(
 ) -> ApplicationList:
     rows = conn.execute(
         _APPLICATION_LIST_SQL,
-        {"activity": activity, "status": status, "q": q, "limit": limit, "offset": offset},
+        {
+            "activity": activity,
+            "country": country,
+            "province": province,
+            "org": org,
+            "project": project,
+            "status": status,
+            "q": q,
+            "limit": limit,
+            "offset": offset,
+        },
     ).fetchall()
     total = rows[0][-1] if rows else 0
     items = [
@@ -81,13 +107,17 @@ def list_applications(
             contract_code=r[2],
             application_date=r[3],
             pes_activity=r[4],
-            estimated_area_ha=r[5],
-            parcel_area_ha=r[6],
-            tree_cover_ha=r[7],
-            defor_5yr_ha_yr=r[8],
-            status=r[9],
-            visit_count=r[10],
-            last_processed_utc=r[11],
+            country=r[5],
+            province=r[6],
+            implementing_org=r[7],
+            project_name=r[8],
+            estimated_area_ha=r[9],
+            parcel_area_ha=r[10],
+            tree_cover_ha=r[11],
+            defor_5yr_ha_yr=r[12],
+            status=r[13],
+            visit_count=r[14],
+            last_processed_utc=r[15],
         )
         for r in rows
     ]
@@ -108,6 +138,34 @@ processed_utc
 def _row_out(r) -> IndicatorRowOut:
     cols = [c.strip() for c in _INDICATOR_COLUMNS.replace("\n", " ").split(",")]
     return IndicatorRowOut(**dict(zip(cols, r, strict=True)))
+
+
+@app.get("/api/filters", response_model=FilterOptions)
+def filter_options(
+    country: str | None = None,
+    conn=Depends(get_conn),
+    user: Principal = CurrentUser,
+) -> FilterOptions:
+    """Distinct values feeding the filter selects. Provinces narrow to the
+    chosen country when one is passed (portal-v1 behaviour)."""
+
+    def distinct(column: str, where: str = "", params: tuple = ()) -> list[str]:
+        rows = conn.execute(
+            f"SELECT DISTINCT {column} FROM pes_parcels "
+            f"WHERE {column} IS NOT NULL {where} ORDER BY {column}",
+            params,
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    return FilterOptions(
+        countries=distinct("country"),
+        provinces=distinct(
+            "province", "AND (%s::text IS NULL OR country = %s)", (country, country)
+        ),
+        organisations=distinct("implementing_org"),
+        projects=distinct("project_name"),
+        activities=distinct("pes_activity"),
+    )
 
 
 @app.get("/api/applications.geojson")

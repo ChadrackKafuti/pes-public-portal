@@ -210,8 +210,10 @@ class Store:
                 INSERT INTO pes_parcels
                   (application_id, application_code, contract_code, application_date,
                    shape_raw, point_lon, point_lat,
-                   estimated_area_ha, pes_activity, geom_input_hash, updated_utc)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
+                   estimated_area_ha, pes_activity,
+                   country, province, territory, village, implementing_org,
+                   project_name, geom_input_hash, updated_utc)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
                 ON CONFLICT (application_id) DO UPDATE SET
                   application_code = EXCLUDED.application_code,
                   contract_code = EXCLUDED.contract_code,
@@ -221,6 +223,12 @@ class Store:
                   point_lat = EXCLUDED.point_lat,
                   estimated_area_ha = EXCLUDED.estimated_area_ha,
                   pes_activity = EXCLUDED.pes_activity,
+                  country = EXCLUDED.country,
+                  province = EXCLUDED.province,
+                  territory = EXCLUDED.territory,
+                  village = EXCLUDED.village,
+                  implementing_org = EXCLUDED.implementing_org,
+                  project_name = EXCLUDED.project_name,
                   geom_input_hash = EXCLUDED.geom_input_hash,
                   updated_utc = now()
                 """,
@@ -228,6 +236,8 @@ class Store:
                     app.application_id, app.application_code, app.contract_code,
                     app.application_date, app.shape_wkt,
                     lon, lat, app.estimated_area_ha, app.pes_activity,
+                    app.country, app.province, app.territory, app.village,
+                    app.implementing_org, app.project_name,
                     geom_input_hash(app.shape_wkt, app.point),
                 ),
             )

@@ -6,6 +6,30 @@ import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
 import { StatTile, StatusBadge } from "./bits";
 import { TreeCoverChart } from "./TreeCoverChart";
 
+function exportCsv(rows: PesRsObject[], name: string) {
+  const columns = [
+    "objectId", "objectType", "objectDate", "applicationCode", "contractCode",
+    "pesActivity", "parcelAreaHa", "treeCoverHa", "defor5yrHaYr", "deforCurrentHa",
+    "deforAlerts5yr", "deforAlertsCurrent", "fireAlerts5yr", "fireAlertsCurrent",
+    "burnedArea5yrHa", "burnedAreaCurrentHa", "tcCoverage", "baselineYears", "status",
+  ] as const;
+  const escape = (v: unknown) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [
+    columns.join(","),
+    ...rows.map((r) => columns.map((c) => escape(r[c])).join(",")),
+  ].join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${name}-indicators.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function DossierPage() {
   const { id = "" } = useParams();
   const t = useT();
@@ -41,6 +65,14 @@ export function DossierPage() {
       <h1 className="dossier-head">
         {t("dossier_title")} · {application?.applicationCode ?? id}
         {latest?.contractCode ? <span className="muted"> — {latest.contractCode}</span> : null}
+        <span className="dossier-actions no-print">
+          <button className="lang" onClick={() => exportCsv(rows, application?.applicationCode ?? id)}>
+            {t("export_csv")}
+          </button>
+          <button className="lang" onClick={() => window.print()}>
+            {t("export_pdf")}
+          </button>
+        </span>
       </h1>
       <p className="muted">
         {latest?.pesActivity ?? "—"}

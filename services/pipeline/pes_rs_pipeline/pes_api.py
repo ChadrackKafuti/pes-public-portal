@@ -43,6 +43,12 @@ FIELD_CANDIDATES: dict[str, list[str]] = {
     "shape": ["shape", "shapewkt", "geometry", "polygon", "parcelshape"],
     "point": ["point", "pointraw", "location", "coordinates"],
     "estimated_area": ["estimatedarea", "estimatedareaha", "areaha", "estimated_area"],
+    "country": ["country"],
+    "province": ["province"],
+    "territory": ["territory"],
+    "village": ["village"],
+    "implementing_org": ["implementingorgname"],
+    "project_name": ["projectname"],
 }
 
 
@@ -104,6 +110,12 @@ def normalize_application(record: dict[str, Any]) -> PesObject:
         application_code=_pick(record, "application_code"),
         contract_code=_pick(record, "contract_code"),
         pes_activity=_pick(record, "activity"),
+        country=_pick(record, "country"),
+        province=_pick(record, "province"),
+        territory=_pick(record, "territory"),
+        village=_pick(record, "village"),
+        implementing_org=_pick(record, "implementing_org"),
+        project_name=_pick(record, "project_name"),
         shape_wkt=_as_shape(_pick(record, "shape")),
         point=_as_point(_pick(record, "point")),
         estimated_area_ha=float(raw_area) if raw_area is not None else None,
