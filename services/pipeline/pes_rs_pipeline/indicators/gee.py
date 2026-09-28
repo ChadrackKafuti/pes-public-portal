@@ -15,7 +15,6 @@ from ..windows import Interval
 from .common import date_to_serial, m2_to_ha, tc_window_ladder
 
 DYNAMIC_WORLD = "GOOGLE/DYNAMICWORLD/V1"
-RADD = "projects/radar-alert/assets/v1/alerts_africa"
 VIIRS_SNPP = "NASA/LANCE/SNPP_VIIRS/C2"
 VIIRS_NOAA20 = "NASA/LANCE/NOAA20_VIIRS/C2"
 MODIS_BURNED = "MODIS/061/MCD64A1"
@@ -31,18 +30,20 @@ class GeeBackend:
     def __init__(self, config: PipelineConfig):
         import ee  # deferred: heavy, and absent outside the compute image
 
+        import os
+
         from ..gee_auth import materialise_gee_credentials
 
         materialise_gee_credentials(config.gee_service_account)
         self._ee = ee
         self._config = config
-        if config.gee_service_account:
-            credentials = ee.ServiceAccountCredentials(
-                config.gee_service_account, key_data=None  # ADC / metadata server
-            )
-            ee.Initialize(credentials)
+        key_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if config.gee_service_account and key_file:
+            # ServiceAccountCredentials needs the key file explicitly;
+            # key_data=None raises inside the client library.
+            ee.Initialize(ee.ServiceAccountCredentials(config.gee_service_account, key_file))
         else:
-            ee.Initialize()
+            ee.Initialize()  # ADC (Cloud Run workload identity)
 
     # -- geometry ---------------------------------------------------------
 
@@ -89,7 +90,14 @@ class GeeBackend:
         return col.mean().gte(self._config.prob_threshold), col
 
     def _coverage(self, col, parcel) -> float:
-        """Fraction of the parcel observed by the collection."""
+        """Fraction of the parcel observed by the collection.
+
+        An empty collection produces band-less images whose comparisons
+        throw in EE, so it is answered directly as zero coverage — this is
+        what lets the tree-cover window ladder widen past cloudy periods.
+        """
+        if int(col.size().getInfo()) == 0:
+            return 0.0
         observed = col.count().gt(0)
         stats = observed.unmask(0).reduceRegion(
             reducer=self._ee.Reducer.mean(), geometry=parcel, scale=10, maxPixels=1e10
@@ -101,12 +109,17 @@ class GeeBackend:
         ladder = tc_window_ladder(self._config.tc_window_days)
         coverage = 0.0
         window_days = ladder[-1]
+        mask = None
         for candidate in ladder:
-            mask, col = self._tree_mask(parcel, at, candidate)
+            candidate_mask, col = self._tree_mask(parcel, at, candidate)
             coverage = self._coverage(col, parcel)
             window_days = candidate
+            if coverage > 0.0:
+                mask = candidate_mask
             if coverage >= self._config.min_coverage_frac:
                 break
+        if mask is None:  # no Dynamic World imagery in any window
+            raise RuntimeError(f"no Dynamic World imagery within {ladder[-1]} days of {at}")
         ha = self._mask_area_ha(mask.selfMask(), parcel, scale=10)
         return ha, window_days, coverage
 
@@ -114,17 +127,19 @@ class GeeBackend:
         """loss(A, B) = area(tree(A) AND NOT tree(B)) — spec §11.3."""
         window = self._config.tc_window_days
         tree_a, col_a = self._tree_mask(parcel, interval.start, window)
-        tree_b, _ = self._tree_mask(parcel, interval.end, window)
         if self._coverage(col_a, parcel) < self._config.min_coverage_frac:
             # Spec §11.3: blank when imagery near the start date is unavailable.
             raise RuntimeError("insufficient Dynamic World coverage at interval start")
+        tree_b, col_b = self._tree_mask(parcel, interval.end, window)
+        if self._coverage(col_b, parcel) == 0.0:
+            raise RuntimeError("no Dynamic World imagery at interval end")
         return self._mask_area_ha(tree_a.And(tree_b.Not()).selfMask(), parcel, scale=10)
 
     # -- RADD alerts (spec §11.4) -----------------------------------------
 
     def radd_alerts(self, parcel, interval: Interval) -> int:
         ee = self._ee
-        img = ee.ImageCollection(RADD).mosaic()
+        img = ee.ImageCollection(self._config.radd_asset).filterBounds(parcel).mosaic()
         # Raster stores yyDDD; decode to yyyyDDD (indicators.common.radd_decode).
         serial = img.select("Date").divide(1000).floor().add(2000).multiply(1000).add(
             img.select("Date").mod(1000)

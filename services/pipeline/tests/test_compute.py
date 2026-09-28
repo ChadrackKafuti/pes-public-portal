@@ -162,3 +162,33 @@ def test_time_budget_stops_processing():
     )
     assert result.rows == []
     assert result.stopped_reason == "time_budget"  # spec §5: next run continues
+
+
+def test_cached_parent_dates_unbreak_visit_normalization():
+    """A visit whose parent application is not in the fetch normalizes when
+    the parent's date comes from the pes_parcels cache (live-run finding #4)."""
+    visits = [{"MonitoringVisitCode": "MV-9", "MonitoringDate": "2025-01-10",
+               "ApplicationCode": "CA-OLD"}]
+    # Without the cache: parent_failed.
+    objects, bad = normalize_all([], visits)
+    assert objects == [] and bad == [("MV-9", "parent_failed")]
+    # With the cached date: normalizes and inherits the baseline date.
+    objects, bad = normalize_all([], visits, {"CA-OLD": date(2024, 3, 1)})
+    assert bad == []
+    assert objects[0].application_date == date(2024, 3, 1)
+
+
+def test_health_row_selected_override():
+    """selected reflects objects entering processing, not rows+exceptions
+    (live-run finding #5)."""
+    from datetime import UTC, datetime
+
+    result = RunResult(start_utc=datetime.now(UTC))
+    result.exceptions.extend([("X", "parent_failed")] * 8)
+    result.selected = 12
+    process_objects([_application()], FakeBackend(), PipelineConfig(), result, today=TODAY)
+    assert result.health_row()["selected"] == 12
+
+
+def test_radd_asset_default():
+    assert PipelineConfig().radd_asset == "projects/radar-wur/raddalert/v1"

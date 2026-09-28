@@ -14,7 +14,7 @@ from .compute import IndicatorBackend, compute_indicators
 from .config import PipelineConfig
 from .geometry import resolve_geom_source
 from .models import IndicatorRow, ObjectType, PesObject
-from .pes_api import PesApiClient, normalize_application, normalize_visit
+from .pes_api import PesApiClient, _pick, normalize_application, normalize_visit
 from .selection import Decision, decide
 
 log = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ class RunResult:
     deferred: list[str] = field(default_factory=list)  # future visits (spec §1)
     fetched_app: int = 0
     fetched_mon: int = 0
+    selected: int | None = None  # objects entering processing after selection
     stopped_reason: str = "completed"
 
     def health_row(self) -> dict:
@@ -40,7 +41,11 @@ class RunResult:
             "duration_s": (end - self.start_utc).total_seconds(),
             "fetched_app": self.fetched_app,
             "fetched_mon": self.fetched_mon,
-            "selected": len(self.rows) + len(self.exceptions),
+            "selected": (
+                self.selected
+                if self.selected is not None
+                else len(self.rows) + len(self.exceptions)
+            ),
             "ok": sum(1 for r in self.rows if not r.failed_indicators),
             "partial": sum(1 for r in self.rows if r.failed_indicators),
             "skipped": len(self.exceptions),
@@ -50,12 +55,20 @@ class RunResult:
 
 
 def normalize_all(
-    applications: list[dict], visits: list[dict]
+    applications: list[dict],
+    visits: list[dict],
+    cached_parent_dates: dict[str, date] | None = None,
 ) -> tuple[list[PesObject], list[tuple[str, str]]]:
-    """Spec §4 step 3: raw records -> PesObjects + exception reasons."""
+    """Spec §4 step 3: raw records -> PesObjects + exception reasons.
+
+    `cached_parent_dates` supplies application dates from the pes_parcels
+    cache (spec §6.4), so a visit still normalizes when its parent
+    application is not part of this fetch. Fetched applications win over
+    the cache.
+    """
     objects: list[PesObject] = []
     exceptions: list[tuple[str, str]] = []
-    app_dates: dict[str, date] = {}
+    app_dates: dict[str, date] = dict(cached_parent_dates or {})
 
     for record in applications:
         try:
@@ -63,13 +76,15 @@ def normalize_all(
             objects.append(obj)
             app_dates[obj.application_id] = obj.application_date
         except Exception as exc:  # noqa: BLE001
-            exceptions.append((str(record.get("id", "?")), str(exc) or "bad_record"))
+            rid = _pick(record, "id")
+            exceptions.append((str(rid) if rid is not None else "?", str(exc) or "bad_record"))
 
     for record in visits:
         try:
             objects.append(normalize_visit(record, app_dates))
         except Exception as exc:  # noqa: BLE001
-            exceptions.append((str(record.get("id", "?")), str(exc) or "bad_record"))
+            rid = _pick(record, "visit_id")
+            exceptions.append((str(rid) if rid is not None else "?", str(exc) or "bad_record"))
 
     return objects, exceptions
 
@@ -162,7 +177,25 @@ def run_once(
                 client.close()
             result.fetched_app, result.fetched_mon = len(applications), len(visits)
 
-            objects, bad = normalize_all(applications, visits)
+            # Cached parents (spec §6.4) BEFORE normalisation: visits whose
+            # parent application is not part of this fetch must still resolve
+            # their baseline date and inherit the cached parcel.
+            fetched_ids = {
+                str(_pick(a, "id")) for a in applications if _pick(a, "id") is not None
+            }
+            referenced = {
+                str(_pick(v, "application_ref"))
+                for v in visits
+                if _pick(v, "application_ref") is not None
+            }
+            cached_parents = store.load_parent_parcels(
+                conn, sorted(referenced - fetched_ids)
+            )
+            cached_dates = {
+                pid: parent.application_date for pid, parent in cached_parents.items()
+            }
+
+            objects, bad = normalize_all(applications, visits, cached_dates)
             result.exceptions.extend(bad)
 
             # Incremental selection (spec §3): keep only objects with work due.
@@ -173,14 +206,7 @@ def run_once(
                 for o in objects
                 if decide(o, stored.get(o.object_id), config, today) is Decision.PROCESS
             ]
-
-            # Cached parents for visits whose application is not in this batch.
-            missing_parents = {
-                o.application_id
-                for o in objects
-                if o.object_type is ObjectType.MONITORING_VISIT
-            } - {o.application_id for o in objects if o.object_type is ObjectType.APPLICATION}
-            cached_parents = store.load_parent_parcels(conn, sorted(missing_parents))
+            result.selected = len(objects)
 
             if backend is None:
                 from .indicators.gee import GeeBackend

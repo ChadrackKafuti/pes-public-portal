@@ -23,6 +23,8 @@ class PipelineConfig(BaseSettings):
     prob_threshold: float = 0.5
     # Spec §11.4
     radd_min_confidence: int = 2
+    # RADD alerts collection (WUR); see gee-community-catalog.org/projects/radd/
+    radd_asset: str = "projects/radar-wur/raddalert/v1"
 
     # Upstream: the PES Open API (Keycloak client credentials come from the
     # runtime secret store, per spec §2.1 — never stored in the tool).
