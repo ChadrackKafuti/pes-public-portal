@@ -24,8 +24,9 @@ PAGE_SIZE = 200
 
 # Field names per the PES Open API Technical Specification v1.0 §4 (PascalCase
 # in payloads; matching is case-insensitive), with the ArcGIS-view spellings
-# kept as fallbacks. Note: applications carry no ContractCode — the contract
-# linkage arrives via monitoring visits.
+# kept as fallbacks. The spec's example payloads lag the live API (confirmed
+# by the PES team): ContractCode is present on BOTH applications and
+# monitoring visits.
 FIELD_CANDIDATES: dict[str, list[str]] = {
     "id": ["applicationid", "id", "recordid"],
     "visit_id": ["monitoringvisitcode", "monitoringvisitid", "id", "visitid"],

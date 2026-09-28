@@ -68,9 +68,10 @@ the **Applications** and **Monitoring** datasets, and organization scope
 
 API contract (spec §4): `PageNumber`/`PageSize` pagination params and a
 `{Items, TotalCount, TotalPages, CurrentPage, PageSize}` response envelope;
-fields are PascalCase; applications carry no ContractCode (the contract
-linkage arrives via monitoring visits); a `Country={countryId}` filter
-exists. The pipeline client implements this contract.
+fields are PascalCase; a `Country={countryId}` filter exists. The spec's
+example payloads lag the live API: ContractCode is present on both
+applications and monitoring visits (confirmed by the PES team, Sept 2026).
+The pipeline client implements this contract.
 
 While you have that sample payload, compare its field names against
 `FIELD_CANDIDATES` in `services/pipeline/pes_rs_pipeline/pes_api.py` — that
