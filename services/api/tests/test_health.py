@@ -1,21 +1,13 @@
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
-
-
-def test_health():
+def test_health(client):
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
 
 
-def test_contracts_stub():
-    r = client.get("/api/contracts")
+def test_run_health(client):
+    r = client.get("/api/health/runs")
     assert r.status_code == 200
-    assert r.json() == {"items": [], "total": 0}
-
-
-def test_indicators_not_implemented_yet():
-    assert client.get("/api/contracts/X/indicators").status_code == 501
+    runs = r.json()
+    assert len(runs) == 1
+    assert runs[0]["stoppedReason"] == "completed"
+    assert runs[0]["fetchedApp"] == 2
