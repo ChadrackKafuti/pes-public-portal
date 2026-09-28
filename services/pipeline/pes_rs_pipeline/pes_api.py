@@ -22,15 +22,19 @@ from .models import ObjectType, PesObject
 
 PAGE_SIZE = 200
 
-# Field names per the PES Open API Technical Specification v1.0 §4 (PascalCase
-# in payloads; matching is case-insensitive), with the ArcGIS-view spellings
-# kept as fallbacks. The spec's example payloads lag the live API (confirmed
-# by the PES team): ContractCode is present on BOTH applications and
-# monitoring visits.
+# Field names verified against the LIVE production payloads (Sept 2026);
+# matching is case-insensitive, earlier spellings kept as fallbacks.
+# Live facts: applications carry ApplicationCode but no ApplicationId and no
+# ContractCode (the contract linkage arrives via monitoring visits, which
+# carry ContractCode + ApplicationCode + MonitoringVisitCode + MonitoringDate).
+# In "id", monitoringvisitcode must stay BEFORE applicationcode: _paged()
+# de-duplicates by this key on both endpoints, and de-duplicating visits by
+# ApplicationCode would drop all but one visit per application.
 FIELD_CANDIDATES: dict[str, list[str]] = {
-    "id": ["applicationid", "id", "recordid"],
+    "id": ["applicationid", "id", "recordid", "monitoringvisitcode", "applicationcode"],
     "visit_id": ["monitoringvisitcode", "monitoringvisitid", "id", "visitid"],
-    "application_ref": ["applicationid", "parentrecordid", "contractapplicationid"],
+    "application_ref": ["applicationid", "parentrecordid", "contractapplicationid",
+                        "applicationcode"],
     "application_code": ["applicationcode"],
     "contract_code": ["contractcode"],
     "application_date": ["applicationdate", "enrolmentdate", "createddate"],

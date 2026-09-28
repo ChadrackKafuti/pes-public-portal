@@ -147,3 +147,53 @@ def test_totalpages_envelope_stops_paging_exactly(monkeypatch):
     assert len(client.fetch_applications()) == PAGE_SIZE
     client.close()
     assert requested == [1]
+
+
+def test_live_payload_shapes_normalize():
+    """Field names exactly as the production API serves them (Sept 2026):
+    applications have ApplicationCode but no ApplicationId/ContractCode;
+    visits reference the parent via ApplicationCode and are identified by
+    MonitoringVisitCode."""
+    app = normalize_application({
+        "ApplicationCode": "CA1124-BE1076",
+        "ApplicationDate": "2026-09-22",
+        "ApplicationStatus": "Archived",
+        "ActivityType": "Agroforestry",
+        "EstimatedArea": "0.1",          # string containing a dot-decimal
+        "Shape": "POLYGON((15 -4,15.01 -4,15.01 -3.99,15 -4))",
+        "Point": None,
+    })
+    assert app.object_id == "CA1124-BE1076"  # id falls back to the code
+    assert app.application_id == "CA1124-BE1076"
+    assert app.application_code == "CA1124-BE1076"
+    assert app.contract_code is None
+    assert app.estimated_area_ha == 0.1
+    assert app.object_date == date(2026, 9, 22)
+
+    visit = normalize_visit(
+        {
+            "MonitoringVisitCode": "MV-0007",
+            "MonitoringDate": "2026-09-25",
+            "ApplicationCode": "CA1124-BE1076",
+            "ContractCode": "CC-0042",
+            "ActivityType": "Agroforestry",
+            "Shape": None,
+        },
+        {"CA1124-BE1076": date(2026, 9, 22)},
+    )
+    assert visit.object_id == "MV-0007"
+    assert visit.application_id == "CA1124-BE1076"
+    assert visit.contract_code == "CC-0042"
+    assert visit.application_date == date(2026, 9, 22)  # parent's baseline
+    assert visit.object_date == date(2026, 9, 25)
+
+
+def test_dedup_key_prefers_visit_code_over_application_code():
+    """Visits carry both codes; de-dup must use the visit's own id, or every
+    application would keep only one visit."""
+    from pes_rs_pipeline.pes_api import _pick
+
+    visit = {"MonitoringVisitCode": "MV-1", "ApplicationCode": "CA-1"}
+    assert _pick(visit, "id") == "MV-1"
+    # ApplicationCode is the id only when no visit code is present:
+    assert _pick({"ApplicationCode": "CA-1"}, "id") == "CA-1"
