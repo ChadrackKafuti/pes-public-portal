@@ -49,6 +49,9 @@ Filters are applied as definition expressions to every feature layer of the map 
 (fields that a layer does not have are ignored). Everything that points at the GIS platform is in
 [src/config.ts](src/config.ts).
 
+The design proposal for the next generation of the platform (RS analysis backend, ArcGIS-free frontend, alerts,
+AOI analyses, jurisdictional dashboards) is in [docs/rs-platform-v2.md](docs/rs-platform-v2.md).
+
 ## Run locally
 
 ```bash
