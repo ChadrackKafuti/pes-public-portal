@@ -31,6 +31,9 @@ class GeeBackend:
     def __init__(self, config: PipelineConfig):
         import ee  # deferred: heavy, and absent outside the compute image
 
+        from ..gee_auth import materialise_gee_credentials
+
+        materialise_gee_credentials(config.gee_service_account)
         self._ee = ee
         self._config = config
         if config.gee_service_account:
