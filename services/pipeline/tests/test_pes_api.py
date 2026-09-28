@@ -41,15 +41,24 @@ def test_token_flow_and_paging(monkeypatch):
             assert b"username=svc-user" in body and b"client_secret=s3cret" in body
             return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
         assert request.headers["Authorization"] == "Bearer T"
-        page = int(request.url.params["page"])
-        if page == 1:  # full page -> client must fetch page 2
-            items = [{"id": f"A{i}", "applicationDate": "2024-06-01"} for i in range(PAGE_SIZE)]
-        else:  # short page, includes one duplicate of page 1
+        # Spec §4: PageNumber/PageSize params, PascalCase envelope.
+        page = int(request.url.params["PageNumber"])
+        assert int(request.url.params["PageSize"]) == PAGE_SIZE
+        if page == 1:
+            items = [{"ApplicationId": f"A{i}", "ApplicationDate": "2024-06-01"}
+                     for i in range(PAGE_SIZE)]
+        else:  # last page, includes one duplicate of page 1
             items = [
-                {"id": "A0", "applicationDate": "2024-06-01"},
-                {"id": "B1", "applicationDate": "2024-06-02"},
+                {"ApplicationId": "A0", "ApplicationDate": "2024-06-01"},
+                {"ApplicationId": "B1", "ApplicationDate": "2024-06-02"},
             ]
-        return httpx.Response(200, json={"items": items})
+        return httpx.Response(200, json={
+            "Items": items,
+            "TotalCount": PAGE_SIZE + 2,
+            "TotalPages": 2,
+            "CurrentPage": page,
+            "PageSize": PAGE_SIZE,
+        })
 
     client = _client(monkeypatch, handler)
     apps = client.fetch_applications()
@@ -115,3 +124,26 @@ def test_client_credentials_grant_via_env(monkeypatch):
     client = _client(monkeypatch, handler)
     assert client.fetch_applications() == []
     client.close()
+
+
+def test_totalpages_envelope_stops_paging_exactly(monkeypatch):
+    requested: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        page = int(request.url.params["PageNumber"])
+        requested.append(page)
+        # One full page, but TotalPages says it is the only one: the client
+        # must NOT request page 2 (the legacy short-page rule would have).
+        items = [{"ApplicationId": f"A{i}", "ApplicationDate": "2024-06-01"}
+                 for i in range(PAGE_SIZE)]
+        return httpx.Response(200, json={
+            "Items": items, "TotalCount": PAGE_SIZE, "TotalPages": 1,
+            "CurrentPage": page, "PageSize": PAGE_SIZE,
+        })
+
+    client = _client(monkeypatch, handler)
+    assert len(client.fetch_applications()) == PAGE_SIZE
+    client.close()
+    assert requested == [1]

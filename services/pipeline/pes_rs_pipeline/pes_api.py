@@ -22,8 +22,10 @@ from .models import ObjectType, PesObject
 
 PAGE_SIZE = 200
 
-# Field names confirmed against the PES_API_* feature services synced from the
-# PES system (see the web map snapshot); earlier guesses kept as fallbacks.
+# Field names per the PES Open API Technical Specification v1.0 §4 (PascalCase
+# in payloads; matching is case-insensitive), with the ArcGIS-view spellings
+# kept as fallbacks. Note: applications carry no ContractCode — the contract
+# linkage arrives via monitoring visits.
 FIELD_CANDIDATES: dict[str, list[str]] = {
     "id": ["applicationid", "id", "recordid"],
     "visit_id": ["monitoringvisitcode", "monitoringvisitid", "id", "visitid"],
@@ -33,8 +35,8 @@ FIELD_CANDIDATES: dict[str, list[str]] = {
     "application_date": ["applicationdate", "enrolmentdate", "createddate"],
     "visit_date": ["monitoringdate", "visitdate", "objectdate", "date"],
     "activity": ["activitytype", "pesactivityname", "activity", "pesactivity"],
-    "shape": ["shapewkt", "shape", "geometry", "polygon", "parcelshape"],
-    "point": ["pointraw", "point", "location", "coordinates"],
+    "shape": ["shape", "shapewkt", "geometry", "polygon", "parcelshape"],
+    "point": ["point", "pointraw", "location", "coordinates"],
     "estimated_area": ["estimatedarea", "estimatedareaha", "areaha", "estimated_area"],
 }
 
@@ -184,26 +186,41 @@ class PesApiClient:
         return self._token
 
     def _paged(self, path: str) -> Iterator[dict[str, Any]]:
-        """Fetch every page, de-duplicating by record id across pages."""
+        """Fetch every page, de-duplicating by record id across pages.
+
+        Pagination and envelope follow the PES Open API spec §4 (v1.0):
+        `PageNumber`/`PageSize` query params and a
+        `{Items, TotalCount, TotalPages, CurrentPage, PageSize}` response.
+        """
         seen: set[str] = set()
         page = 1
         while True:
             resp = self._http.get(
                 path,
-                params={"page": page, "pageSize": PAGE_SIZE},
+                params={"PageNumber": page, "PageSize": PAGE_SIZE},
                 headers={"Authorization": f"Bearer {self._access_token()}"},
             )
             resp.raise_for_status()
             body = resp.json()
-            items = body.get("items", body) if isinstance(body, dict) else body
+            total_pages = None
+            if isinstance(body, dict):
+                envelope = {k.lower(): v for k, v in body.items()}
+                items = envelope.get("items", [])
+                total_pages = envelope.get("totalpages")
+            else:
+                items = body
             if not items:
                 return
             for record in items:
-                rid = str(record.get("id", id(record)))
+                rid = _pick(record, "id")
+                rid = str(rid) if rid is not None else str(id(record))
                 if rid not in seen:
                     seen.add(rid)
                     yield record
-            if len(items) < PAGE_SIZE:
+            if total_pages is not None:
+                if page >= int(total_pages):
+                    return
+            elif len(items) < PAGE_SIZE:  # no envelope: legacy short-page stop
                 return
             page += 1
 

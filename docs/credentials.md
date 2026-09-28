@@ -43,6 +43,35 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 These are production credentials: read-only use, never committed, never
 pasted into chats or logs.
 
+**If the API returns 401 "User is not authorized" although the token is
+valid**, the integration user is not fully provisioned. Per the *PES Open API
+Technical Specification* v1.0 §3, every request must pass ALL of:
+
+1. valid bearer token;
+2. the user exists in the internal PES users table;
+3. the user is active;
+4. the user has the dedicated **Third Party Integration** role;
+5. the user is linked to an **active integration platform configuration**;
+6. the endpoint is enabled for integration access;
+7. the platform has read access to the endpoint's dataset
+   (`/api/v1/applications` → *Applications*, `/api/v1/monitoring-visits` →
+   *Monitoring*);
+8. the requested data falls in the platform's organization scope.
+
+Integration users are provisioned per platform (§3.1: "ArcGIS Integration
+User", "Power BI Integration User", …), so an account working for another
+integration does not imply this one is provisioned. **Ask the PES
+administrators to provision a "CAFI RS Platform" integration user**: Third
+Party Integration role, an active platform configuration with read access to
+the **Applications** and **Monitoring** datasets, and organization scope
+`AllOrganizations` (basin-wide monitoring).
+
+API contract (spec §4): `PageNumber`/`PageSize` pagination params and a
+`{Items, TotalCount, TotalPages, CurrentPage, PageSize}` response envelope;
+fields are PascalCase; applications carry no ContractCode (the contract
+linkage arrives via monitoring visits); a `Country={countryId}` filter
+exists. The pipeline client implements this contract.
+
 While you have that sample payload, compare its field names against
 `FIELD_CANDIDATES` in `services/pipeline/pes_rs_pipeline/pes_api.py` — that
 table is the only place to adjust if a name differs.
