@@ -44,6 +44,9 @@ const en = {
   map_no_match: "No match",
   basemap_imagery: "Imagery",
   basemap_streets: "Streets",
+  sign_in: "Sign in",
+  sign_out: "Sign out",
+  signin_hint: "Staff and verifier access. Sign in with your PES account.",
 } as const;
 
 type Key = keyof typeof en;
@@ -90,6 +93,9 @@ const fr: Record<Key, string> = {
   map_no_match: "Aucun résultat",
   basemap_imagery: "Imagerie",
   basemap_streets: "Rues",
+  sign_in: "Se connecter",
+  sign_out: "Se déconnecter",
+  signin_hint: "Accès personnel et vérificateurs. Connectez-vous avec votre compte PES.",
 };
 
 const dictionaries: Record<Locale, Record<Key, string>> = { en, fr };

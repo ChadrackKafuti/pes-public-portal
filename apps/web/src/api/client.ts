@@ -1,10 +1,14 @@
 import type { ApplicationList, PesRsObject, RunHealth } from "@cafi/shared";
+import { authEnabled, authHeaders, useAuth } from "../auth";
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
   const qs = params
     ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "")).toString()
     : "";
-  const r = await fetch(`/api${path}${qs}`);
+  const r = await fetch(`/api${path}${qs}`, { headers: authHeaders() });
+  if (r.status === 401 && authEnabled) {
+    useAuth.getState().login(); // session expired: back through Keycloak
+  }
   if (!r.ok) throw new Error(`${r.status} ${path}`);
   return r.json() as Promise<T>;
 }

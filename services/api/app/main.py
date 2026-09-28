@@ -7,14 +7,16 @@ Families are keyed by application_id; contract_code is carried on every
 record (confirmed against the PES system's synced layers), so contract
 routes filter on it directly.
 
-Auth note (P1): endpoints are open while OIDC wiring lands; the privacy
-curation of spec §9 (public tier: tabular only, surrogate ids) applies to
-the public tier, not these staff endpoints.
+Staff-tier endpoints require an OIDC bearer token from the platform's
+Keycloak realm (app/auth.py); /api/health stays open. With no issuer
+configured (local dev), auth is disabled. The spec §9 privacy curation
+applies to the future public tier, not these staff endpoints.
 """
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import CurrentUser, Principal
 from .db import get_conn
 from .schemas import ApplicationList, ApplicationSummary, IndicatorRowOut, RunHealth
 from .settings import settings
@@ -65,6 +67,7 @@ def list_applications(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     conn=Depends(get_conn),
+    user: Principal = CurrentUser,
 ) -> ApplicationList:
     rows = conn.execute(
         _APPLICATION_LIST_SQL,
@@ -108,7 +111,7 @@ def _row_out(r) -> IndicatorRowOut:
 
 
 @app.get("/api/applications.geojson")
-def applications_geojson(conn=Depends(get_conn)) -> dict:
+def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) -> dict:
     """Every parcel as a GeoJSON FeatureCollection for the map workspace.
     Polygon from shape_raw when it parses, point fallback otherwise;
     records with no usable geometry are omitted."""
@@ -148,7 +151,9 @@ def applications_geojson(conn=Depends(get_conn)) -> dict:
 
 
 @app.get("/api/applications/{application_id}/indicators", response_model=list[IndicatorRowOut])
-def application_indicators(application_id: str, conn=Depends(get_conn)) -> list[IndicatorRowOut]:
+def application_indicators(
+    application_id: str, conn=Depends(get_conn), user: Principal = CurrentUser
+) -> list[IndicatorRowOut]:
     """The family's rows (application + monitoring visits), oldest first —
     the M2 dossier timeline."""
     rows = conn.execute(
@@ -169,7 +174,9 @@ def application_indicators(application_id: str, conn=Depends(get_conn)) -> list[
 
 
 @app.get("/api/contracts/{contract_code}/indicators", response_model=list[IndicatorRowOut])
-def contract_indicators(contract_code: str, conn=Depends(get_conn)) -> list[IndicatorRowOut]:
+def contract_indicators(
+    contract_code: str, conn=Depends(get_conn), user: Principal = CurrentUser
+) -> list[IndicatorRowOut]:
     """Every family row under a contract code — the M2 contract dossier."""
     rows = conn.execute(
         f"""
@@ -189,7 +196,11 @@ def contract_indicators(contract_code: str, conn=Depends(get_conn)) -> list[Indi
 
 
 @app.get("/api/health/runs", response_model=list[RunHealth])
-def run_health(limit: int = Query(20, ge=1, le=200), conn=Depends(get_conn)) -> list[RunHealth]:
+def run_health(
+    limit: int = Query(20, ge=1, le=200),
+    conn=Depends(get_conn),
+    user: Principal = CurrentUser,
+) -> list[RunHealth]:
     """Recent pipeline runs (spec §6.5) for the M2 ops page."""
     rows = conn.execute(
         """

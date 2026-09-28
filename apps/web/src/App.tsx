@@ -5,6 +5,7 @@ import { ApplicationsPage } from "./screens/ApplicationsPage";
 import { DossierPage } from "./screens/DossierPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
+import { authEnabled, useAuth } from "./auth";
 
 type ApiHealth = "checking" | "up" | "down";
 
@@ -12,6 +13,7 @@ export function App() {
   const [apiHealth, setApiHealth] = useState<ApiHealth>("checking");
   const t = useT();
   const { locale, setLocale } = useI18n();
+  const { ready, user, login, logout } = useAuth();
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -20,6 +22,20 @@ export function App() {
       .catch(() => setApiHealth("down"));
     return () => ctrl.abort();
   }, []);
+
+  if (authEnabled && ready && !user) {
+    return (
+      <div className="shell signin">
+        <div className="signin-card">
+          <strong>CAFI RS Platform</strong>
+          <p className="muted">{t("signin_hint")}</p>
+          <button className="map-popup-btn" onClick={login}>
+            {t("sign_in")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <HashRouter>
@@ -34,6 +50,14 @@ export function App() {
             <NavLink to="/runs">{t("nav_runs")}</NavLink>
           </nav>
           <span className="topbar-right">
+            {authEnabled && user && (
+              <>
+                <span className="muted small">{user.profile.preferred_username}</span>
+                <button className="lang" onClick={logout}>
+                  {t("sign_out")}
+                </button>
+              </>
+            )}
             <button
               className="lang"
               onClick={() => setLocale(locale === "en" ? "fr" : "en")}

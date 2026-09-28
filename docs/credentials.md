@@ -131,3 +131,24 @@ Then check `pes_rs_runs` (or `GET /api/health/runs`) for the health row, and
 `pes_rs_objects` / `GET /api/applications` for the first indicator rows.
 Expected first-run friction, in order: a field name differing from
 `FIELD_CANDIDATES`, the RADD band names, GEE quota on large parcels.
+
+
+## 4. Platform login (Keycloak OIDC)
+
+The staff tier authenticates against the same `UNPES` realm. Ask the PES
+Keycloak admin to register one more client for the platform UI:
+
+- Client id `cafi-rs-platform`, **public** client (no secret), Standard flow
+  (authorization code) with **PKCE S256** required.
+- Valid redirect URIs + web origins: the platform's URL(s), e.g.
+  `https://rs.cafi.org/*` and `http://localhost:5173/*` for development.
+
+Configuration:
+
+- API (Cloud Run env): `CAFI_OIDC_ISSUER=https://keycloak.cafi-pse.org/realms/UNPES`,
+  `CAFI_OIDC_CLIENT_ID=cafi-rs-platform`. Empty issuer disables auth (dev only).
+- Web (build-time): `VITE_OIDC_AUTHORITY` + `VITE_OIDC_CLIENT_ID`
+  (see `apps/web/.env.example`). Unset authority disables the login gate.
+
+The API validates tokens locally against the realm's JWKS (issuer, expiry,
+signature, azp/aud client binding); `/api/health` stays unauthenticated.
