@@ -5,8 +5,56 @@ import { ApplicationsPage } from "./screens/ApplicationsPage";
 import { DossierPage } from "./screens/DossierPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
-import { authEnabled, useAuth } from "./auth";
+import { authEnabled, authMode, useAuth } from "./auth";
 import { demoEnabled } from "./api/demo";
+
+function SupabaseSignIn() {
+  const t = useT();
+  const signIn = useAuth((s) => s.signInWithPassword);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="signin-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError(null);
+        void signIn(email, password).then((err) => {
+          setError(err);
+          setBusy(false);
+        });
+      }}
+    >
+      <input
+        id="signin-email"
+        type="email"
+        required
+        autoComplete="username"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder={t("email")}
+        aria-label={t("email")}
+      />
+      <input
+        id="signin-password"
+        type="password"
+        required
+        autoComplete="current-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder={t("password")}
+        aria-label={t("password")}
+      />
+      {error && <p className="signin-error">{error}</p>}
+      <button className="map-popup-btn" type="submit" disabled={busy}>
+        {t("sign_in")}
+      </button>
+    </form>
+  );
+}
 
 type ApiHealth = "checking" | "up" | "down";
 
@@ -30,10 +78,16 @@ export function App() {
       <div className="shell signin">
         <div className="signin-card">
           <strong>CAFI RS Platform</strong>
-          <p className="muted">{t("signin_hint")}</p>
-          <button className="map-popup-btn" onClick={login}>
-            {t("sign_in")}
-          </button>
+          <p className="muted">
+            {t(authMode === "supabase" ? "signin_hint_supabase" : "signin_hint")}
+          </p>
+          {authMode === "supabase" ? (
+            <SupabaseSignIn />
+          ) : (
+            <button className="map-popup-btn" onClick={login}>
+              {t("sign_in")}
+            </button>
+          )}
         </div>
       </div>
     );

@@ -158,7 +158,25 @@ Expected first-run friction, in order: a field name differing from
 `FIELD_CANDIDATES`, the RADD band names, GEE quota on large parcels.
 
 
-## 4. Platform login (Keycloak OIDC)
+## 4. Platform login
+
+Two providers; the API accepts both at once (routing by token issuer),
+the web app uses OIDC when configured, else Supabase.
+
+### 4a. Supabase Auth (available now — no PES-admin dependency)
+
+CAFI manages the platform users in its own Supabase project (the Ground
+Impact pattern). Users are invited from the Supabase dashboard; there is
+no self-signup.
+
+| Where | Variable | Value |
+|---|---|---|
+| API (Fly secret) | `CAFI_SUPABASE_URL` | `https://<ref>.supabase.co` |
+| API (Fly secret, optional) | `CAFI_SUPABASE_JWT_SECRET` | only for legacy-secret projects; omit to verify against the project JWKS |
+| Web (Vercel) | `VITE_SUPABASE_URL` | same project URL |
+| Web (Vercel) | `VITE_SUPABASE_ANON_KEY` | the anon public key |
+
+### 4b. Keycloak OIDC (once the PES admin registers the client)
 
 The staff tier authenticates against the same `UNPES` realm. Ask the PES
 Keycloak admin to register one more client for the platform UI:

@@ -58,6 +58,9 @@ const en = {
   gov_layers: "Governance layers",
   gov_documents: "Documents",
   gov_zone_legend: "Zoning class",
+  signin_hint_supabase: "Staff and verifier access. Sign in with your CAFI platform account.",
+  email: "Email",
+  password: "Password",
   demo_badge: "DEMO",
   demo_hint: "Demo snapshot: real forest-governance layers, sample PES applications. Not live data.",
 } as const;
@@ -120,6 +123,9 @@ const fr: Record<Key, string> = {
   gov_layers: "Couches de gouvernance",
   gov_documents: "Documents",
   gov_zone_legend: "Affectation",
+  signin_hint_supabase: "Accès personnel et vérificateurs. Connectez-vous avec votre compte plateforme CAFI.",
+  email: "E-mail",
+  password: "Mot de passe",
   demo_badge: "DÉMO",
   demo_hint: "Instantané de démonstration : couches de gouvernance réelles, dossiers PES fictifs. Données non actualisées.",
 };
