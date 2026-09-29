@@ -1,0 +1,42 @@
+name: ingest-rs
+
+# Runs the PES RS pipeline (services/pipeline): PES Open API -> parcels ->
+# GEE indicators -> the platform database.
+#
+# MANUAL DISPATCH ONLY for now, deliberately: this writes real PES
+# monitoring data, and until CAFI_OIDC_ISSUER is set on the Fly API the
+# API serves anonymously. Add a schedule (e.g. "17 * * * *") only once
+# API auth is live.
+#
+# Secrets: DATABASE_URL, CAFI_RS_PES_API_BASE, CAFI_RS_PES_OIDC_TOKEN_URL,
+# CAFI_RS_PES_CLIENT_ID, CAFI_RS_PES_CLIENT_SECRET, CAFI_RS_PES_USERNAME,
+# CAFI_RS_PES_PASSWORD, CAFI_RS_GEE_SERVICE_ACCOUNT, CAFI_RS_GEE_KEY_B64.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ingest-rs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e "services/pipeline[compute]"
+      - name: Run pipeline once
+        env:
+          CAFI_RS_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CAFI_RS_PES_API_BASE: ${{ secrets.CAFI_RS_PES_API_BASE }}
+          CAFI_RS_PES_OIDC_TOKEN_URL: ${{ secrets.CAFI_RS_PES_OIDC_TOKEN_URL }}
+          CAFI_RS_PES_CLIENT_ID: ${{ secrets.CAFI_RS_PES_CLIENT_ID }}
+          CAFI_RS_PES_CLIENT_SECRET: ${{ secrets.CAFI_RS_PES_CLIENT_SECRET }}
+          CAFI_RS_PES_USERNAME: ${{ secrets.CAFI_RS_PES_USERNAME }}
+          CAFI_RS_PES_PASSWORD: ${{ secrets.CAFI_RS_PES_PASSWORD }}
+          CAFI_RS_GEE_SERVICE_ACCOUNT: ${{ secrets.CAFI_RS_GEE_SERVICE_ACCOUNT }}
+          CAFI_RS_GEE_KEY_B64: ${{ secrets.CAFI_RS_GEE_KEY_B64 }}
+        run: python -m pes_rs_pipeline.runner
