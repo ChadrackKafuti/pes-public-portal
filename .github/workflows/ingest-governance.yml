@@ -1,0 +1,45 @@
+name: ingest-governance
+
+# Runs the forest-governance ingest (services/governance) against the
+# platform database. Public-source data only — safe to run before API auth
+# is configured. Secrets: DATABASE_URL, WDPA_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      countries:
+        description: "ISO3 subset, e.g. GNQ,COD (empty = all)"
+        required: false
+        default: ""
+      skip_large:
+        description: "Skip the 41k-polygon COD series layer"
+        type: boolean
+        default: true
+      update_mode:
+        description: "smart (changed sources only) or full"
+        required: false
+        default: "smart"
+  schedule:
+    - cron: "43 3 * * *"   # daily; smart mode refetches only changed sources
+
+concurrency:
+  group: ingest-governance
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e services/governance
+      - name: Run ingest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WDPA_TOKEN: ${{ secrets.WDPA_TOKEN }}
+          GOV_COUNTRIES: ${{ inputs.countries }}
+          GOV_SKIP_LARGE: ${{ (github.event_name == 'schedule' || inputs.skip_large) && '1' || '' }}
+          GOV_UPDATE_MODE: ${{ inputs.update_mode || 'smart' }}
+        run: python -m cb_governance

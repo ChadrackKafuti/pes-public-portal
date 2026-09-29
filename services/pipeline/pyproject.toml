@@ -1,0 +1,19 @@
+[project]
+name = "cafi-rs-pipeline"
+version = "0.0.0"
+description = "RS Analysis Service: the PES RS Integration spec v1.1 pipeline as a containerized worker (PES Open API -> parcels -> GEE indicators -> PostGIS)."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "psycopg[binary]>=3.2",
+]
+
+[project.optional-dependencies]
+# Earth Engine is heavy; kept optional so the rest is testable anywhere.
+compute = ["earthengine-api>=1.1", "shapely>=2.0"]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

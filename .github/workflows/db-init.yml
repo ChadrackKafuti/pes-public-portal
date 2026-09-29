@@ -1,0 +1,32 @@
+name: db-init
+
+# Applies infra/db/init/*.sql to the platform database, each file once
+# (tracked in schema_init_applied). Run after creating the Supabase
+# project, and again after adding new init files. Needs the DATABASE_URL
+# repository secret (Supabase pooled connection string, sslmode=require).
+on:
+  workflow_dispatch:
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply unapplied schema files in order
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+            "CREATE TABLE IF NOT EXISTS schema_init_applied (filename text PRIMARY KEY, applied_utc timestamptz DEFAULT now())"
+          for f in infra/db/init/*.sql; do
+            name=$(basename "$f")
+            done_already=$(psql "$DATABASE_URL" -tAc \
+              "SELECT 1 FROM schema_init_applied WHERE filename = '$name'")
+            if [ "$done_already" = "1" ]; then
+              echo "== $name already applied, skipping"
+              continue
+            fi
+            echo "== applying $name"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$f" -c \
+              "INSERT INTO schema_init_applied (filename) VALUES ('$name')"
+          done
