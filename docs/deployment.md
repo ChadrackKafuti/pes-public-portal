@@ -53,16 +53,32 @@ browser talks same-origin and CORS never comes into play.
   countries, skip-large, smart mode). It then runs daily at 03:43 UTC.
   Secrets used: `DATABASE_URL`, `WDPA_TOKEN`.
 - The **ingest-rs** workflow is manual-dispatch only, on purpose: it
-  writes real PES monitoring data, and until `CAFI_OIDC_ISSUER` is set on
-  Fly the API answers anonymously. Sequence for going live with PES data:
-  1. PES admin registers the `cafi-rs-platform` Keycloak client
-     (docs/credentials.md §4).
-  2. `fly secrets set CAFI_OIDC_ISSUER=...` (API now requires sign-in).
-  3. Set the `CAFI_RS_*` secrets on GitHub (same names/values as the
+  writes real PES monitoring data, and until an auth provider is set on
+  Fly the API answers anonymously. Sequence for going live with PES data
+  — **Supabase Auth path** (no PES-admin dependency; the Ground Impact
+  pattern):
+  1. In the Supabase project, invite the staff users
+     (*Authentication → Users → Invite*). Every authenticated user is
+     staff-tier; there is no public self-signup because the anon key is
+     never combined with signup UI.
+  2. `fly secrets set -a cafi-rs-api CAFI_SUPABASE_URL=https://<ref>.supabase.co`
+     — the API now requires sign-in. Tokens verify against the project's
+     JWKS; for a legacy-JWT-secret project set `CAFI_SUPABASE_JWT_SECRET`
+     instead (*Settings → API → JWT Secret*).
+  3. On Vercel set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+     (*Settings → API → anon public key*) and redeploy — the app shows
+     the email/password sign-in card.
+  4. Set the `CAFI_RS_*` secrets on GitHub (same names/values as the
      Claude environment: PES API base + token URL + client id/secret +
      username/password, GEE service account + key).
-  4. Dispatch **ingest-rs**; when happy, add a `schedule:` block
+  5. Dispatch **ingest-rs**; when happy, add a `schedule:` block
      (e.g. `17 * * * *`) to the workflow.
+
+  The **Keycloak path** stays available and can run alongside (the API
+  routes by token issuer): once the PES admin registers the
+  `cafi-rs-platform` client (docs/credentials.md §4), set
+  `CAFI_OIDC_ISSUER` on Fly and `VITE_OIDC_AUTHORITY` on Vercel (OIDC
+  takes precedence in the web app when both are configured).
 
 ## Notes
 - All schedules/dispatches run from the default branch (`main`) — merge
