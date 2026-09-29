@@ -6,6 +6,7 @@ import { DossierPage } from "./screens/DossierPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
 import { authEnabled, useAuth } from "./auth";
+import { demoEnabled } from "./api/demo";
 
 type ApiHealth = "checking" | "up" | "down";
 
@@ -16,6 +17,7 @@ export function App() {
   const { ready, user, login, logout } = useAuth();
 
   useEffect(() => {
+    if (demoEnabled) return;
     const ctrl = new AbortController();
     fetch("/api/health", { signal: ctrl.signal })
       .then((r) => setApiHealth(r.ok ? "up" : "down"))
@@ -65,9 +67,15 @@ export function App() {
             >
               {locale === "en" ? "FR" : "EN"}
             </button>
-            <span className={`api-badge api-${apiHealth}`}>
-              API: {apiHealth === "checking" ? "…" : apiHealth}
-            </span>
+            {demoEnabled ? (
+              <span className="api-badge api-demo" title={t("demo_hint")}>
+                {t("demo_badge")}
+              </span>
+            ) : (
+              <span className={`api-badge api-${apiHealth}`}>
+                API: {apiHealth === "checking" ? "…" : apiHealth}
+              </span>
+            )}
           </span>
         </header>
         <Routes>

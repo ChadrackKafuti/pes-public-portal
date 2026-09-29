@@ -448,3 +448,8 @@ table.data a {
     height: auto;
   }
 }
+
+.api-demo {
+  color: #8a5a00;
+  border-color: #d9a018;
+}

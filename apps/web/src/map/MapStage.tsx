@@ -207,9 +207,7 @@ export function MapStage() {
 
     map.on("load", async () => {
       try {
-        const r = await fetch("/api/applications.geojson");
-        if (!r.ok) return;
-        const data = (await r.json()) as FeatureCollection;
+        const data = (await api.applicationsGeojson()) as FeatureCollection;
         dataRef.current = data;
         addParcelLayers(map, data);
       } catch {

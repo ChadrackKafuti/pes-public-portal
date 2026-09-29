@@ -58,6 +58,8 @@ const en = {
   gov_layers: "Governance layers",
   gov_documents: "Documents",
   gov_zone_legend: "Zoning class",
+  demo_badge: "DEMO",
+  demo_hint: "Demo snapshot: real forest-governance layers, sample PES applications. Not live data.",
 } as const;
 
 type Key = keyof typeof en;
@@ -118,6 +120,8 @@ const fr: Record<Key, string> = {
   gov_layers: "Couches de gouvernance",
   gov_documents: "Documents",
   gov_zone_legend: "Affectation",
+  demo_badge: "DÉMO",
+  demo_hint: "Instantané de démonstration : couches de gouvernance réelles, dossiers PES fictifs. Données non actualisées.",
 };
 
 const dictionaries: Record<Locale, Record<Key, string>> = { en, fr };

@@ -8,8 +8,10 @@ import type {
   RunHealth,
 } from "@cafi/shared";
 import { authEnabled, authHeaders, useAuth } from "../auth";
+import { demoEnabled, demoGet } from "./demo";
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  if (demoEnabled) return demoGet<T>(path, params);
   const qs = params
     ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "")).toString()
     : "";
@@ -41,6 +43,7 @@ export const api = {
   contractIndicators: (code: string) =>
     get<PesRsObject[]>(`/contracts/${encodeURIComponent(code)}/indicators`),
   runs: () => get<RunHealth[]>("/health/runs"),
+  applicationsGeojson: () => get<GeoJSON.FeatureCollection>("/applications.geojson"),
   governanceLayers: () => get<GovLayerInfo[]>("/governance/layers"),
   governanceGeojson: (layer: GovLayerKey) =>
     get<GeoJSON.FeatureCollection>(`/governance/${layer}.geojson`),

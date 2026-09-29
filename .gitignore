@@ -32,3 +32,4 @@ __pycache__/
 
 # Local env
 .env
+apps/web/public/demo-data/
