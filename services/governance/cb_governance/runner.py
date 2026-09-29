@@ -220,7 +220,7 @@ def _run_locked(store, conn, layers, t0, start_utc):
         if iso3 != "ALL":
             totals["fetched"] += c.get("fetched", 0)
             totals["docs"] += c.get("docs", 0)
-        else:
+        elif layer != "documents":  # documents-table adds are reported via "docs", not "loaded"
             for k in ("added", "updated", "retired", "failed"):
                 totals[k] += c.get(k, 0)
     health = {
