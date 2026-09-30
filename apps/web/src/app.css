@@ -549,3 +549,25 @@ table.data a {
   flex: 1;
   accent-color: var(--series-1);
 }
+
+.alert-chips {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.alert-chip {
+  font-size: 0.78rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.alert-warning {
+  color: var(--status-warning);
+}
+
+.alert-critical {
+  color: var(--status-critical);
+}
