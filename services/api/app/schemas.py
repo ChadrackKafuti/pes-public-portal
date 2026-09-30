@@ -105,6 +105,24 @@ class GovDocumentOut(ApiModel):
     src_system: str | None
 
 
+class AlertRow(ApiModel):
+    """One monitoring visit with an active disturbance signal (M4)."""
+
+    object_id: str
+    object_date: date
+    application_id: str
+    application_code: str | None
+    contract_code: str | None
+    pes_activity: str | None
+    country: str | None
+    province: str | None
+    defor_alerts_current: int | None
+    fire_alerts_current: int | None
+    defor_current_ha: float | None
+    burned_area_current_ha: float | None
+    processed_utc: datetime
+
+
 class DashboardGroup(ApiModel):
     name: str
     applications: int

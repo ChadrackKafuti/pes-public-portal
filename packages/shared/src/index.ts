@@ -170,3 +170,20 @@ export interface DashboardGroup {
   applications: number;
   areaHa: number | null;
 }
+
+/** One monitoring visit with an active disturbance signal (M4 alert feed). */
+export interface AlertRow {
+  objectId: string;
+  objectDate: string;
+  applicationId: string;
+  applicationCode: string | null;
+  contractCode: string | null;
+  pesActivity: string | null;
+  country: string | null;
+  province: string | null;
+  deforAlertsCurrent: number | null;
+  fireAlertsCurrent: number | null;
+  deforCurrentHa: number | null;
+  burnedAreaCurrentHa: number | null;
+  processedUtc: string;
+}

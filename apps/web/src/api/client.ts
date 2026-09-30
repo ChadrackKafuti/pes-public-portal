@@ -1,4 +1,5 @@
 import type {
+  AlertRow,
   ApplicationList,
   Dashboard,
   FilterOptions,
@@ -44,6 +45,8 @@ export const api = {
   contractIndicators: (code: string) =>
     get<PesRsObject[]>(`/contracts/${encodeURIComponent(code)}/indicators`),
   runs: () => get<RunHealth[]>("/health/runs"),
+  alerts: (country?: string) =>
+    get<AlertRow[]>("/alerts", country ? { country } : undefined),
   dashboard: (country?: string) =>
     get<Dashboard>("/dashboard", country ? { country } : undefined),
   applicationsGeojson: () => get<GeoJSON.FeatureCollection>("/applications.geojson"),
