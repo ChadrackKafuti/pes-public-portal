@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-SCHEMA = Path(__file__).resolve().parents[3] / "infra" / "db" / "init" / "003_governance.sql"
+_INIT = Path(__file__).resolve().parents[3] / "infra" / "db" / "init"
+SCHEMA = _INIT / "003_governance.sql"
 PG_BIN_CANDIDATES = ["/usr/lib/postgresql/16/bin", "/usr/lib/postgresql/15/bin", ""]
 
 
@@ -63,6 +64,7 @@ def dsn():
             try:
                 with psycopg.connect(url) as conn:
                     conn.execute(SCHEMA.read_text())
+                    conn.execute((_INIT / "004_display_geom.sql").read_text())
                     conn.commit()
                 break
             except psycopg.OperationalError:

@@ -126,6 +126,7 @@ def client():
                 with psycopg.connect(url) as conn:
                     conn.execute(SCHEMA.read_text())
                     conn.execute(GOV_SCHEMA.read_text())
+                    conn.execute((_INIT / "004_display_geom.sql").read_text())
                     conn.execute(SEED)
                     conn.execute(GOV_SEED)
                     conn.commit()

@@ -137,3 +137,26 @@ def test_batched_write_skips_only_the_bad_row(store):
         # a second pass counts them as updates, not adds
         res = store.write(conn, "concessions", [(_rec(uid="COG:conc:10"), RINGS)], scopes=[])
         assert res["updated"] == 1 and res["added"] == 0
+
+
+def test_display_geometry_written_and_simpler(store):
+    from cb_governance.store import display_geometry
+
+    # a dense ring simplifies to fewer vertices
+    import math
+    ring = [[15 + 0.01 * math.cos(a / 60 * 6.28318), -1 + 0.01 * math.sin(a / 60 * 6.28318)]
+            for a in range(61)]
+    dense = {"rings": [ring]}
+    with store.connection() as conn:
+        conn.execute("DELETE FROM gov_areas")
+        conn.commit()
+        store.write(conn, "concessions", [(_rec(uid="COG:conc:20"), dense)], scopes=[])
+        full, disp = conn.execute(
+            "SELECT geom_geojson, geom_display FROM gov_areas WHERE src_uid = 'COG:conc:20'"
+        ).fetchone()
+        assert disp is not None
+        n_full = len(full["coordinates"][0])
+        n_disp = len(disp["coordinates"][0])
+        assert n_disp < n_full
+    # a null geometry stays null, an unsimplifiable one falls back unchanged
+    assert display_geometry(None) is None
