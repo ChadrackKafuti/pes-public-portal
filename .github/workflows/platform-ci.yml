@@ -30,6 +30,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # PostGIS for the runner's bundled Postgres, so the AOI (005) tests run
+      - if: matrix.service == 'api'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-16-postgis-3
       - run: pip install -e ".[dev]"
         working-directory: services/${{ matrix.service }}
       - run: python -m pytest

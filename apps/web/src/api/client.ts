@@ -1,5 +1,6 @@
 import type {
   AlertRow,
+  AoiResult,
   ApplicationList,
   Dashboard,
   FilterOptions,
@@ -22,6 +23,28 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
     useAuth.getState().login(); // session expired: back through Keycloak
   }
   if (!r.ok) throw new Error(`${r.status} ${path}`);
+  return r.json() as Promise<T>;
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  if (demoEnabled) throw new Error("not available in demo mode");
+  const r = await fetch(`/api${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401 && authEnabled) {
+    useAuth.getState().login();
+  }
+  if (!r.ok) {
+    let detail = "";
+    try {
+      detail = ((await r.json()) as { detail?: string }).detail ?? "";
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail || `${r.status} ${path}`);
+  }
   return r.json() as Promise<T>;
 }
 
@@ -55,4 +78,5 @@ export const api = {
     get<GeoJSON.FeatureCollection>(`/governance/${layer}.geojson`),
   governanceDocuments: (srcUid: string) =>
     get<GovDocument[]>(`/governance/features/${encodeURIComponent(srcUid)}/documents`),
+  aoi: (geometry: GeoJSON.Polygon) => post<AoiResult>("/aoi", { geometry }),
 };
