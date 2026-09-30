@@ -1,5 +1,6 @@
 import type {
   ApplicationList,
+  Dashboard,
   FilterOptions,
   GovDocument,
   GovLayerInfo,
@@ -43,6 +44,8 @@ export const api = {
   contractIndicators: (code: string) =>
     get<PesRsObject[]>(`/contracts/${encodeURIComponent(code)}/indicators`),
   runs: () => get<RunHealth[]>("/health/runs"),
+  dashboard: (country?: string) =>
+    get<Dashboard>("/dashboard", country ? { country } : undefined),
   applicationsGeojson: () => get<GeoJSON.FeatureCollection>("/applications.geojson"),
   governanceLayers: () => get<GovLayerInfo[]>("/governance/layers"),
   governanceGeojson: (layer: GovLayerKey) =>
