@@ -69,11 +69,16 @@ def governance_geojson(
     layer: str,
     country: str | None = Query(None, description="iso3 filter, e.g. COD"),
     include_all: bool = Query(False, alias="all", description="true bypasses the production filter"),
+    detail: str = Query("display", description="'display' (simplified, default) or 'full'"),
     conn=Depends(get_conn),
     user: Principal = CurrentUser,
 ) -> dict:
     if layer not in GOV_LAYERS:
         raise HTTPException(status_code=404, detail="unknown governance layer")
+    # Simplified display geometry by default (the COD zoning layer is 41k
+    # polygons); rows ingested before the geom_display column fall back to
+    # the full geometry.
+    geom_col = "geom_geojson" if detail == "full" else "coalesce(geom_display, geom_geojson)"
     where = ["layer = %(layer)s", "geom_geojson IS NOT NULL"]
     if not include_all:
         where.append(_PRODUCTION_FILTER)
@@ -81,7 +86,7 @@ def governance_geojson(
         where.append("iso3 = %(country)s")
     rows = conn.execute(
         f"""
-        SELECT {", ".join(_PROP_COLUMNS)}, extras, geom_geojson
+        SELECT {", ".join(_PROP_COLUMNS)}, extras, {geom_col}
         FROM gov_areas WHERE {" AND ".join(where)}
         """,
         {"layer": layer, "country": (country or "").upper() or None},

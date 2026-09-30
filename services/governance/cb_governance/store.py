@@ -78,6 +78,28 @@ def esri_rings_to_geojson(geom, precision=5):
     return {"type": "MultiPolygon", "coordinates": polys}
 
 
+def display_geometry(gj, tolerance=0.0005, precision=4):
+    """Simplified copy of a GeoJSON geometry for map serving (~50 m tolerance,
+    ~11 m coordinate precision). Falls back to the original on any failure —
+    a display geometry must never cost a row."""
+    if not gj:
+        return None
+    try:
+        from shapely.geometry import mapping, shape
+
+        g = shape(gj).simplify(tolerance, preserve_topology=True)
+        if g.is_empty:
+            return gj
+        m = mapping(g)
+
+        def rnd(c):
+            return [rnd(x) for x in c] if isinstance(c, (list, tuple)) else round(c, precision)
+
+        return {"type": m["type"], "coordinates": rnd(m["coordinates"])}
+    except Exception:
+        return gj
+
+
 def _extras(layer, rec):
     out = {}
     for name in _EXTRA_NAMES.get(layer, []):
@@ -133,12 +155,13 @@ class GovStore:
         cols = [c for c in _COMMON_NAMES if c != "loaded_at"]
         sql = (
             "INSERT INTO gov_areas (" + ", ".join(cols)
-            + ", parent_uid, extras, geom_geojson, loaded_at) VALUES ("
+            + ", parent_uid, extras, geom_geojson, geom_display, loaded_at) VALUES ("
             + ", ".join(["%s"] * len(cols))
-            + ", %s, %s, %s, %s) ON CONFLICT (src_uid) DO UPDATE SET "
+            + ", %s, %s, %s, %s, %s) ON CONFLICT (src_uid) DO UPDATE SET "
             + ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c != "src_uid")
             + ", parent_uid = EXCLUDED.parent_uid, extras = EXCLUDED.extras"
-            + ", geom_geojson = EXCLUDED.geom_geojson, loaded_at = EXCLUDED.loaded_at"
+            + ", geom_geojson = EXCLUDED.geom_geojson"
+            + ", geom_display = EXCLUDED.geom_display, loaded_at = EXCLUDED.loaded_at"
         )
 
         def params(rec, geom):
@@ -147,11 +170,13 @@ class GovStore:
                 v = rec.get(c)
                 values.append(_ms_to_dt(v) if c in _COMMON_DATES else v)
             gj = esri_rings_to_geojson(geom)
+            disp = display_geometry(gj)
             return (
                 *values,
                 rec.get("parent_uid"),
                 json.dumps(_extras(layer, rec), ensure_ascii=False),
                 json.dumps(gj, ensure_ascii=False) if gj else None,
+                json.dumps(disp, ensure_ascii=False) if disp else None,
                 run_start,
             )
 
