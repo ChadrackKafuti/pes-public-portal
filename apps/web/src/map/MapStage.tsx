@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import maplibregl from "maplibre-gl";
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
-import type { GovLayerInfo, GovLayerKey, Locale } from "@cafi/shared";
+import type { AoiResult, GovLayerInfo, GovLayerKey, Locale } from "@cafi/shared";
 import { api } from "../api/client";
 import { BASEMAPS, type BasemapId } from "./basemaps";
 import {
@@ -188,6 +188,68 @@ function govPopupContent(
   return el;
 }
 
+/** M3 AOI draw tool: click-to-vertex, double-click to close. Hand-rolled —
+ *  a full draw library is overkill for one polygon. */
+const AOI_SRC = "aoi";
+const AOI_COLOR = "#3987e5";
+
+function aoiCollection(verts: [number, number][], closed: boolean): FeatureCollection {
+  const features: Feature[] = verts.map((v) => ({
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Point", coordinates: v },
+  }));
+  if (closed && verts.length >= 3) {
+    features.push({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "Polygon", coordinates: [[...verts, verts[0]]] },
+    });
+  } else if (verts.length >= 2) {
+    features.push({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: verts },
+    });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+function setAoiLayers(map: maplibregl.Map, data: FeatureCollection) {
+  const src = map.getSource(AOI_SRC) as maplibregl.GeoJSONSource | undefined;
+  if (src) {
+    src.setData(data);
+    return;
+  }
+  map.addSource(AOI_SRC, { type: "geojson", data });
+  map.addLayer({
+    id: "aoi-fill",
+    type: "fill",
+    source: AOI_SRC,
+    filter: ["==", ["geometry-type"], "Polygon"],
+    paint: { "fill-color": AOI_COLOR, "fill-opacity": 0.12 },
+  });
+  map.addLayer({
+    id: "aoi-line",
+    type: "line",
+    source: AOI_SRC,
+    filter: ["!=", ["geometry-type"], "Point"],
+    paint: { "line-color": AOI_COLOR, "line-width": 2, "line-dasharray": [2, 1.5] },
+  });
+  map.addLayer({
+    id: "aoi-vertex",
+    type: "circle",
+    source: AOI_SRC,
+    filter: ["==", ["geometry-type"], "Point"],
+    paint: {
+      "circle-radius": 4,
+      "circle-color": AOI_COLOR,
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": "#ffffff",
+    },
+  });
+}
+
 function featureBounds(f: Feature): maplibregl.LngLatBounds {
   const b = new maplibregl.LngLatBounds();
   const walk = (coords: unknown): void => {
@@ -227,6 +289,55 @@ export function MapStage() {
   const govVisibleRef = useRef(govVisible);
   govVisibleRef.current = govVisible;
 
+  const [aoiMode, setAoiMode] = useState(false);
+  const aoiModeRef = useRef(aoiMode);
+  aoiModeRef.current = aoiMode;
+  const aoiVertsRef = useRef<[number, number][]>([]);
+  const aoiClosedRef = useRef(false);
+  const [aoiVerts, setAoiVertsCount] = useState(0);
+  const [aoiResult, setAoiResult] = useState<AoiResult | null>(null);
+  const [aoiBusy, setAoiBusy] = useState(false);
+  const [aoiError, setAoiError] = useState<string | null>(null);
+
+  const clearAoi = () => {
+    aoiVertsRef.current = [];
+    aoiClosedRef.current = false;
+    setAoiVertsCount(0);
+    setAoiResult(null);
+    setAoiError(null);
+    setAoiBusy(false);
+    const map = mapRef.current;
+    if (map) setAoiLayers(map, aoiCollection([], false));
+  };
+
+  const finishAoi = () => {
+    const verts = aoiVertsRef.current;
+    // a double-click also lands two single clicks: drop trailing duplicates
+    while (verts.length > 1) {
+      const a = verts[verts.length - 2];
+      const b = verts[verts.length - 1];
+      if (Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6) verts.pop();
+      else break;
+    }
+    if (verts.length < 3) return;
+    setAoiMode(false);
+    aoiClosedRef.current = true;
+    const map = mapRef.current;
+    if (map) setAoiLayers(map, aoiCollection(verts, true));
+    setAoiBusy(true);
+    const polygon: Polygon = { type: "Polygon", coordinates: [[...verts, verts[0]]] };
+    api
+      .aoi(polygon)
+      .then((r) => {
+        setAoiResult(r);
+        setAoiError(null);
+      })
+      .catch((err: Error) => setAoiError(err.message))
+      .finally(() => setAoiBusy(false));
+  };
+  const finishAoiRef = useRef(finishAoi);
+  finishAoiRef.current = finishAoi;
+
   const zoomToData = () => {
     const map = mapRef.current;
     const data = dataRef.current;
@@ -262,22 +373,39 @@ export function MapStage() {
       }
     });
 
+    // AOI drawing owns the map while active; other click handlers stand down.
+    map.on("click", (e) => {
+      if (!aoiModeRef.current) return;
+      aoiVertsRef.current.push([e.lngLat.lng, e.lngLat.lat]);
+      setAoiVertsCount(aoiVertsRef.current.length);
+      setAoiLayers(map, aoiCollection(aoiVertsRef.current, false));
+    });
+    map.on("dblclick", (e) => {
+      if (!aoiModeRef.current) return;
+      e.preventDefault(); // keep double-click zoom off while drawing
+      finishAoiRef.current();
+    });
+
     const interactive = [...LAYERS];
     map.on("mousemove", interactive, () => {
+      if (aoiModeRef.current) return;
       map.getCanvas().style.cursor = "pointer";
     });
     map.on("mouseleave", interactive, () => {
+      if (aoiModeRef.current) return;
       map.getCanvas().style.cursor = "";
     });
     // Governance overlays: cursor + popup (parcels win when both are hit).
     const govFillIds = GOV_LAYER_ORDER.map((k) => govFill(k));
     map.on("mousemove", (e) => {
+      if (aoiModeRef.current) return;
       const ids = govFillIds.filter((id) => map.getLayer(id));
       if (!ids.length) return;
       const hits = map.queryRenderedFeatures(e.point, { layers: ids });
       if (hits.length) map.getCanvas().style.cursor = "pointer";
     });
     map.on("click", (e) => {
+      if (aoiModeRef.current) return;
       const parcelIds = LAYERS.filter((id) => map.getLayer(id));
       if (parcelIds.length && map.queryRenderedFeatures(e.point, { layers: [...parcelIds] }).length) {
         return; // the parcels handler below owns this click
@@ -295,6 +423,7 @@ export function MapStage() {
     });
 
     map.on("click", interactive, (e) => {
+      if (aoiModeRef.current) return;
       const f: MapGeoJSONFeature | undefined = e.features?.[0];
       if (!f) return;
       const p = f.properties as Record<string, string | null>;
@@ -340,8 +469,17 @@ export function MapStage() {
           addGovLayers(map, key, data);
         }
       }
+      if (aoiVertsRef.current.length) {
+        setAoiLayers(map, aoiCollection(aoiVertsRef.current, aoiClosedRef.current));
+      }
     });
   }, [basemap]);
+
+  // Crosshair while drawing an AOI.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) map.getCanvas().style.cursor = aoiMode ? "crosshair" : "";
+  }, [aoiMode]);
 
   // Governance layer toggles: lazy-load each layer once, then flip visibility.
   useEffect(() => {
@@ -442,7 +580,68 @@ export function MapStage() {
         <button className="lang" onClick={zoomToData}>
           {t("map_zoom_data")}
         </button>
+        <button
+          className="lang"
+          onClick={() => {
+            if (aoiMode) {
+              setAoiMode(false);
+              clearAoi();
+            } else {
+              clearAoi();
+              setAoiMode(true);
+            }
+          }}
+        >
+          {aoiMode ? t("aoi_cancel") : t("aoi_tool")}
+        </button>
+        {aoiMode && aoiVerts >= 3 && (
+          <button className="lang" onClick={finishAoi}>
+            OK
+          </button>
+        )}
+        {aoiMode && <span className="map-miss">{t("aoi_hint")}</span>}
       </div>
+      {(aoiBusy || aoiError !== null || aoiResult !== null) && (
+        <div className="aoi-panel">
+          <strong>{t("aoi_title")}</strong>
+          {aoiBusy && <span className="muted small">{t("loading")}</span>}
+          {aoiError !== null && (
+            <span className="small">
+              {t("aoi_error")}: {aoiError}
+            </span>
+          )}
+          {aoiResult !== null && (
+            <>
+              <span>
+                {t("aoi_area")}: <strong>{fmtNum(aoiResult.areaHa, locale, 0)} ha</strong>
+              </span>
+              {aoiResult.overlaps.length === 0 ? (
+                <span className="muted small">{t("aoi_none")}</span>
+              ) : (
+                <>
+                  <span className="muted small">{t("aoi_overlaps")}</span>
+                  <ul className="aoi-list">
+                    {aoiResult.overlaps.slice(0, 40).map((o) => (
+                      <li key={o.srcUid}>
+                        {o.name ?? o.reference ?? o.srcUid}
+                        <span className="muted small"> — {govLayerLabel(o.layer, locale)}</span>
+                        <br />
+                        <span className="muted small">
+                          {fmtNum(o.overlapHa, locale, 0)} ha ·{" "}
+                          {fmtNum(o.overlapPct, locale, 1)}% {t("aoi_of_aoi")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          )}
+          <button className="lang" onClick={clearAoi}>
+            {t("aoi_clear")}
+          </button>
+        </div>
+      )}
       <div className="map-legend">
         <span className="gov-legend-row">
           <i style={{ background: "#3987e5" }} /> {t("legend_not_processed")}

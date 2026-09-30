@@ -171,6 +171,25 @@ export interface DashboardGroup {
   areaHa: number | null;
 }
 
+/** One governance feature intersecting a drawn AOI (M3). */
+export interface AoiOverlap {
+  layer: GovLayerKey;
+  srcUid: string;
+  name: string | null;
+  reference: string | null;
+  iso3: string | null;
+  docCount: number | null;
+  overlapHa: number;
+  overlapPct: number;
+}
+
+/** POST /api/aoi answer: what governs the drawn polygon. */
+export interface AoiResult {
+  areaHa: number;
+  overlaps: AoiOverlap[];
+  byLayer: Partial<Record<GovLayerKey, number>>;
+}
+
 /** One monitoring visit with an active disturbance signal (M4 alert feed). */
 export interface AlertRow {
   objectId: string;

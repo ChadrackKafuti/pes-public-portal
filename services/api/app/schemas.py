@@ -105,6 +105,27 @@ class GovDocumentOut(ApiModel):
     src_system: str | None
 
 
+class AoiOverlap(ApiModel):
+    """One governance feature intersecting the caller's AOI (M3)."""
+
+    layer: str
+    src_uid: str
+    name: str | None
+    reference: str | None
+    iso3: str | None
+    doc_count: int | None
+    overlap_ha: float
+    overlap_pct: float
+
+
+class AoiResult(ApiModel):
+    """POST /api/aoi answer: what governs the drawn polygon."""
+
+    area_ha: float
+    overlaps: list[AoiOverlap]
+    by_layer: dict[str, float]
+
+
 class AlertRow(ApiModel):
     """One monitoring visit with an active disturbance signal (M4)."""
 

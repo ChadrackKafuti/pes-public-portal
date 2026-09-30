@@ -92,6 +92,17 @@ def _as_unprivileged(cmd: list[str]) -> list[str]:
     return ["setpriv", "--reuid=nobody", "--regid=nogroup", "--clear-groups", *cmd]
 
 
+_POSTGIS = False  # set while bringing the throwaway cluster up
+
+
+@pytest.fixture(scope="session")
+def postgis(client):
+    """Skip marker for tests needing the 005 spatial layer (PostGIS may be
+    absent on a dev box; CI installs postgresql-16-postgis-3)."""
+    if not _POSTGIS:
+        pytest.skip("PostGIS extension not available")
+
+
 @pytest.fixture(scope="session")
 def client():
     bin_dir = _pg_bin()
@@ -127,6 +138,14 @@ def client():
                     conn.execute(SCHEMA.read_text())
                     conn.execute(GOV_SCHEMA.read_text())
                     conn.execute((_INIT / "004_display_geom.sql").read_text())
+                    conn.commit()
+                    global _POSTGIS
+                    try:
+                        conn.execute("CREATE EXTENSION postgis")
+                        conn.execute((_INIT / "005_spatial.sql").read_text())
+                        _POSTGIS = True
+                    except psycopg.Error:
+                        conn.rollback()  # no PostGIS binaries: AOI tests skip
                     conn.execute(SEED)
                     conn.execute(GOV_SEED)
                     conn.commit()
