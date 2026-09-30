@@ -39,12 +39,22 @@ class GeeBackend:
         self._config = config
         self._mask_cache: dict[tuple[int, date], tuple[object, float, int] | None] = {}
         key_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        if config.gee_service_account and key_file:
+        if key_file:
             # ServiceAccountCredentials needs the key file explicitly;
-            # key_data=None raises inside the client library.
-            ee.Initialize(ee.ServiceAccountCredentials(config.gee_service_account, key_file))
+            # key_data=None raises inside the client library. The email may
+            # come from the env or from the key JSON itself.
+            with open(key_file) as fh:
+                email = config.gee_service_account or json.load(fh).get("client_email")
+            ee.Initialize(ee.ServiceAccountCredentials(email, key_file))
         else:
-            ee.Initialize()  # ADC (Cloud Run workload identity)
+            try:
+                ee.Initialize()  # ADC (Cloud Run workload identity)
+            except ee.EEException as exc:
+                raise RuntimeError(
+                    "No Earth Engine credentials: set CAFI_RS_GEE_KEY_B64 "
+                    "(service-account JSON key) and CAFI_RS_GEE_SERVICE_ACCOUNT, "
+                    "or run with Application Default Credentials"
+                ) from exc
 
     # -- geometry ---------------------------------------------------------
 
