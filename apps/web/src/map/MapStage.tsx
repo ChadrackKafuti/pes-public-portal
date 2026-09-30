@@ -25,6 +25,23 @@ const CONGO_BASIN: [[number, number], [number, number]] = [
 const SRC = "parcels";
 const LAYERS = ["parcels-fill", "parcels-line", "parcels-point"] as const;
 
+/** Status palette (app.css tokens as literals — MapLibre can't read CSS vars);
+ *  unprocessed parcels keep the series hue. Shown with text labels in the
+ *  map legend, never color alone. */
+export const PARCEL_STATUS_COLORS: Record<string, string> = {
+  ok: "#0ca30c",
+  partial: "#fab219",
+  partial_final: "#d03b3b",
+};
+const PARCEL_DEFAULT_COLOR = "#3987e5";
+
+function statusColor(): unknown {
+  const expr: unknown[] = ["match", ["coalesce", ["get", "status"], ""]];
+  for (const [k, v] of Object.entries(PARCEL_STATUS_COLORS)) expr.push(k, v);
+  expr.push(PARCEL_DEFAULT_COLOR);
+  return expr;
+}
+
 function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
   map.addSource(SRC, { type: "geojson", data });
   map.addLayer({
@@ -32,14 +49,14 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     type: "fill",
     source: SRC,
     filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "fill-color": "#3987e5", "fill-opacity": 0.25 },
+    paint: { "fill-color": statusColor() as never, "fill-opacity": 0.3 },
   });
   map.addLayer({
     id: "parcels-line",
     type: "line",
     source: SRC,
     filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "line-color": "#3987e5", "line-width": 2 },
+    paint: { "line-color": statusColor() as never, "line-width": 2 },
   });
   map.addLayer({
     id: "parcels-point",
@@ -48,11 +65,28 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     filter: ["==", ["geometry-type"], "Point"],
     paint: {
       "circle-radius": 6,
-      "circle-color": "#3987e5",
+      "circle-color": statusColor() as never,
       "circle-stroke-width": 2,
       "circle-stroke-color": "#ffffff",
     },
   });
+}
+
+function dataBounds(data: FeatureCollection): maplibregl.LngLatBounds | null {
+  const b = new maplibregl.LngLatBounds();
+  let any = false;
+  const walk = (coords: unknown): void => {
+    if (typeof (coords as number[])[0] === "number") {
+      b.extend(coords as [number, number]);
+      any = true;
+    } else {
+      (coords as unknown[]).forEach(walk);
+    }
+  };
+  for (const f of data.features) {
+    walk((f.geometry as Point | Polygon).coordinates);
+  }
+  return any ? b : null;
 }
 
 const govSrc = (key: GovLayerKey) => `gov-${key}`;
@@ -188,9 +222,22 @@ export function MapStage() {
   const [govOpen, setGovOpen] = useState(false);
   const [govInfo, setGovInfo] = useState<GovLayerInfo[] | null>(null);
   const [govVisible, setGovVisible] = useState<Partial<Record<GovLayerKey, boolean>>>({});
+  const [govOpacity, setGovOpacity] = useState(1);
   const govDataRef = useRef<Partial<Record<GovLayerKey, FeatureCollection>>>({});
   const govVisibleRef = useRef(govVisible);
   govVisibleRef.current = govVisible;
+
+  const zoomToData = () => {
+    const map = mapRef.current;
+    const data = dataRef.current;
+    if (!map) return;
+    const b = data ? dataBounds(data) : null;
+    if (b) {
+      map.fitBounds(b, { padding: 80, maxZoom: 12 });
+    } else {
+      map.fitBounds(CONGO_BASIN, { padding: 24 });
+    }
+  };
 
   useEffect(() => {
     if (!container.current) return;
@@ -334,6 +381,18 @@ export function MapStage() {
     }
   }, [govOpen, govInfo]);
 
+  // Governance overlay opacity: scale each layer's base fill opacity.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const key of GOV_LAYER_ORDER) {
+      if (!map.getLayer(govFill(key))) continue;
+      const base = GOV_ZONING_LAYERS.includes(key) ? 0.55 : 0.35;
+      map.setPaintProperty(govFill(key), "fill-opacity", base * govOpacity);
+      map.setPaintProperty(govLine(key), "line-opacity", Math.min(1, 0.4 + 0.6 * govOpacity));
+    }
+  }, [govOpacity, govVisible]);
+
   // Find on map: client-side match on the loaded features.
   useEffect(() => {
     if (!query) {
@@ -380,6 +439,19 @@ export function MapStage() {
         <button className="lang" onClick={() => setGovOpen(!govOpen)}>
           {t("gov_layers")}
         </button>
+        <button className="lang" onClick={zoomToData}>
+          {t("map_zoom_data")}
+        </button>
+      </div>
+      <div className="map-legend">
+        <span className="gov-legend-row">
+          <i style={{ background: "#3987e5" }} /> {t("legend_not_processed")}
+        </span>
+        {Object.entries(PARCEL_STATUS_COLORS).map(([k, c]) => (
+          <span key={k} className="gov-legend-row">
+            <i style={{ background: c }} /> {k}
+          </span>
+        ))}
       </div>
       {govOpen && (
         <div className="gov-panel">
@@ -398,6 +470,17 @@ export function MapStage() {
               </label>
             );
           })}
+          <label className="gov-opacity">
+            <span className="muted small">{t("gov_opacity")}</span>
+            <input
+              id="gov-opacity"
+              type="range"
+              min="10"
+              max="100"
+              value={Math.round(govOpacity * 100)}
+              onChange={(e) => setGovOpacity(Number(e.target.value) / 100)}
+            />
+          </label>
           {GOV_ZONING_LAYERS.some((k) => govVisible[k]) && (
             <div className="gov-legend">
               <span className="muted small">{t("gov_zone_legend")}</span>
