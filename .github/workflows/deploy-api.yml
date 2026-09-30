@@ -15,10 +15,17 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+      - name: Create the app on first run
+        run: flyctl apps list --json | grep -q '"cafi-rs-api"' || flyctl apps create cafi-rs-api
+      - name: Sync the database secret (staged; applied by the deploy)
         working-directory: services/api
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: flyctl secrets set --stage "CAFI_DATABASE_URL=$DATABASE_URL"
+      - run: flyctl deploy --remote-only
+        working-directory: services/api
