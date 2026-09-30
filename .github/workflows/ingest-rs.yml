@@ -3,16 +3,17 @@ name: ingest-rs
 # Runs the PES RS pipeline (services/pipeline): PES Open API -> parcels ->
 # GEE indicators -> the platform database.
 #
-# MANUAL DISPATCH ONLY for now, deliberately: this writes real PES
-# monitoring data, and until CAFI_OIDC_ISSUER is set on the Fly API the
-# API serves anonymously. Add a schedule (e.g. "17 * * * *") only once
-# API auth is live.
+# Hourly schedule: the API is Supabase-auth-protected (the gate for
+# enabling this), and each run continues where the last one's time
+# budget stopped, so the first full backlog drains across a few runs.
 #
 # Secrets: DATABASE_URL, CAFI_RS_PES_API_BASE, CAFI_RS_PES_OIDC_TOKEN_URL,
 # CAFI_RS_PES_CLIENT_ID, CAFI_RS_PES_CLIENT_SECRET, CAFI_RS_PES_USERNAME,
 # CAFI_RS_PES_PASSWORD, CAFI_RS_GEE_SERVICE_ACCOUNT, CAFI_RS_GEE_KEY_B64.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "7 * * * *"
 
 concurrency:
   group: ingest-rs
@@ -30,6 +31,8 @@ jobs:
       - run: pip install -e "services/pipeline[compute]"
       - name: Run pipeline once
         env:
+          # fill the 30-min job window; the config default (15) is for dev
+          CAFI_RS_MAX_RUN_MINUTES: "25"
           CAFI_RS_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CAFI_RS_PES_API_BASE: ${{ secrets.CAFI_RS_PES_API_BASE }}
           CAFI_RS_PES_OIDC_TOKEN_URL: ${{ secrets.CAFI_RS_PES_OIDC_TOKEN_URL }}
