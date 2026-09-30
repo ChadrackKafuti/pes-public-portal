@@ -101,7 +101,10 @@ class GovStore:
     def connection(self):
         import psycopg
 
-        with psycopg.connect(self._url) as conn:
+        # prepare_threshold=None: Supabase's transaction pooler moves each
+        # transaction to a fresh server session, where psycopg's auto-prepared
+        # statements "do not exist" — so auto-preparation stays off.
+        with psycopg.connect(self._url, prepare_threshold=None) as conn:
             yield conn
 
     # -- run lock ---------------------------------------------------------

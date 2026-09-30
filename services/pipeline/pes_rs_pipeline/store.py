@@ -24,7 +24,9 @@ class Store:
     def connection(self):
         import psycopg
 
-        with psycopg.connect(self._url) as conn:
+        # prepare_threshold=None: safe behind transaction poolers (Supabase
+        # port 6543), where auto-prepared statements vanish between transactions.
+        with psycopg.connect(self._url, prepare_threshold=None) as conn:
             yield conn
 
     # -- run lock (spec §5) ----------------------------------------------
