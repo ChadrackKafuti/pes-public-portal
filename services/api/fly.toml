@@ -1,14 +1,16 @@
 # Fly.io app for the CAFI RS Platform API (the single data door).
 # Deployed by .github/workflows/deploy-api.yml (or `fly deploy` from this dir).
-# Runtime configuration comes from Fly secrets:
-#   fly secrets set CAFI_DATABASE_URL=postgresql://...   (Supabase pooled URL)
-#   fly secrets set CAFI_CORS_ORIGINS='["https://<your-app>.vercel.app"]'
-#   fly secrets set CAFI_OIDC_ISSUER=https://keycloak.cafi-pse.org/realms/UNPES
-# While CAFI_OIDC_ISSUER is unset the API serves anonymously — keep only
-# public governance data in the database until it is configured.
+# The deploy-api workflow creates the app if missing and stages the
+# CAFI_DATABASE_URL secret from the GitHub DATABASE_URL secret — no local
+# CLI needed. Non-secret runtime config lives in [env] below; while no
+# auth provider is configured the API serves anonymously — keep only
+# public governance data in the database until one is.
 
 app = "cafi-rs-api"
 primary_region = "cdg"
+
+[env]
+  CAFI_SUPABASE_URL = "https://hhdjylwogylmigxxubas.supabase.co"
 
 [build]
   dockerfile = "Dockerfile"
