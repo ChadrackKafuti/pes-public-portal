@@ -117,3 +117,23 @@ def test_run_health_row(store):
         })
         n = conn.execute("SELECT count(*) FROM gov_runs").fetchone()[0]
         assert n >= 1
+
+
+def test_batched_write_skips_only_the_bad_row(store):
+    with store.connection() as conn:
+        conn.execute("DELETE FROM gov_areas")
+        conn.commit()
+        items = [
+            (_rec(uid="COG:conc:10"), RINGS),
+            (_rec(uid="COG:conc:11", retired="not-a-number"), RINGS),  # type violation
+            (_rec(uid="COG:conc:12"), RINGS),
+        ]
+        res = store.write(conn, "concessions", items, scopes=[])
+        assert res["added"] == 2 and res["failed"] == 1
+        kept = [r[0] for r in conn.execute(
+            "SELECT src_uid FROM gov_areas ORDER BY src_uid"
+        ).fetchall()]
+        assert kept == ["COG:conc:10", "COG:conc:12"]
+        # a second pass counts them as updates, not adds
+        res = store.write(conn, "concessions", [(_rec(uid="COG:conc:10"), RINGS)], scopes=[])
+        assert res["updated"] == 1 and res["added"] == 0

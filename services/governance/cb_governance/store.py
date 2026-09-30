@@ -16,6 +16,13 @@ from .schema import FIELDS_COMMON, FIELDS_DOCS, FIELDS_EXTRA
 
 RUN_LOCK_KEY = 0x_CAF1_60  # governance ingest advisory lock (distinct from the RS pipeline's)
 
+BATCH_SIZE = 500  # rows per executemany chunk (psycopg pipelines each chunk)
+
+
+def _chunks(rows: list, size: int = BATCH_SIZE):
+    for i in range(0, len(rows), size):
+        yield rows[i : i + size]
+
 _COMMON_NAMES = [f["name"] for f in FIELDS_COMMON]
 _COMMON_DATES = {f["name"] for f in FIELDS_COMMON if f["type"] == "esriFieldTypeDate"}
 _DOC_NAMES = [f["name"] for f in FIELDS_DOCS]
@@ -111,9 +118,15 @@ class GovStore:
     def write(self, conn, layer, items, scopes=None):
         """items: list of (rec, geom). Upsert by src_uid, then retire the rows
         of successfully refreshed scopes that this run did not touch.
-        Returns the notebook's stats dict."""
+        Returns the notebook's stats dict.
+
+        Rows go up in executemany chunks (psycopg pipelines them, so a remote
+        database costs a handful of round-trips instead of one per row); a
+        failing chunk falls back to row-by-row under savepoints so one bad
+        row is skipped, never the batch. added/updated split comes from a
+        pre-query of existing keys — exact, since the advisory run lock makes
+        this the only writer."""
         run_start = datetime.now(UTC)
-        stats = {"added": 0, "updated": 0, "failed": 0, "retired": 0}
         cols = [c for c in _COMMON_NAMES if c != "loaded_at"]
         sql = (
             "INSERT INTO gov_areas (" + ", ".join(cols)
@@ -123,36 +136,63 @@ class GovStore:
             + ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c != "src_uid")
             + ", parent_uid = EXCLUDED.parent_uid, extras = EXCLUDED.extras"
             + ", geom_geojson = EXCLUDED.geom_geojson, loaded_at = EXCLUDED.loaded_at"
-            + " RETURNING (xmax = 0) AS inserted"
+        )
+
+        def params(rec, geom):
+            values = []
+            for c in cols:
+                v = rec.get(c)
+                values.append(_ms_to_dt(v) if c in _COMMON_DATES else v)
+            gj = esri_rings_to_geojson(geom)
+            return (
+                *values,
+                rec.get("parent_uid"),
+                json.dumps(_extras(layer, rec), ensure_ascii=False),
+                json.dumps(gj, ensure_ascii=False) if gj else None,
+                run_start,
+            )
+
+        rows = [(rec["src_uid"], params(rec, geom)) for rec, geom in items]
+        stats = self._batched_upsert(
+            conn, "gov_areas", "src_uid", sql, rows, what=layer
         )
         with conn.transaction():
-            for rec, geom in items:
-                values = []
-                for c in cols:
-                    v = rec.get(c)
-                    values.append(_ms_to_dt(v) if c in _COMMON_DATES else v)
-                gj = esri_rings_to_geojson(geom)
-                try:
-                    # Nested transaction = savepoint: a bad row is skipped
-                    # without losing the batch (Publisher.apply's per-feature retry).
-                    with conn.transaction():
-                        row = conn.execute(
-                            sql,
-                            (
-                                *values,
-                                rec.get("parent_uid"),
-                                json.dumps(_extras(layer, rec), ensure_ascii=False),
-                                json.dumps(gj, ensure_ascii=False) if gj else None,
-                                run_start,
-                            ),
-                        ).fetchone()
-                    stats["added" if row[0] else "updated"] += 1
-                except Exception as e:
-                    stats["failed"] += 1
-                    from .config import log
-
-                    log(f"  insert failed ({layer}): {str(e)[:200]} :: {rec.get('src_uid')}", "WARN")
             stats["retired"] = self._retire(conn, "gov_areas", "src_uid", layer, scopes, run_start)
+        return stats
+
+    def _batched_upsert(self, conn, table, key, sql, rows, *, what):
+        """rows: list of (key_value, params). Returns added/updated/failed."""
+        from .config import log
+
+        stats = {"added": 0, "updated": 0, "failed": 0, "retired": 0}
+        keys = [k for k, _ in rows]
+        existing: set = set()
+        with conn.transaction():
+            for chunk in _chunks(keys, 5000):
+                found = conn.execute(
+                    f"SELECT {key} FROM {table} WHERE {key} = ANY(%s)", (chunk,)
+                ).fetchall()
+                existing.update(r[0] for r in found)
+            for chunk in _chunks(rows):
+                try:
+                    with conn.transaction():
+                        conn.cursor().executemany(sql, [p for _, p in chunk])
+                    ok_keys = (k for k, _ in chunk)
+                except Exception:
+                    # One bad row poisons the chunk: replay it row by row so
+                    # only the offender is skipped (Publisher.apply's retry).
+                    ok = []
+                    for k, p in chunk:
+                        try:
+                            with conn.transaction():
+                                conn.execute(sql, p)
+                            ok.append(k)
+                        except Exception as e:
+                            stats["failed"] += 1
+                            log(f"  insert failed ({what}): {str(e)[:200]} :: {k}", "WARN")
+                    ok_keys = iter(ok)
+                for k in ok_keys:
+                    stats["updated" if k in existing else "added"] += 1
         return stats
 
     def _retire(self, conn, table, key, layer, scopes, run_start):
@@ -188,35 +228,37 @@ class GovStore:
 
     def write_documents(self, conn, rows, scopes=None):
         run_start = datetime.now(UTC)
-        stats = {"added": 0, "updated": 0, "failed": 0, "retired": 0}
         cols = [c for c in _DOC_NAMES if c != "loaded_at"]
         sql = (
             "INSERT INTO gov_documents (" + ", ".join(cols) + ", loaded_at) VALUES ("
             + ", ".join(["%s"] * len(cols))
             + ", %s) ON CONFLICT (doc_uid) DO UPDATE SET "
             + ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c != "doc_uid")
-            + ", loaded_at = EXCLUDED.loaded_at RETURNING (xmax = 0) AS inserted"
+            + ", loaded_at = EXCLUDED.loaded_at"
+        )
+        batch = [
+            (
+                rec["doc_uid"],
+                (*[_ms_to_dt(rec.get(c)) if c in _DOC_DATES else rec.get(c) for c in cols], run_start),
+            )
+            for rec in rows
+        ]
+        stats = self._batched_upsert(
+            conn, "gov_documents", "doc_uid", sql, batch, what="documents"
         )
         with conn.transaction():
-            for rec in rows:
-                values = [_ms_to_dt(rec.get(c)) if c in _DOC_DATES else rec.get(c) for c in cols]
-                try:
-                    with conn.transaction():
-                        row = conn.execute(sql, (*values, run_start)).fetchone()
-                    stats["added" if row[0] else "updated"] += 1
-                except Exception as e:
-                    stats["failed"] += 1
-                    from .config import log
-
-                    log(f"  document insert failed: {str(e)[:200]} :: {rec.get('doc_uid')}", "WARN")
             stats["retired"] = self._retire(conn, "gov_documents", "doc_uid", None, scopes, run_start)
         return stats
 
     def update_doc_counts(self, conn, counts: dict) -> None:
-        for src_uid, n in counts.items():
-            conn.execute(
-                "UPDATE gov_areas SET doc_count = %s WHERE src_uid = %s", (n, src_uid)
-            )
+        conn.execute(
+            """
+            UPDATE gov_areas g SET doc_count = d.n
+            FROM (SELECT unnest(%s::text[]) AS uid, unnest(%s::int[]) AS n) d
+            WHERE g.src_uid = d.uid AND g.doc_count IS DISTINCT FROM d.n
+            """,
+            (list(counts.keys()), list(counts.values())),
+        )
         conn.commit()
 
     # -- run health -------------------------------------------------------
