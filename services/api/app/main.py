@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import CurrentUser, Principal
 from .db import get_conn
+from .dashboard import router as dashboard_router
 from .governance import router as governance_router
 from .schemas import (
     ApplicationList,
@@ -31,6 +32,7 @@ from .settings import settings
 app = FastAPI(title="CAFI RS Platform API", version="0.1.0")
 
 app.include_router(governance_router)
+app.include_router(dashboard_router)
 
 app.add_middleware(
     CORSMiddleware,

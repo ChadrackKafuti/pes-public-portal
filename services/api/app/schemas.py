@@ -105,6 +105,52 @@ class GovDocumentOut(ApiModel):
     src_system: str | None
 
 
+class DashboardGroup(ApiModel):
+    name: str
+    applications: int
+    area_ha: float | None
+
+
+class DashboardMonth(ApiModel):
+    month: str
+    applications: int
+
+
+class DashboardStatusCounts(ApiModel):
+    ok: int
+    partial: int
+    partial_final: int
+
+
+class DashboardPes(ApiModel):
+    applications: int
+    parcel_area_ha: float | None
+    tree_cover_ha: float | None
+    visits: int
+    status_counts: DashboardStatusCounts
+    by_country: list[DashboardGroup]
+    by_activity: list[DashboardGroup]
+    by_month: list[DashboardMonth]
+
+
+class DashboardGovLayer(ApiModel):
+    layer: str
+    count: int
+    area_ha: float | None
+
+
+class DashboardGovernance(ApiModel):
+    by_layer: list[DashboardGovLayer]
+    documents: int
+
+
+class DashboardOut(ApiModel):
+    """The M5 dashboard payload (one request feeds the page)."""
+
+    pes: DashboardPes
+    governance: DashboardGovernance
+
+
 class RunHealth(ApiModel):
     run_id: int
     start_utc: datetime

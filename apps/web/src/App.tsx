@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HashRouter, NavLink, Route, Routes } from "react-router";
 import { MapStage } from "./map/MapStage";
 import { ApplicationsPage } from "./screens/ApplicationsPage";
+import { DashboardPage } from "./screens/DashboardPage";
 import { DossierPage } from "./screens/DossierPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
@@ -102,6 +103,7 @@ export function App() {
             <NavLink to="/" end>
               {t("nav_applications")}
             </NavLink>
+            <NavLink to="/dashboard">{t("nav_dashboard")}</NavLink>
             <NavLink to="/map">{t("nav_map")}</NavLink>
             <NavLink to="/runs">{t("nav_runs")}</NavLink>
           </nav>
@@ -135,6 +137,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<ApplicationsPage />} />
           <Route path="/applications/:id" element={<DossierPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/map" element={<MapStage />} />
           <Route path="/runs" element={<RunsPage />} />
         </Routes>

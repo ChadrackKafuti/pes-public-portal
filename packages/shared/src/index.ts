@@ -146,3 +146,27 @@ export interface GovDocument {
   url: string | null;
   srcSystem: string | null;
 }
+
+/** M5 dashboard payload. */
+export interface Dashboard {
+  pes: {
+    applications: number;
+    parcelAreaHa: number | null;
+    treeCoverHa: number | null;
+    visits: number;
+    statusCounts: { ok: number; partial: number; partialFinal: number };
+    byCountry: DashboardGroup[];
+    byActivity: DashboardGroup[];
+    byMonth: { month: string; applications: number }[];
+  };
+  governance: {
+    byLayer: { layer: GovLayerKey; count: number; areaHa: number | null }[];
+    documents: number;
+  };
+}
+
+export interface DashboardGroup {
+  name: string;
+  applications: number;
+  areaHa: number | null;
+}

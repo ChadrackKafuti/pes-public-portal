@@ -53,6 +53,7 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
     return { items, total: items.length } as T;
   }
   if (path === "/filters") return load("filters.json");
+  if (path === "/dashboard") return load("dashboard.json");
   if (path === "/health/runs") return load("runs.json");
   if (path === "/applications.geojson") return load("applications.geojson.json");
   if (path === "/governance/layers") return load("governance/layers.json");
