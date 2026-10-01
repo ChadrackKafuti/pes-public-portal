@@ -78,6 +78,8 @@ export const api = {
   governanceLayers: () => get<GovLayerInfo[]>("/governance/layers"),
   governanceGeojson: (layer: GovLayerKey) =>
     get<GeoJSON.FeatureCollection>(`/governance/${layer}.geojson`),
+  governanceFeature: (srcUid: string) =>
+    get<Record<string, unknown>>(`/governance/features/${encodeURIComponent(srcUid)}`),
   governanceDocuments: (srcUid: string) =>
     get<GovDocument[]>(`/governance/features/${encodeURIComponent(srcUid)}/documents`),
   aoi: (geometry: GeoJSON.Polygon) => post<AoiResult>("/aoi", { geometry }),

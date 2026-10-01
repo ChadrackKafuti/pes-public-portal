@@ -112,6 +112,139 @@ def governance_geojson(
     return {"type": "FeatureCollection", "features": features}
 
 
+_DETAIL_COLUMNS = [
+    "src_uid", "layer", "country", "iso3", "sub_type_std", "sub_type_raw",
+    "name", "reference", "holder", "operator", "community", "province",
+    "admin2", "admin3", "admin4", "status_raw", "status_std",
+    "status_mgmt_raw", "status_mgmt_std", "date_attr", "date_conv_prov",
+    "date_conv_def", "date_plan", "date_expiry", "area_adm_ha", "area_sig_ha",
+    "area_calc_ha", "doc_count", "situation", "programme", "funder", "agency",
+    "partner", "year_ref", "geom_quality", "src_layer", "src_url",
+    "src_vintage", "src_last_edit", "src_attrs_json", "src_attrs_trunc",
+    "retired", "loaded_at", "parent_uid", "extras", "src_oid",
+]
+
+_PARENT_LAYER = {
+    "concession_zoning": "concessions",
+    "community_forest_zoning": "community_forests",
+    "local_territory_zoning": "local_territories",
+}
+
+
+def _row_dict(cols: list[str], row) -> dict:
+    out = {}
+    for col, v in zip(cols, row, strict=True):
+        if v is None:
+            continue
+        if hasattr(v, "isoformat"):
+            v = v.isoformat()
+        out[to_camel(col)] = v
+    return out
+
+
+@router.get("/api/governance/features/{src_uid}")
+def governance_feature_detail(
+    src_uid: str, conn=Depends(get_conn), user: Principal = CurrentUser
+) -> dict:
+    """The full v1-popup content for one feature (M7c): every stored column,
+    parsed national attributes, zoning children, the parent unit for zones,
+    and (protected areas) the spatial overlaps with forest titles."""
+    row = conn.execute(
+        f"SELECT {', '.join(_DETAIL_COLUMNS)} FROM gov_areas WHERE src_uid = %s",
+        (src_uid,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="unknown feature")
+    detail = _row_dict(_DETAIL_COLUMNS, row)
+    layer = detail.get("layer")
+
+    # National source attributes: parsed JSON, kept as an ordered label list.
+    raw_attrs = detail.pop("srcAttrsJson", None)
+    if raw_attrs:
+        try:
+            parsed = json.loads(raw_attrs)
+            if isinstance(parsed, dict):
+                detail["srcAttrs"] = {
+                    str(k): v for k, v in list(parsed.items())[:40] if v not in (None, "")
+                }
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Zoning children (for parent units) / parent card (for zones).
+    zones = conn.execute(
+        f"""
+        SELECT src_uid, name, extras, area_calc_ha
+        FROM gov_areas
+        WHERE parent_uid = %s AND {_PRODUCTION_FILTER}
+        ORDER BY area_calc_ha DESC NULLS LAST
+        LIMIT 200
+        """,
+        (src_uid,),
+    ).fetchall()
+    detail["zones"] = [
+        {
+            "srcUid": z[0],
+            "name": z[1],
+            "zoneTypeStd": (z[2] or {}).get("zone_type_std"),
+            "zoneTypeRaw": (z[2] or {}).get("zone_type_raw"),
+            "areaCalcHa": z[3],
+        }
+        for z in zones
+    ]
+    parent_uid = detail.get("parentUid")
+    if layer in _PARENT_LAYER and parent_uid:
+        p = conn.execute(
+            """
+            SELECT src_uid, layer, name, sub_type_std, holder, community,
+                   status_std, area_calc_ha, doc_count
+            FROM gov_areas WHERE src_uid = %s
+            """,
+            (parent_uid,),
+        ).fetchone()
+        if p is not None:
+            detail["parent"] = {
+                "srcUid": p[0], "layer": p[1], "name": p[2], "subTypeStd": p[3],
+                "holder": p[4], "community": p[5], "statusStd": p[6],
+                "areaCalcHa": p[7], "docCount": p[8],
+            }
+            siblings = conn.execute(
+                f"""
+                SELECT count(*), sum(area_calc_ha) FROM gov_areas
+                WHERE parent_uid = %s AND {_PRODUCTION_FILTER}
+                """,
+                (parent_uid,),
+            ).fetchone()
+            detail["siblingCount"] = siblings[0]
+            detail["siblingAreaHa"] = siblings[1]
+
+    # Spatial overlaps (protected areas ↔ forest titles) — needs the 005
+    # PostGIS layer; degrade to absent where unavailable.
+    if layer == "protected_areas":
+        try:
+            over = conn.execute(
+                f"""
+                SELECT b.layer, b.src_uid, b.name, b.area_calc_ha
+                FROM gov_areas a
+                JOIN gov_areas b
+                  ON b.layer IN ('concessions', 'community_forests')
+                 AND b.geom IS NOT NULL
+                 AND ST_Intersects(a.geom, b.geom)
+                WHERE a.src_uid = %s AND a.geom IS NOT NULL
+                  AND b.retired = 0 AND b.situation IN ('complete', 'part_complete')
+                ORDER BY b.layer, b.area_calc_ha DESC NULLS LAST
+                LIMIT 16
+                """,
+                (src_uid,),
+            ).fetchall()
+            detail["overlaps"] = [
+                {"layer": o[0], "srcUid": o[1], "name": o[2], "areaCalcHa": o[3]}
+                for o in over
+            ]
+        except Exception:  # noqa: BLE001 — PostGIS absent (dev DB)
+            conn.rollback()
+    return detail
+
+
 @router.get(
     "/api/governance/features/{src_uid}/documents",
     response_model=list[GovDocumentOut],

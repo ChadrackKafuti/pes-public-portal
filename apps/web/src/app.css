@@ -1029,6 +1029,87 @@ table.data a {
   white-space: nowrap;
 }
 
+/* ---- governance inspector (M7c) ---- */
+
+.gov-inspector {
+  padding-top: 0.6rem;
+}
+
+.insp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.insp-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.45rem;
+}
+
+.insp-tile {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.insp-tile strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gov-inspector .pf-section {
+  padding: 0.5rem 0.65rem;
+}
+
+.doc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.doc-cat {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+}
+
+.doc-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface-2);
+}
+
+.doc-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.doc-main .small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-open {
+  flex: 0 0 auto;
+  text-decoration: none;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.5rem;
+}
+
 /* ---- geotagged photos (M7a) ---- */
 
 .popup-photo {

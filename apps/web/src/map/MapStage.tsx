@@ -15,6 +15,7 @@ import {
   zoneTypeLabel,
 } from "./governance";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
+import { GovInspector } from "./GovInspector";
 
 /** Congo Basin extent used by portal-v1 (WGS84). */
 const CONGO_BASIN: [[number, number], [number, number]] = [
@@ -119,73 +120,6 @@ function addGovLayers(map: maplibregl.Map, key: GovLayerKey, data: FeatureCollec
     },
     before,
   );
-}
-
-/** Popup body for one governance feature (portal-v1 Arcade popup, condensed). */
-function govPopupContent(
-  key: GovLayerKey,
-  p: Record<string, unknown>,
-  locale: Locale,
-  docsLabel: string,
-): HTMLDivElement {
-  const el = document.createElement("div");
-  el.className = "map-popup";
-  const esc = (v: unknown) =>
-    String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const row = (label: string, v: unknown) =>
-    v === null || v === undefined || v === "" ? "" : `<tr><td>${label}</td><td>${esc(v)}</td></tr>`;
-  const zoning = GOV_ZONING_LAYERS.includes(key);
-  const title = p.name ?? p.zoneName ?? p.reference ?? p.srcUid;
-  const area = typeof p.areaCalcHa === "number" ? `${fmtNum(p.areaCalcHa, locale, 0)} ha` : null;
-  el.innerHTML = `
-    <strong>${esc(title)}</strong>
-    <span class="muted small"> — ${esc(govLayerLabel(key, locale))}</span>
-    <table class="popup-rows">
-      ${zoning ? row(locale === "fr" ? "Affectation" : "Zoning class", zoneTypeLabel(p.zoneTypeStd as string, locale)) : ""}
-      ${zoning ? row(locale === "fr" ? "Unité parente" : "Parent unit", p.parentName) : ""}
-      ${row(locale === "fr" ? "Référence" : "Reference", p.reference)}
-      ${row(locale === "fr" ? "Type" : "Type", p.designation ?? p.subTypeRaw ?? p.subTypeStd)}
-      ${row(locale === "fr" ? "Attributaire" : "Holder", p.holder)}
-      ${row(locale === "fr" ? "Exploitant" : "Operator", p.operator)}
-      ${row(locale === "fr" ? "Communauté" : "Community", p.community)}
-      ${row(locale === "fr" ? "Statut" : "Status", p.statusStd)}
-      ${row("IUCN", p.iucnCategory)}
-      ${row(locale === "fr" ? "Localisation" : "Location", [p.admin2, p.province, p.country].filter(Boolean).join(", "))}
-      ${row(locale === "fr" ? "Superficie" : "Area", area)}
-      ${row(locale === "fr" ? "Attribution" : "Attributed", p.dateAttr ? fmtDate(p.dateAttr as string, locale) : null)}
-    </table>`;
-  if (typeof p.wdpaUrl === "string") {
-    const a = document.createElement("a");
-    a.href = p.wdpaUrl;
-    a.target = "_blank";
-    a.rel = "noreferrer";
-    a.textContent = "Protected Planet";
-    el.appendChild(a);
-  }
-  if (typeof p.docCount === "number" && p.docCount > 0 && typeof p.srcUid === "string") {
-    const docs = document.createElement("div");
-    docs.className = "popup-docs";
-    docs.textContent = `${docsLabel}…`;
-    el.appendChild(docs);
-    api
-      .governanceDocuments(p.srcUid)
-      .then((rows) => {
-        docs.innerHTML = `<span class="muted small">${docsLabel}</span>`;
-        for (const d of rows) {
-          if (!d.url) continue;
-          const a = document.createElement("a");
-          a.href = d.url;
-          a.target = "_blank";
-          a.rel = "noreferrer";
-          a.textContent = d.title ?? d.fileName ?? d.docUid;
-          docs.appendChild(a);
-        }
-      })
-      .catch(() => {
-        docs.textContent = "";
-      });
-  }
-  return el;
 }
 
 /** M3 AOI draw tool: click-to-vertex, double-click to close. Hand-rolled —
@@ -412,6 +346,16 @@ export function MapStage() {
   const govVisibleRef = useRef(govVisible);
   govVisibleRef.current = govVisible;
 
+  const [inspect, setInspect] = useState<{
+    srcUid: string;
+    layer: GovLayerKey;
+    seed: Record<string, unknown>;
+  } | null>(null);
+  const openInspectorRef = useRef((srcUid: string, layer: GovLayerKey, seed: Record<string, unknown>) => {
+    setInspect({ srcUid, layer, seed });
+    setSideOpen(true);
+  });
+
   const [photosOn, setPhotosOn] = useState(false);
   const photosDataRef = useRef<FeatureCollection | null>(null);
   const photosOnRef = useRef(photosOn);
@@ -560,11 +504,11 @@ export function MapStage() {
       const hit = map.queryRenderedFeatures(e.point, { layers: ids })[0];
       if (!hit) return;
       const key = hit.layer.id.slice(4, -5) as GovLayerKey; // gov-<key>-fill
-      const el = govPopupContent(key, hit.properties ?? {}, localeRef.current, t("gov_documents"));
-      new maplibregl.Popup({ closeButton: true, maxWidth: "300px" })
-        .setLngLat(e.lngLat)
-        .setDOMContent(el)
-        .addTo(map);
+      const props = (hit.properties ?? {}) as Record<string, unknown>;
+      if (typeof props.srcUid === "string") {
+        // M7c: the feature inspector in the sidebar replaces the popup.
+        openInspectorRef.current(props.srcUid, key, props);
+      }
     });
 
     map.on("click", interactive, (e) => {
@@ -762,6 +706,16 @@ export function MapStage() {
     <div className="map-wrap">
       {sideOpen ? (
         <aside className="map-sidebar">
+          {inspect && (
+            <section className="ms-section">
+              <GovInspector
+                srcUid={inspect.srcUid}
+                layer={inspect.layer}
+                seed={inspect.seed}
+                onClose={() => setInspect(null)}
+              />
+            </section>
+          )}
           <MsSection
             title={t("section_analysis")}
             icon={MS_ICONS.analysis}
