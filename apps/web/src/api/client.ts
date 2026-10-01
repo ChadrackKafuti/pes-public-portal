@@ -1,5 +1,7 @@
 import type {
   AlertRow,
+  AnalysesContract,
+  ContractAnalysis,
   AoiResult,
   ApplicationList,
   Dashboard,
@@ -83,6 +85,9 @@ export const api = {
   governanceDocuments: (srcUid: string) =>
     get<GovDocument[]>(`/governance/features/${encodeURIComponent(srcUid)}/documents`),
   aoi: (geometry: GeoJSON.Polygon) => post<AoiResult>("/aoi", { geometry }),
+  analysesContracts: () => get<AnalysesContract[]>("/analyses/contracts"),
+  contractAnalysis: (code: string) =>
+    get<ContractAnalysis>(`/analyses/contracts/${encodeURIComponent(code)}`),
   photosGeojson: (application?: string) =>
     get<GeoJSON.FeatureCollection>("/photos.geojson", application ? { application } : undefined),
   applicationProfile: (id: string) =>

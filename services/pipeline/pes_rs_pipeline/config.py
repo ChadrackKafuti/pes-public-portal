@@ -42,6 +42,11 @@ class PipelineConfig(BaseSettings):
     photo_mirror_budget_s: int = 300
     max_photo_bytes: int = 15_000_000
 
+    # Annual indicators (M7d): Dynamic World tree-cover series + land-cover
+    # classes; the backlog drains in each run's leftover time budget.
+    annual_start_year: int = 2016
+    annual_backlog_limit: int = 150
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

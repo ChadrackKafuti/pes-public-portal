@@ -46,6 +46,14 @@ VALUES
    'agol_attachment', 0, now());
 """
 
+ANNUAL_SEED = """
+INSERT INTO pes_annual_indicators (application_id, year, tc_ha, loss_ha) VALUES
+  ('A1', 2022, 2.4, NULL),
+  ('A1', 2023, 2.2, 0.2),
+  ('A1', 2024, 2.0, 0.2),
+  ('A1', 2025, 2.1, 0.0);
+"""
+
 RAW_SEED = r"""
 INSERT INTO pes_raw_records (kind, record_id, payload) VALUES
   ('application', 'A1', '{
@@ -185,6 +193,8 @@ def client():
                     conn.execute(GOV_SCHEMA.read_text())
                     conn.execute((_INIT / "004_display_geom.sql").read_text())
                     conn.execute((_INIT / "006_photos_raw.sql").read_text())
+                    conn.execute((_INIT / "007_annual.sql").read_text())
+                    conn.execute(ANNUAL_SEED)
                     conn.execute(PHOTO_SEED)
                     conn.execute(RAW_SEED)
                     conn.commit()

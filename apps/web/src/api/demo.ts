@@ -56,6 +56,34 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
   if (path === "/dashboard") return load("dashboard.json");
   if (path === "/alerts") return load("alerts.json");
   if (path === "/health/runs") return load("runs.json");
+  // Analyses: one synthetic contract so the page demonstrates itself.
+  if (path === "/analyses/contracts") {
+    return [
+      {
+        contractCode: "DEMO-CT-0001", org: "Org Demo A", project: "Project X",
+        country: "DRC", village: "Kiasi", activity: "Agroforestry",
+        applications: 1, estimatedAreaHa: 3.5, firstDate: "2024-06-01",
+      },
+    ] as T;
+  }
+  if (/^\/analyses\/contracts\//.test(path)) {
+    return {
+      contractCode: "DEMO-CT-0001", org: "Org Demo A", project: "Project X",
+      country: "DRC", village: "Kiasi", activity: "Agroforestry",
+      applications: 1, parcelAreaHa: 3.4, contractedAreaHa: 3.0,
+      beneficiaryType: "Individual farmer",
+      startDate: "2024-07-01", endDate: "2029-07-01",
+      series: [
+        { year: 2019, tcHa: 2.6, lossHa: null },
+        { year: 2020, tcHa: 2.5, lossHa: 0.1 },
+        { year: 2021, tcHa: 2.45, lossHa: 0.05 },
+        { year: 2022, tcHa: 2.4, lossHa: 0.05 },
+        { year: 2023, tcHa: 2.2, lossHa: 0.2 },
+        { year: 2024, tcHa: 2.0, lossHa: 0.2 },
+        { year: 2025, tcHa: 2.1, lossHa: 0.0 },
+      ],
+    } as T;
+  }
   // Photos need live storage: harmless empty answers in demo mode.
   if (path === "/photos.geojson") {
     return { type: "FeatureCollection", features: [] } as T;

@@ -3,6 +3,7 @@ import { HashRouter, NavLink, Route, Routes } from "react-router";
 import { MapStage } from "./map/MapStage";
 import { ApplicationsPage } from "./screens/ApplicationsPage";
 import { AlertsPage } from "./screens/AlertsPage";
+import { AnalysesPage } from "./screens/AnalysesPage";
 import { DashboardPage } from "./screens/DashboardPage";
 import { DossierPage } from "./screens/DossierPage";
 import { RunsPage } from "./screens/RunsPage";
@@ -27,6 +28,11 @@ const I = {
   dashboard: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" strokeLinecap="round" />
+    </svg>
+  ),
+  analyses: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M3 20h18M5 17c2-6 4-9 6-9s3 2 4 5 2 4 4 4" strokeLinecap="round" />
     </svg>
   ),
   alerts: (
@@ -145,6 +151,7 @@ export function App() {
     { to: "/", end: true, icon: "map", label: t("nav_map") },
     { to: "/applications", icon: "applications", label: t("nav_applications") },
     { to: "/dashboard", icon: "dashboard", label: t("nav_dashboard") },
+    { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
     { to: "/alerts", icon: "alerts", label: t("nav_alerts") },
     { to: "/runs", icon: "runs", label: t("nav_runs") },
   ];
@@ -196,6 +203,7 @@ export function App() {
               <Route path="/applications" element={<ApplicationsPage />} />
               <Route path="/applications/:id" element={<DossierPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/analyses" element={<AnalysesPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/map" element={<MapStage />} />
               <Route path="/runs" element={<RunsPage />} />
