@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
-import type { PesRsObject } from "@cafi/shared";
+import type { PesRsObject, Photo } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
 import { StatTile, StatusBadge } from "./bits";
@@ -28,6 +28,83 @@ function exportCsv(rows: PesRsObject[], name: string) {
   a.download = `${name}-indicators.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** M7a — geotagged photo strip: signed thumbnails, click for full size. */
+function PhotoGallery({ applicationId }: { applicationId: string }) {
+  const t = useT();
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [openUid, setOpenUid] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .applicationPhotos(applicationId)
+      .then((rows) => {
+        if (cancelled) return;
+        setPhotos(rows);
+        rows
+          .filter((p) => p.mirrored)
+          .slice(0, 24)
+          .forEach((p) => {
+            api
+              .photoImageUrl(p.photoUid)
+              .then(({ url }) => setUrls((u) => ({ ...u, [p.photoUid]: url })))
+              .catch(() => undefined);
+          });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationId]);
+
+  useEffect(() => {
+    const d = dialogRef.current;
+    if (!d) return;
+    if (openUid && !d.open) d.showModal();
+    if (!openUid && d.open) d.close();
+  }, [openUid]);
+
+  if (photos.length === 0) return null;
+  const open = openUid ? photos.find((p) => p.photoUid === openUid) : null;
+  return (
+    <section className="photo-section">
+      <h2 className="photo-head">{t("dossier_photos")}</h2>
+      <div className="photo-grid">
+        {photos.map((p) => (
+          <figure className="photo-card" key={p.photoUid}>
+            {urls[p.photoUid] ? (
+              <button className="photo-thumb" onClick={() => setOpenUid(p.photoUid)}>
+                <img src={urls[p.photoUid]} alt={p.label ?? "Photo"} loading="lazy" />
+              </button>
+            ) : (
+              <span className="photo-thumb photo-missing muted small">{t("photo_pending")}</span>
+            )}
+            <figcaption className="muted small">
+              {p.label ?? "Photo"}
+              {p.kind === "monitoring_visit" && p.parentId ? ` · ${p.parentId}` : ""}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      <dialog ref={dialogRef} className="photo-dialog" onClose={() => setOpenUid(null)}>
+        {open && urls[open.photoUid] && (
+          <>
+            <img src={urls[open.photoUid]} alt={open.label ?? "Photo"} />
+            <p className="muted small">
+              {open.label ?? "Photo"} · {open.lat.toFixed(6)}, {open.lon.toFixed(6)}
+            </p>
+            <button className="btn-ghost" onClick={() => setOpenUid(null)}>
+              {t("photo_close")}
+            </button>
+          </>
+        )}
+      </dialog>
+    </section>
+  );
 }
 
 export function DossierPage() {
@@ -115,6 +192,8 @@ export function DossierPage() {
       </div>
 
       <TreeCoverChart rows={rows} />
+
+      <PhotoGallery applicationId={id} />
 
       <table className="data">
         <thead>

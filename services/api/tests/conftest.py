@@ -46,6 +46,22 @@ VALUES
    'agol_attachment', 0, now());
 """
 
+PHOTO_SEED = """
+INSERT INTO pes_photos
+  (photo_uid, kind, parent_id, application_id, application_code, contract_code,
+   photo_index, label, url, url_no_query, lon, lat, mirrored_path, mirror_status)
+VALUES
+  ('aaaa1111', 'application', 'A1', 'A1', 'APP-001', NULL, 1, 'Parcel north edge',
+   'https://example.org/p1.jpg?sig=x', 'https://example.org/p1.jpg',
+   15.002, -0.998, 'application/aa/aaaa1111.jpg', 'done'),
+  ('bbbb2222', 'monitoring_visit', 'M1', 'A1', 'APP-001', 'CTR-001', 1, 'Visit photo',
+   'https://example.org/p2.jpg?sig=y', 'https://example.org/p2.jpg',
+   15.003, -0.997, NULL, NULL),
+  ('cccc3333', 'application', 'A2', 'A2', 'APP-002', NULL, 1, 'Other parcel',
+   'https://example.org/p3.jpg?sig=z', 'https://example.org/p3.jpg',
+   15.5, -2.25, NULL, 'error');
+"""
+
 SEED = """
 INSERT INTO pes_parcels
   (application_id, application_code, contract_code, application_date, shape_raw,
@@ -138,6 +154,8 @@ def client():
                     conn.execute(SCHEMA.read_text())
                     conn.execute(GOV_SCHEMA.read_text())
                     conn.execute((_INIT / "004_display_geom.sql").read_text())
+                    conn.execute((_INIT / "006_photos_raw.sql").read_text())
+                    conn.execute(PHOTO_SEED)
                     conn.commit()
                     global _POSTGIS
                     try:

@@ -56,6 +56,11 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
   if (path === "/dashboard") return load("dashboard.json");
   if (path === "/alerts") return load("alerts.json");
   if (path === "/health/runs") return load("runs.json");
+  // Photos need live storage: harmless empty answers in demo mode.
+  if (path === "/photos.geojson") {
+    return { type: "FeatureCollection", features: [] } as T;
+  }
+  if (/^\/applications\/[^/]+\/photos$/.test(path)) return [] as T;
   if (path === "/applications.geojson") return load("applications.geojson.json");
   if (path === "/governance/layers") return load("governance/layers.json");
   let m = path.match(/^\/applications\/([^/]+)\/indicators$/);

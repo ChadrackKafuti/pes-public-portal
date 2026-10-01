@@ -105,6 +105,22 @@ class GovDocumentOut(ApiModel):
     src_system: str | None
 
 
+class PhotoOut(ApiModel):
+    """One geotagged photo point (M7a; image via /api/photos/{uid}/image-url)."""
+
+    photo_uid: str
+    kind: str
+    parent_id: str | None
+    application_id: str | None
+    application_code: str | None
+    contract_code: str | None
+    photo_index: int | None
+    label: str | None
+    lon: float
+    lat: float
+    mirrored: bool
+
+
 class AoiOverlap(ApiModel):
     """One governance feature intersecting the caller's AOI (M3)."""
 

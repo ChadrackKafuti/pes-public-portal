@@ -34,6 +34,14 @@ class PipelineConfig(BaseSettings):
     database_url: str = "postgresql://cafi:cafi@localhost:5432/cafi_rs"
     gee_service_account: str = ""
 
+    # Geotagged-photo mirror (M7a). Empty URL or key disables image mirroring
+    # (photo rows are still recorded with their expiring source URLs).
+    supabase_url: str = ""
+    supabase_service_key: str = ""
+    photos_bucket: str = "pes-photos"
+    photo_mirror_budget_s: int = 300
+    max_photo_bytes: int = 15_000_000
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

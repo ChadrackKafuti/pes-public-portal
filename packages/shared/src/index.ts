@@ -171,6 +171,21 @@ export interface DashboardGroup {
   areaHa: number | null;
 }
 
+/** One geotagged photo point (M7a). Image via /api/photos/{uid}/image-url. */
+export interface Photo {
+  photoUid: string;
+  kind: "application" | "monitoring_visit";
+  parentId: string | null;
+  applicationId: string | null;
+  applicationCode: string | null;
+  contractCode: string | null;
+  photoIndex: number | null;
+  label: string | null;
+  lon: number;
+  lat: number;
+  mirrored: boolean;
+}
+
 /** One governance feature intersecting a drawn AOI (M3). */
 export interface AoiOverlap {
   layer: GovLayerKey;

@@ -303,6 +303,68 @@ function MsSection({
   );
 }
 
+/** Photo points (M7a): neutral violet, never a status hue. */
+const PHOTO_COLOR = "#7e57c2";
+
+function addPhotoLayer(map: maplibregl.Map, data: FeatureCollection) {
+  if (map.getSource("photos")) return;
+  map.addSource("photos", { type: "geojson", data });
+  map.addLayer({
+    id: "photos-dots",
+    type: "circle",
+    source: "photos",
+    paint: {
+      "circle-radius": 5,
+      "circle-color": PHOTO_COLOR,
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": "#ffffff",
+    },
+  });
+}
+
+/** Popup body for one photo point: label + parent link + lazy signed image. */
+function photoPopupContent(
+  p: Record<string, unknown>,
+  pendingLabel: string,
+  navigateToDossier: (id: string) => void,
+): HTMLDivElement {
+  const el = document.createElement("div");
+  el.className = "map-popup";
+  const title = document.createElement("strong");
+  title.textContent = String(p.label ?? "Photo");
+  el.appendChild(title);
+  if (typeof p.applicationId === "string" && p.applicationId) {
+    const btn = document.createElement("button");
+    btn.className = "map-popup-btn";
+    btn.textContent = p.applicationCode ? String(p.applicationCode) : p.applicationId;
+    btn.onclick = () => navigateToDossier(p.applicationId as string);
+    el.appendChild(document.createElement("br"));
+    el.appendChild(btn);
+  }
+  const slot = document.createElement("div");
+  slot.className = "popup-photo";
+  el.appendChild(slot);
+  if (p.mirrored && typeof p.photoUid === "string") {
+    slot.textContent = "…";
+    api
+      .photoImageUrl(p.photoUid)
+      .then(({ url }) => {
+        slot.textContent = "";
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = String(p.label ?? "Photo");
+        slot.appendChild(img);
+      })
+      .catch(() => {
+        slot.textContent = pendingLabel;
+      });
+  } else {
+    slot.textContent = pendingLabel;
+    slot.className += " muted small";
+  }
+  return el;
+}
+
 function featureBounds(f: Feature): maplibregl.LngLatBounds {
   const b = new maplibregl.LngLatBounds();
   const walk = (coords: unknown): void => {
@@ -349,6 +411,11 @@ export function MapStage() {
   const govDataRef = useRef<Partial<Record<GovLayerKey, FeatureCollection>>>({});
   const govVisibleRef = useRef(govVisible);
   govVisibleRef.current = govVisible;
+
+  const [photosOn, setPhotosOn] = useState(false);
+  const photosDataRef = useRef<FeatureCollection | null>(null);
+  const photosOnRef = useRef(photosOn);
+  photosOnRef.current = photosOn;
 
   const [aoiMode, setAoiMode] = useState(false);
   const aoiModeRef = useRef(aoiMode);
@@ -465,8 +532,25 @@ export function MapStage() {
       const hits = map.queryRenderedFeatures(e.point, { layers: ids });
       if (hits.length) map.getCanvas().style.cursor = "pointer";
     });
-    map.on("click", (e) => {
+    // Photo points win over everything below them.
+    map.on("click", "photos-dots", (e) => {
       if (aoiModeRef.current) return;
+      const f: MapGeoJSONFeature | undefined = e.features?.[0];
+      if (!f) return;
+      const el = photoPopupContent(f.properties ?? {}, t("photo_pending"), (id) =>
+        navigateRef.current(`/applications/${encodeURIComponent(id)}`),
+      );
+      new maplibregl.Popup({ closeButton: true, maxWidth: "300px" })
+        .setLngLat(e.lngLat)
+        .setDOMContent(el)
+        .addTo(map);
+    });
+    const photoHit = (e: maplibregl.MapMouseEvent) =>
+      !!map.getLayer("photos-dots") &&
+      map.queryRenderedFeatures(e.point, { layers: ["photos-dots"] }).length > 0;
+
+    map.on("click", (e) => {
+      if (aoiModeRef.current || photoHit(e)) return;
       const parcelIds = LAYERS.filter((id) => map.getLayer(id));
       if (parcelIds.length && map.queryRenderedFeatures(e.point, { layers: [...parcelIds] }).length) {
         return; // the parcels handler below owns this click
@@ -484,7 +568,7 @@ export function MapStage() {
     });
 
     map.on("click", interactive, (e) => {
-      if (aoiModeRef.current) return;
+      if (aoiModeRef.current || photoHit(e)) return;
       const f: MapGeoJSONFeature | undefined = e.features?.[0];
       if (!f) return;
       const p = f.properties as Record<string, string | null>;
@@ -530,11 +614,40 @@ export function MapStage() {
           addGovLayers(map, key, data);
         }
       }
+      if (photosDataRef.current && photosOnRef.current && !map.getSource("photos")) {
+        addPhotoLayer(map, photosDataRef.current);
+      }
       if (aoiVertsRef.current.length) {
         setAoiLayers(map, aoiCollection(aoiVertsRef.current, aoiClosedRef.current));
       }
     });
   }, [basemap]);
+
+  // Photo layer toggle: lazy-load once, then flip visibility.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    let cancelled = false;
+    if (photosOn && !photosDataRef.current) {
+      api
+        .photosGeojson()
+        .then((data) => {
+          photosDataRef.current = data as FeatureCollection;
+          const m = mapRef.current;
+          if (!cancelled && m && photosOnRef.current) addPhotoLayer(m, data as FeatureCollection);
+        })
+        .catch(() => {
+          /* photos not synced yet: leave the toggle inert */
+        });
+    } else if (map.getLayer("photos-dots")) {
+      map.setLayoutProperty("photos-dots", "visibility", photosOn ? "visible" : "none");
+    } else if (photosOn && photosDataRef.current) {
+      addPhotoLayer(map, photosDataRef.current);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [photosOn]);
 
   // Crosshair while drawing an AOI.
   useEffect(() => {
@@ -759,6 +872,21 @@ export function MapStage() {
                 <i style={{ background: c }} /> {k}
               </span>
             ))}
+            <div className="gov-layers">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={photosOn}
+                  onChange={(e) => setPhotosOn(e.target.checked)}
+                />
+                <i
+                  className="legend-dot"
+                  style={{ background: PHOTO_COLOR }}
+                  aria-hidden
+                />
+                {t("photos_layer")}
+              </label>
+            </div>
             <span className="muted small" style={{ marginTop: "0.5rem" }}>
               {t("gov_layers")}
             </span>
