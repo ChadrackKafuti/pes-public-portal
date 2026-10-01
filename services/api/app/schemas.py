@@ -200,6 +200,44 @@ class ProfileOut(ApiModel):
     last_sync: datetime | None
 
 
+class AnalysesContract(ApiModel):
+    """One contract row for the Analyses pickers (M7d)."""
+
+    contract_code: str
+    org: str | None
+    project: str | None
+    country: str | None
+    village: str | None
+    activity: str | None
+    applications: int
+    estimated_area_ha: float | None
+    first_date: date | None
+
+
+class AnnualPoint(ApiModel):
+    year: int
+    tc_ha: float | None
+    loss_ha: float | None
+
+
+class ContractAnalysis(ApiModel):
+    """The contract-analysis payload: v1's sheet + description fields."""
+
+    contract_code: str
+    org: str | None
+    project: str | None
+    country: str | None
+    village: str | None
+    activity: str | None
+    applications: int
+    parcel_area_ha: float | None
+    contracted_area_ha: float | None
+    beneficiary_type: str | None
+    start_date: date | None
+    end_date: date | None
+    series: list[AnnualPoint]
+
+
 class PhotoOut(ApiModel):
     """One geotagged photo point (M7a; image via /api/photos/{uid}/image-url)."""
 

@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .auth import CurrentUser, Principal
 from .db import get_conn
 from .alerts import router as alerts_router
+from .analyses import router as analyses_router
 from .aoi import router as aoi_router
 from .dashboard import router as dashboard_router
 from .photos import router as photos_router
@@ -41,6 +42,7 @@ app.include_router(alerts_router)
 app.include_router(aoi_router)
 app.include_router(photos_router)
 app.include_router(profile_router)
+app.include_router(analyses_router)
 
 app.add_middleware(
     CORSMiddleware,

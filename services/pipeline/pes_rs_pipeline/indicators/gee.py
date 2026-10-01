@@ -168,6 +168,48 @@ class GeeBackend:
         tree_a, tree_b = start[0], end[0]
         return self._mask_area_ha(tree_a.And(tree_b.Not()).selfMask(), parcel, scale=10)
 
+    # -- Dynamic World dominant land cover (M7d) --------------------------
+
+    DW_CLASSES = [
+        "water", "trees", "grass", "flooded_vegetation", "crops",
+        "shrub_and_scrub", "built", "bare", "snow_and_ice",
+    ]
+
+    def dominant_landcover(self, parcel, at: date) -> tuple[str, float]:
+        """The parcel's modal Dynamic World class near a date, with its share
+        of the parcel (%). Walks the same widening window ladder as
+        tree_cover so cloudy periods resolve."""
+        ee = self._ee
+        for window in tc_window_ladder(self._config.tc_window_days):
+            col = (
+                ee.ImageCollection(DYNAMIC_WORLD)
+                .filterBounds(parcel)
+                .filterDate(_iso(at - timedelta(days=window)), _iso(at + timedelta(days=1)))
+                .select("label")
+            )
+            if int(col.size().getInfo()) == 0:
+                continue
+            mode = col.reduce(ee.Reducer.mode())
+            hist = (
+                mode.reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=parcel,
+                    scale=10,
+                    maxPixels=1e10,
+                )
+                .get("label_mode")
+                .getInfo()
+                or {}
+            )
+            if not hist:
+                continue
+            total = sum(hist.values())
+            top_key, top_n = max(hist.items(), key=lambda kv: kv[1])
+            idx = int(float(top_key))
+            name = self.DW_CLASSES[idx] if 0 <= idx < len(self.DW_CLASSES) else str(idx)
+            return name, round(top_n / total * 100, 1)
+        raise RuntimeError(f"no Dynamic World imagery near {at}")
+
     # -- RADD alerts (spec §11.4) -----------------------------------------
 
     def radd_alerts(self, parcel, interval: Interval) -> int:

@@ -171,6 +171,35 @@ export interface DashboardGroup {
   areaHa: number | null;
 }
 
+/** M7d — contract analyses (v1 contract-analysis page). */
+export interface AnalysesContract {
+  contractCode: string;
+  org: string | null;
+  project: string | null;
+  country: string | null;
+  village: string | null;
+  activity: string | null;
+  applications: number;
+  estimatedAreaHa: number | null;
+  firstDate: string | null;
+}
+
+export interface ContractAnalysis {
+  contractCode: string;
+  org: string | null;
+  project: string | null;
+  country: string | null;
+  village: string | null;
+  activity: string | null;
+  applications: number;
+  parcelAreaHa: number | null;
+  contractedAreaHa: number | null;
+  beneficiaryType: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  series: { year: number; tcHa: number | null; lossHa: number | null }[];
+}
+
 /** M7b — the application profile (v1 popup content, section by section). */
 export interface Profile {
   applicationId: string;

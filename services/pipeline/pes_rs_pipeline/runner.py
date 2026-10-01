@@ -252,6 +252,19 @@ def run_once(
                 today=today,
             )
             store.record_exceptions(conn, result.exceptions)
+            conn.commit()
+
+            # M7d: annual tree-cover series + land-cover classes, in whatever
+            # time the run has left. Failures never cost the run.
+            try:
+                from .indicators.annual import process_annual
+
+                annual_stats = process_annual(conn, backend, config, deadline, today)
+                log.info("annual: %s", annual_stats)
+            except Exception:  # noqa: BLE001
+                conn.rollback()
+                log.exception("annual indicator pass failed; run continues")
+
             store.insert_run(conn, result.health_row())
             conn.commit()
         finally:
