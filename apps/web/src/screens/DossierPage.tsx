@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
-import type { PesRsObject, Photo } from "@cafi/shared";
+import type { PesRsObject, Photo, Profile } from "@cafi/shared";
+import {
+  AreaComparison,
+  Breadcrumb,
+  ChipsRow,
+  ContractTimeline,
+  FireCard,
+  PerformanceDonut,
+  ProfileFooter,
+  ProfileSections,
+  StageTracker,
+  VisitTracker,
+} from "./ProfileBlocks";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
 import { StatTile, StatusBadge } from "./bits";
@@ -112,6 +124,7 @@ export function DossierPage() {
   const t = useT();
   const locale = useI18n((s) => s.locale);
   const [rows, setRows] = useState<PesRsObject[] | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -119,6 +132,11 @@ export function DossierPage() {
       .applicationIndicators(id)
       .then((r) => setRows(r))
       .catch(() => setError(true));
+    // The v1-depth profile (M7b); the dossier degrades gracefully without it.
+    api
+      .applicationProfile(id)
+      .then(setProfile)
+      .catch(() => setProfile(null));
   }, [id]);
 
   if (error) return <main className="page"><p className="notice">{t("error_load")}</p></main>;
@@ -155,7 +173,20 @@ export function DossierPage() {
         {latest?.pesActivity ?? "—"}
         {application ? ` · ${fmtDate(application.objectDate, locale)}` : null}
         {latest ? <> · <StatusBadge status={latest.status} /></> : null}
+        {profile?.project.name ? (
+          <span className="muted small">
+            {" "}· {profile.project.name}
+            {profile.project.orgAcronym ? ` — ${profile.project.orgAcronym}` : ""}
+          </span>
+        ) : null}
       </p>
+      {profile && (
+        <>
+          <ChipsRow p={profile} />
+          <StageTracker p={profile} />
+          <Breadcrumb p={profile} />
+        </>
+      )}
 
       <div className="stat-row">
         <StatTile
@@ -191,9 +222,21 @@ export function DossierPage() {
         />
       </div>
 
+      {profile && (
+        <div className="pf-cards">
+          <ContractTimeline p={profile} />
+          <VisitTracker p={profile} />
+          <FireCard p={profile} />
+        </div>
+      )}
+      {profile && <PerformanceDonut p={profile} />}
+      {profile && <AreaComparison p={profile} />}
+
       <TreeCoverChart rows={rows} />
 
       <PhotoGallery applicationId={id} />
+
+      {profile && <ProfileSections p={profile} />}
 
       <table className="data">
         <thead>
@@ -214,6 +257,7 @@ export function DossierPage() {
         </tbody>
       </table>
       <p className="muted small">{t("blank_hint")}</p>
+      {profile && <ProfileFooter p={profile} />}
     </main>
   );
 }

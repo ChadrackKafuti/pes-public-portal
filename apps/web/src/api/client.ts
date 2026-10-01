@@ -9,6 +9,7 @@ import type {
   GovLayerKey,
   PesRsObject,
   Photo,
+  Profile,
   RunHealth,
 } from "@cafi/shared";
 import { authEnabled, authHeaders, useAuth } from "../auth";
@@ -82,6 +83,8 @@ export const api = {
   aoi: (geometry: GeoJSON.Polygon) => post<AoiResult>("/aoi", { geometry }),
   photosGeojson: (application?: string) =>
     get<GeoJSON.FeatureCollection>("/photos.geojson", application ? { application } : undefined),
+  applicationProfile: (id: string) =>
+    get<Profile>(`/applications/${encodeURIComponent(id)}/profile`),
   applicationPhotos: (id: string) =>
     get<Photo[]>(`/applications/${encodeURIComponent(id)}/photos`),
   photoImageUrl: (uid: string) =>
