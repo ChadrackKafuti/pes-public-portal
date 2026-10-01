@@ -171,6 +171,84 @@ export interface DashboardGroup {
   areaHa: number | null;
 }
 
+/** M7b — the application profile (v1 popup content, section by section). */
+export interface Profile {
+  applicationId: string;
+  applicationCode: string | null;
+  applicationDate: string | null;
+  activity: string | null;
+  activityGroup: "generic" | "agroforestry" | "reforestation" | "natural_regeneration";
+  stage: {
+    name: string | null;
+    order: number | null;
+    total: number;
+    category: "active" | "rejected" | "archived" | "unknown";
+    status: string | null;
+  } | null;
+  location: {
+    country: string | null;
+    province: string | null;
+    territory: string | null;
+    village: string | null;
+  };
+  beneficiary: {
+    type: string | null;
+    status: string | null;
+    gender: string | null;
+    familySituation: string | null;
+    dependents: number | null;
+    communityMembers: number | null;
+  } | null;
+  project: {
+    name: string | null;
+    org: string | null;
+    orgAcronym: string | null;
+    aggregator: string | null;
+  };
+  contract: {
+    code: string | null;
+    status: string | null;
+    start: string | null;
+    end: string | null;
+    durationYears: number | null;
+    declaredAreaHa: number | null;
+    contractedAreaHa: number | null;
+    pctElapsed: number | null;
+    daysRemaining: number | null;
+    species: { name: string | null; densityPerHa: number | null }[];
+  } | null;
+  visits: {
+    expected: number | null;
+    completed: number;
+    lastDate: string | null;
+    nextDue: string | null;
+    overdue: boolean | null;
+  } | null;
+  fire: {
+    burned5yrHa: number | null;
+    burnedPct: number | null;
+    fireAlerts5yr: number | null;
+    category: "low" | "moderate" | "high" | "very_high" | null;
+  } | null;
+  performance: {
+    achievedHa: number | null;
+    gapHa: number | null;
+    achievedPct: number | null;
+    monitoredTotalHa: number | null;
+    observedTrees: number | null;
+    observedLandCover: string | null;
+    observedLandCoverPct: number | null;
+  } | null;
+  areas: {
+    estimatedHa: number | null;
+    declaredHa: number | null;
+    contractedHa: number | null;
+    achievedHa: number | null;
+  };
+  geometrySource: string | null;
+  lastSync: string | null;
+}
+
 /** One geotagged photo point (M7a). Image via /api/photos/{uid}/image-url. */
 export interface Photo {
   photoUid: string;

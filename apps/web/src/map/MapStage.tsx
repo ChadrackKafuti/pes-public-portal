@@ -579,6 +579,29 @@ export function MapStage() {
         ${p.contractCode ? `${p.contractCode}<br/>` : ""}
         ${p.pesActivity ?? ""} · ${p.applicationDate ? fmtDate(p.applicationDate, localeRef.current) : ""}
         ${p.status ? `<br/>status: ${p.status}` : ""}`;
+      // v1-depth mini-profile line (M7b): stage, overdue, fire, achieved %.
+      const prof = document.createElement("div");
+      prof.className = "muted small";
+      el.appendChild(prof);
+      api
+        .applicationProfile(p.applicationId as string)
+        .then((pr) => {
+          const bits: string[] = [];
+          if (pr.stage?.name) bits.push(`${t("pf_stage")}: ${pr.stage.name}`);
+          if (pr.visits?.overdue) bits.push(t("pf_visit_overdue"));
+          if (pr.fire?.category === "high" || pr.fire?.category === "very_high") {
+            bits.push(
+              `${t("pf_fire_risk")}: ${t(pr.fire.category === "high" ? "fire_high" : "fire_very_high")}`,
+            );
+          }
+          if (pr.performance?.achievedPct != null) {
+            bits.push(`${Math.round(pr.performance.achievedPct)}% ${t("perf_achieved")}`);
+          }
+          prof.textContent = bits.join(" · ");
+        })
+        .catch(() => {
+          prof.remove();
+        });
       const btn = document.createElement("button");
       btn.className = "map-popup-btn";
       btn.textContent = t("open_dossier");

@@ -61,6 +61,43 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
     return { type: "FeatureCollection", features: [] } as T;
   }
   if (/^\/applications\/[^/]+\/photos$/.test(path)) return [] as T;
+  const pm = path.match(/^\/applications\/([^/]+)\/profile$/);
+  if (pm) {
+    const id = decodeURIComponent(pm[1]);
+    return {
+      applicationId: id,
+      applicationCode: id,
+      applicationDate: "2024-06-01",
+      activity: "Agroforestry",
+      activityGroup: "agroforestry",
+      stage: { name: "Validated", order: 5, total: 7, category: "active", status: "In progress" },
+      location: { country: "DRC", province: "Kongo-Central", territory: "Songololo", village: "Kiasi" },
+      beneficiary: {
+        type: "Individual farmer", status: "Active", gender: "Female",
+        familySituation: "Married", dependents: 4, communityMembers: 12,
+      },
+      project: { name: "Project X", org: "Org Demo A", orgAcronym: "ODA", aggregator: "Green Coop (GC)" },
+      contract: {
+        code: "CTR-DEMO", status: "Active", start: "2024-07-01", end: "2029-07-01",
+        durationYears: 5, declaredAreaHa: 3.2, contractedAreaHa: 3.0,
+        pctElapsed: 44.9, daysRemaining: 1004,
+        species: [
+          { name: "Acacia", densityPerHa: 400 },
+          { name: "Moringa", densityPerHa: 150 },
+        ],
+      },
+      visits: { expected: 6, completed: 2, lastDate: "2025-03-15", nextDue: "2025-09-15", overdue: false },
+      fire: { burned5yrHa: 0, burnedPct: 0, fireAlerts5yr: 0, category: "low" },
+      performance: {
+        achievedHa: 2.1, gapHa: 0.9, achievedPct: 70,
+        monitoredTotalHa: 3.0, observedTrees: 820,
+        observedLandCover: "Cropland", observedLandCoverPct: 61.5,
+      },
+      areas: { estimatedHa: 3.5, declaredHa: 3.2, contractedHa: 3.0, achievedHa: 2.1 },
+      geometrySource: "polygon",
+      lastSync: "2026-10-01T12:30:00Z",
+    } as T;
+  }
   if (path === "/applications.geojson") return load("applications.geojson.json");
   if (path === "/governance/layers") return load("governance/layers.json");
   let m = path.match(/^\/applications\/([^/]+)\/indicators$/);

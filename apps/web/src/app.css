@@ -873,6 +873,162 @@ table.data a {
   margin: 0;
 }
 
+/* ---- application profile blocks (M7b) ---- */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+}
+
+.stage-track {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.4rem 0;
+  max-width: 460px;
+}
+
+.stage-segments {
+  display: flex;
+  gap: 3px;
+}
+
+.stage-seg {
+  flex: 1;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.stage-seg.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.stage-bar {
+  height: 8px;
+  border-radius: 3px;
+}
+
+.stage-rejected {
+  background: var(--status-critical);
+}
+
+.stage-archived {
+  background: var(--axis);
+}
+
+.pf-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+
+.tl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tl-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: block;
+}
+
+.tl-fill {
+  display: block;
+  height: 100%;
+}
+
+.perf-card .perf-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.perf-donut {
+  width: 120px;
+  height: 120px;
+  flex: 0 0 auto;
+}
+
+.perf-num {
+  fill: var(--fg);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.perf-sub {
+  fill: var(--fg-muted);
+  font-size: 9px;
+}
+
+.perf-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.pf-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+}
+
+.pf-section h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+
+.pf-rows {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.pf-rows td {
+  padding: 0.16rem 0.5rem 0.16rem 0;
+  vertical-align: top;
+}
+
+.pf-rows td:first-child {
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
 /* ---- geotagged photos (M7a) ---- */
 
 .popup-photo {

@@ -105,6 +105,101 @@ class GovDocumentOut(ApiModel):
     src_system: str | None
 
 
+class ProfileStage(ApiModel):
+    name: str | None
+    order: int | None
+    total: int
+    category: str  # active | rejected | archived | unknown
+    status: str | None
+
+
+class ProfileSpecies(ApiModel):
+    name: str | None
+    density_per_ha: float | None
+
+
+class ProfileContract(ApiModel):
+    code: str | None
+    status: str | None
+    start: date | None
+    end: date | None
+    duration_years: float | None
+    declared_area_ha: float | None
+    contracted_area_ha: float | None
+    pct_elapsed: float | None
+    days_remaining: int | None
+    species: list[ProfileSpecies]
+
+
+class ProfileVisits(ApiModel):
+    expected: int | None
+    completed: int
+    last_date: date | None
+    next_due: date | None
+    overdue: bool | None
+
+
+class ProfileFire(ApiModel):
+    burned_5yr_ha: float | None
+    burned_pct: float | None
+    fire_alerts_5yr: int | None
+    category: str | None  # low | moderate | high | very_high
+
+
+class ProfilePerformance(ApiModel):
+    achieved_ha: float | None
+    gap_ha: float | None
+    achieved_pct: float | None
+    monitored_total_ha: float | None
+    observed_trees: int | None
+    observed_land_cover: str | None
+    observed_land_cover_pct: float | None
+
+
+class ProfileAreas(ApiModel):
+    estimated_ha: float | None
+    declared_ha: float | None
+    contracted_ha: float | None
+    achieved_ha: float | None
+
+
+class ProfileBeneficiary(ApiModel):
+    type: str | None
+    status: str | None
+    gender: str | None
+    family_situation: str | None
+    dependents: int | None
+    community_members: int | None
+
+
+class ProfileProject(ApiModel):
+    name: str | None
+    org: str | None
+    org_acronym: str | None
+    aggregator: str | None
+
+
+class ProfileOut(ApiModel):
+    """The M7b application profile: v1's popup content, section by section."""
+
+    application_id: str
+    application_code: str | None
+    application_date: date | None
+    activity: str | None
+    activity_group: str  # generic | agroforestry | reforestation | natural_regeneration
+    stage: ProfileStage | None
+    location: dict[str, str | None]
+    beneficiary: ProfileBeneficiary | None
+    project: ProfileProject
+    contract: ProfileContract | None
+    visits: ProfileVisits | None
+    fire: ProfileFire | None
+    performance: ProfilePerformance | None
+    areas: ProfileAreas
+    geometry_source: str | None
+    last_sync: datetime | None
+
+
 class PhotoOut(ApiModel):
     """One geotagged photo point (M7a; image via /api/photos/{uid}/image-url)."""
 

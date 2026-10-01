@@ -46,6 +46,36 @@ VALUES
    'agol_attachment', 0, now());
 """
 
+RAW_SEED = r"""
+INSERT INTO pes_raw_records (kind, record_id, payload) VALUES
+  ('application', 'A1', '{
+     "ApplicationCode": "APP-001", "ApplicationStatus": "In progress",
+     "Stage": "Validated", "StageOrder": 5,
+     "ActivityType": "Agroforestry", "EstimatedArea": 3.5,
+     "BeneficiaryType": "Individual farmer", "BeneficiaryGender": "Female",
+     "FamilySituation": "Married", "Dependents": 4, "CommunityMembers": 12,
+     "ProjectName": "Project X", "ImplementingOrgName": "Org A",
+     "ImplementingOrgAcronym": "OA",
+     "SupportingAggregator": [{"EntityFullName": "Green Coop", "EntityAcronym": "GC"}],
+     "ContractCode": "CTR-001", "ContractStatus": "Active",
+     "ContractStartDate": "2024-07-01", "ContractEndDate": "2029-07-01",
+     "ContractDurationYears": 5, "AreaDeclaredByPlanter": 3.2,
+     "ContractedPesArea": 3.0,
+     "TreeDensity": [{"Name": "Acacia", "Density": 400}, {"Name": "Moringa", "Density": 150}],
+     "VisitCount": 6
+   }'::jsonb),
+  ('monitoring_visit', 'M1', '{
+     "MonitoringVisitCode": "M1", "ApplicationId": "A1", "ApplicationCode": "APP-001",
+     "ContractCode": "CTR-001", "MonitoringDate": "2025-03-15",
+     "PlantedAreaMeasured": 2.1, "UnplantedArea": 0.9,
+     "ObservedTreesCount": 820, "ObservedLandCover": "Cropland", "ObservedLandCoverPct": 61.5
+   }'::jsonb),
+  ('monitoring_visit', 'MF', '{
+     "MonitoringVisitCode": "MF", "ApplicationId": "A1", "ApplicationCode": "APP-001",
+     "ContractCode": "CTR-001", "MonitoringDate": "2099-04-01"
+   }'::jsonb);
+"""
+
 PHOTO_SEED = """
 INSERT INTO pes_photos
   (photo_uid, kind, parent_id, application_id, application_code, contract_code,
@@ -156,6 +186,7 @@ def client():
                     conn.execute((_INIT / "004_display_geom.sql").read_text())
                     conn.execute((_INIT / "006_photos_raw.sql").read_text())
                     conn.execute(PHOTO_SEED)
+                    conn.execute(RAW_SEED)
                     conn.commit()
                     global _POSTGIS
                     try:
