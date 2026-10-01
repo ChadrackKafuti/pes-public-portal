@@ -3,7 +3,7 @@ import type { Dashboard, DashboardGroup, FilterOptions } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtNum, useI18n, useT } from "../i18n";
 import { GOV_LAYER_ORDER, govLayerLabel } from "../map/governance";
-import { StatTile, StatusBadge } from "./bits";
+import { PageHeader, StatTile, StatusBadge } from "./bits";
 
 /**
  * M5 — jurisdictional dashboard. One payload, four blocks: KPI tiles,
@@ -146,6 +146,7 @@ export function DashboardPage() {
 
   return (
     <main className="page">
+      <PageHeader title={t("nav_dashboard")} desc={t("desc_dashboard")} />
       <div className="filters">
         <select value={country ?? ""} onChange={(e) => setCountry(e.target.value || undefined)}>
           <option value="">{t("all_countries")}</option>

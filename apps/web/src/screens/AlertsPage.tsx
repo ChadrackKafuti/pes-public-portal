@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { AlertRow, FilterOptions } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
+import { Card, PageHeader } from "./bits";
 
 /** M4 — the alert feed: monitoring visits with an active disturbance
  *  signal, newest first. Signal chips use the reserved status hues with
@@ -54,6 +55,7 @@ export function AlertsPage() {
 
   return (
     <main className="page">
+      <PageHeader title={t("nav_alerts")} desc={t("desc_alerts")} />
       <div className="filters">
         <select value={country ?? ""} onChange={(e) => setCountry(e.target.value || undefined)}>
           <option value="">{t("all_countries")}</option>
@@ -66,6 +68,7 @@ export function AlertsPage() {
       {rows.length === 0 ? (
         <p className="notice">{t("alerts_none")}</p>
       ) : (
+        <Card table>
         <table className="data">
           <thead>
             <tr>
@@ -98,6 +101,7 @@ export function AlertsPage() {
             ))}
           </tbody>
         </table>
+        </Card>
       )}
       <p className="muted small">{t("alerts_hint")}</p>
     </main>

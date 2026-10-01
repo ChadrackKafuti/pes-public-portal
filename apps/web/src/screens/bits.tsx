@@ -1,4 +1,37 @@
+import type { ReactNode } from "react";
 import { useT } from "../i18n";
+
+/** Page header: title + one-line description, optional actions on the right. */
+export function PageHeader({
+  title,
+  desc,
+  children,
+}: {
+  title: string;
+  desc?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <header className="page-head">
+      <div>
+        <h1>{title}</h1>
+        {desc ? <p className="page-desc">{desc}</p> : null}
+      </div>
+      {children}
+    </header>
+  );
+}
+
+/** Surface card; `table` variant removes padding so tables sit edge to edge. */
+export function Card({
+  children,
+  table,
+}: {
+  children: ReactNode;
+  table?: boolean;
+}) {
+  return <section className={`card${table ? " table-card" : ""}`}>{children}</section>;
+}
 
 /** Status colors are reserved status hues (dataviz status palette), shipped
  *  with a text label — never color alone. */

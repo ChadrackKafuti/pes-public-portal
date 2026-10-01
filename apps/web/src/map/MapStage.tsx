@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import maplibregl from "maplibre-gl";
 import type { MapGeoJSONFeature } from "maplibre-gl";
@@ -250,6 +250,59 @@ function setAoiLayers(map: maplibregl.Map, data: FeatureCollection) {
   });
 }
 
+/* Sidebar section icons (stroke style, 24px viewBox). */
+const MS_ICONS: Record<string, ReactNode> = {
+  analysis: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M7 4 4 7l5 5-5 5 3 3 5-5 5 5 3-3-5-5 5-5-3-3-5 5-5-5Z" strokeLinejoin="round" />
+    </svg>
+  ),
+  layers: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" strokeLinejoin="round" />
+      <path d="m3 13 9 5 9-5" strokeLinejoin="round" />
+    </svg>
+  ),
+  find: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 5 5" strokeLinecap="round" />
+    </svg>
+  ),
+  basemap: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c3 3.5 3 14 0 18-3-4-3-14.5 0-18Z" />
+    </svg>
+  ),
+};
+
+/** One collapsible sidebar section (hand-rolled accordion). */
+function MsSection({
+  title,
+  icon,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="ms-section">
+      <button className="ms-head" aria-expanded={open} onClick={onToggle}>
+        {icon}
+        {title}
+        <span className="ms-chevron">▶</span>
+      </button>
+      {open && <div className="ms-body">{children}</div>}
+    </section>
+  );
+}
+
 function featureBounds(f: Feature): maplibregl.LngLatBounds {
   const b = new maplibregl.LngLatBounds();
   const walk = (coords: unknown): void => {
@@ -281,7 +334,15 @@ export function MapStage() {
   const [basemap, setBasemap] = useState<BasemapId>("streets");
   const [query, setQuery] = useState("");
   const [miss, setMiss] = useState(false);
-  const [govOpen, setGovOpen] = useState(false);
+  const [sideOpen, setSideOpen] = useState(true);
+  const [sections, setSections] = useState({
+    analysis: true,
+    layers: true,
+    find: false,
+    basemap: false,
+  });
+  const toggleSection = (k: keyof typeof sections) =>
+    setSections((s) => ({ ...s, [k]: !s[k] }));
   const [govInfo, setGovInfo] = useState<GovLayerInfo[] | null>(null);
   const [govVisible, setGovVisible] = useState<Partial<Record<GovLayerKey, boolean>>>({});
   const [govOpacity, setGovOpacity] = useState(1);
@@ -512,12 +573,17 @@ export function MapStage() {
     };
   }, [govVisible]);
 
-  // Layer inventory, fetched the first time the panel opens.
+  // Layer inventory, fetched the first time the layers section shows.
   useEffect(() => {
-    if (govOpen && govInfo === null) {
+    if (sideOpen && sections.layers && govInfo === null) {
       api.governanceLayers().then(setGovInfo).catch(() => setGovInfo([]));
     }
-  }, [govOpen, govInfo]);
+  }, [sideOpen, sections.layers, govInfo]);
+
+  // The map shares the row with the sidebar: re-measure on toggle.
+  useEffect(() => {
+    mapRef.current?.resize();
+  }, [sideOpen]);
 
   // Governance overlay opacity: scale each layer's base fill opacity.
   useEffect(() => {
@@ -558,93 +624,240 @@ export function MapStage() {
 
   return (
     <div className="map-wrap">
-      <div ref={container} className="map-stage" />
-      <div className="map-overlay">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("map_find_placeholder")}
-          aria-label={t("map_find_placeholder")}
-        />
-        {miss && <span className="map-miss">{t("map_no_match")}</span>}
-        <button
-          className="lang"
-          onClick={() => setBasemap(basemap === "streets" ? "imagery" : "streets")}
-        >
-          {basemap === "streets" ? t("basemap_imagery") : t("basemap_streets")}
-        </button>
-        <button className="lang" onClick={() => setGovOpen(!govOpen)}>
-          {t("gov_layers")}
-        </button>
-        <button className="lang" onClick={zoomToData}>
-          {t("map_zoom_data")}
-        </button>
-        <button
-          className="lang"
-          onClick={() => {
-            if (aoiMode) {
-              setAoiMode(false);
-              clearAoi();
-            } else {
-              clearAoi();
-              setAoiMode(true);
-            }
-          }}
-        >
-          {aoiMode ? t("aoi_cancel") : t("aoi_tool")}
-        </button>
-        {aoiMode && aoiVerts >= 3 && (
-          <button className="lang" onClick={finishAoi}>
-            OK
-          </button>
-        )}
-        {aoiMode && <span className="map-miss">{t("aoi_hint")}</span>}
-      </div>
-      {(aoiBusy || aoiError !== null || aoiResult !== null) && (
-        <div className="aoi-panel">
-          <strong>{t("aoi_title")}</strong>
-          {aoiBusy && <span className="muted small">{t("loading")}</span>}
-          {aoiError !== null && (
-            <span className="small">
-              {t("aoi_error")}: {aoiError}
+      {sideOpen ? (
+        <aside className="map-sidebar">
+          <MsSection
+            title={t("section_analysis")}
+            icon={MS_ICONS.analysis}
+            open={sections.analysis}
+            onToggle={() => toggleSection("analysis")}
+          >
+            <div className="step">
+              <span className="step-num">1</span>
+              <div className="step-body">
+                <span className="step-title">{t("aoi_define")}</span>
+                {!aoiMode && aoiResult === null && aoiError === null && !aoiBusy && (
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      clearAoi();
+                      setAoiMode(true);
+                    }}
+                  >
+                    {t("aoi_draw")}
+                  </button>
+                )}
+                {aoiMode && (
+                  <>
+                    <span className="muted small">{t("aoi_hint")}</span>
+                    <div className="basemap-row">
+                      {aoiVerts >= 3 && (
+                        <button className="btn" onClick={finishAoi}>
+                          OK
+                        </button>
+                      )}
+                      <button
+                        className="btn-ghost"
+                        onClick={() => {
+                          setAoiMode(false);
+                          clearAoi();
+                        }}
+                      >
+                        {t("aoi_cancel")}
+                      </button>
+                    </div>
+                  </>
+                )}
+                {!aoiMode && (aoiResult !== null || aoiError !== null) && (
+                  <button
+                    className="btn-ghost"
+                    onClick={() => {
+                      clearAoi();
+                      setAoiMode(true);
+                    }}
+                  >
+                    {t("aoi_redraw")}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="step-connector" />
+            <div className={`step${aoiResult !== null || aoiBusy || aoiError !== null ? "" : " step-off"}`}>
+              <span className="step-num">2</span>
+              <div className="step-body">
+                <span className="step-title">{t("aoi_results")}</span>
+                {aoiBusy && <span className="muted small">{t("loading")}</span>}
+                {aoiError !== null && (
+                  <span className="small">
+                    {t("aoi_error")}: {aoiError}
+                  </span>
+                )}
+                {aoiResult !== null && (
+                  <>
+                    <span className="aoi-stat">
+                      {t("aoi_area")}: <strong>{fmtNum(aoiResult.areaHa, locale, 0)} ha</strong>
+                    </span>
+                    {aoiResult.overlaps.length === 0 ? (
+                      <span className="muted small">{t("aoi_none")}</span>
+                    ) : (
+                      <>
+                        {(() => {
+                          const entries = Object.entries(aoiResult.byLayer) as [GovLayerKey, number][];
+                          const max = Math.max(...entries.map(([, v]) => v)) || 1;
+                          return entries.map(([layer, ha]) => (
+                            <div className="barlist-row" key={layer}>
+                              <span className="barlist-label" title={govLayerLabel(layer, locale)}>
+                                {govLayerLabel(layer, locale)}
+                              </span>
+                              <span className="barlist-track">
+                                <span
+                                  className="barlist-bar"
+                                  style={{ width: `${(ha / max) * 100}%` }}
+                                />
+                              </span>
+                              <span className="barlist-value">{fmtNum(ha, locale, 0)}</span>
+                            </div>
+                          ));
+                        })()}
+                        <span className="muted small">{t("aoi_overlaps")}</span>
+                        <ul className="aoi-list">
+                          {aoiResult.overlaps.slice(0, 40).map((o) => (
+                            <li key={o.srcUid}>
+                              {o.name ?? o.reference ?? o.srcUid}
+                              <span className="muted small"> — {govLayerLabel(o.layer, locale)}</span>
+                              <br />
+                              <span className="muted small">
+                                {fmtNum(o.overlapHa, locale, 0)} ha ·{" "}
+                                {fmtNum(o.overlapPct, locale, 1)}% {t("aoi_of_aoi")}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    <button className="btn-ghost" onClick={clearAoi}>
+                      {t("aoi_clear")}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </MsSection>
+
+          <MsSection
+            title={t("section_layers")}
+            icon={MS_ICONS.layers}
+            open={sections.layers}
+            onToggle={() => toggleSection("layers")}
+          >
+            <span className="muted small">{t("parcels_title")}</span>
+            <span className="gov-legend-row">
+              <i style={{ background: PARCEL_DEFAULT_COLOR }} /> {t("legend_not_processed")}
             </span>
-          )}
-          {aoiResult !== null && (
-            <>
-              <span>
-                {t("aoi_area")}: <strong>{fmtNum(aoiResult.areaHa, locale, 0)} ha</strong>
+            {Object.entries(PARCEL_STATUS_COLORS).map(([k, c]) => (
+              <span key={k} className="gov-legend-row">
+                <i style={{ background: c }} /> {k}
               </span>
-              {aoiResult.overlaps.length === 0 ? (
-                <span className="muted small">{t("aoi_none")}</span>
-              ) : (
-                <>
-                  <span className="muted small">{t("aoi_overlaps")}</span>
-                  <ul className="aoi-list">
-                    {aoiResult.overlaps.slice(0, 40).map((o) => (
-                      <li key={o.srcUid}>
-                        {o.name ?? o.reference ?? o.srcUid}
-                        <span className="muted small"> — {govLayerLabel(o.layer, locale)}</span>
-                        <br />
-                        <span className="muted small">
-                          {fmtNum(o.overlapHa, locale, 0)} ha ·{" "}
-                          {fmtNum(o.overlapPct, locale, 1)}% {t("aoi_of_aoi")}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </>
-          )}
-          <button className="lang" onClick={clearAoi}>
-            {t("aoi_clear")}
-          </button>
-        </div>
+            ))}
+            <span className="muted small" style={{ marginTop: "0.5rem" }}>
+              {t("gov_layers")}
+            </span>
+            <div className="gov-layers">
+              {GOV_LAYER_ORDER.map((key) => {
+                const info = govInfo?.find((i) => i.layer === key);
+                return (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      checked={!!govVisible[key]}
+                      onChange={(e) => setGovVisible({ ...govVisible, [key]: e.target.checked })}
+                    />
+                    {govLayerLabel(key, locale)}
+                    {info ? <span className="muted small"> ({info.total})</span> : null}
+                  </label>
+                );
+              })}
+            </div>
+            <label className="gov-opacity">
+              <span className="muted small">{t("gov_opacity")}</span>
+              <input
+                id="gov-opacity"
+                type="range"
+                min="10"
+                max="100"
+                value={Math.round(govOpacity * 100)}
+                onChange={(e) => setGovOpacity(Number(e.target.value) / 100)}
+              />
+            </label>
+            {GOV_ZONING_LAYERS.some((k) => govVisible[k]) && (
+              <div className="gov-legend">
+                <span className="muted small">{t("gov_zone_legend")}</span>
+                {Object.entries(ZONE_TYPES).map(([k, z]) => (
+                  <span key={k} className="gov-legend-row">
+                    <i style={{ background: z.color }} /> {z[locale]}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button className="btn-ghost" onClick={zoomToData}>
+              {t("map_zoom_data")}
+            </button>
+          </MsSection>
+
+          <MsSection
+            title={t("section_find")}
+            icon={MS_ICONS.find}
+            open={sections.find}
+            onToggle={() => toggleSection("find")}
+          >
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("map_find_placeholder")}
+              aria-label={t("map_find_placeholder")}
+            />
+            {miss && <span className="map-miss">{t("map_no_match")}</span>}
+          </MsSection>
+
+          <MsSection
+            title={t("section_basemap")}
+            icon={MS_ICONS.basemap}
+            open={sections.basemap}
+            onToggle={() => toggleSection("basemap")}
+          >
+            <div className="basemap-row">
+              <button
+                className={`btn-ghost${basemap === "streets" ? " active" : ""}`}
+                onClick={() => setBasemap("streets")}
+              >
+                {t("basemap_streets")}
+              </button>
+              <button
+                className={`btn-ghost${basemap === "imagery" ? " active" : ""}`}
+                onClick={() => setBasemap("imagery")}
+              >
+                {t("basemap_imagery")}
+              </button>
+            </div>
+          </MsSection>
+
+          <div className="ms-foot">
+            <button className="ms-collapse" onClick={() => setSideOpen(false)}>
+              « {t("sidebar_collapse")}
+            </button>
+          </div>
+        </aside>
+      ) : (
+        <button className="ms-toggle" onClick={() => setSideOpen(true)} title={t("sidebar_expand")}>
+          ☰
+        </button>
       )}
-      <div className="map-legend">
+      <div ref={container} className="map-stage" />
+      {!sideOpen && (
+      <div className="map-legend legend-flush">
         <span className="gov-legend-row">
-          <i style={{ background: "#3987e5" }} /> {t("legend_not_processed")}
+          <i style={{ background: PARCEL_DEFAULT_COLOR }} /> {t("legend_not_processed")}
         </span>
         {Object.entries(PARCEL_STATUS_COLORS).map(([k, c]) => (
           <span key={k} className="gov-legend-row">
@@ -652,45 +865,6 @@ export function MapStage() {
           </span>
         ))}
       </div>
-      {govOpen && (
-        <div className="gov-panel">
-          <strong>{t("gov_layers")}</strong>
-          {GOV_LAYER_ORDER.map((key) => {
-            const info = govInfo?.find((i) => i.layer === key);
-            return (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={!!govVisible[key]}
-                  onChange={(e) => setGovVisible({ ...govVisible, [key]: e.target.checked })}
-                />
-                {govLayerLabel(key, locale)}
-                {info ? <span className="muted small"> ({info.total})</span> : null}
-              </label>
-            );
-          })}
-          <label className="gov-opacity">
-            <span className="muted small">{t("gov_opacity")}</span>
-            <input
-              id="gov-opacity"
-              type="range"
-              min="10"
-              max="100"
-              value={Math.round(govOpacity * 100)}
-              onChange={(e) => setGovOpacity(Number(e.target.value) / 100)}
-            />
-          </label>
-          {GOV_ZONING_LAYERS.some((k) => govVisible[k]) && (
-            <div className="gov-legend">
-              <span className="muted small">{t("gov_zone_legend")}</span>
-              {Object.entries(ZONE_TYPES).map(([k, z]) => (
-                <span key={k} className="gov-legend-row">
-                  <i style={{ background: z.color }} /> {z[locale]}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
       )}
     </div>
   );

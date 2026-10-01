@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import type { ApplicationList, FilterOptions } from "@cafi/shared";
 import { api, type ApplicationFilters } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
-import { StatusBadge } from "./bits";
+import { Card, PageHeader, StatusBadge } from "./bits";
 
 const EMPTY: ApplicationFilters = {};
 
@@ -56,6 +56,7 @@ export function ApplicationsPage() {
 
   return (
     <main className="page">
+      <PageHeader title={t("nav_applications")} desc={t("desc_applications")} />
       <div className="filters" role="search">
         <input
           type="search"
@@ -85,6 +86,7 @@ export function ApplicationsPage() {
       {data !== null && data.items.length === 0 && <p className="notice">{t("no_results")}</p>}
 
       {data !== null && data.items.length > 0 && (
+        <Card table>
         <table className="data">
           <thead>
             <tr>
@@ -125,6 +127,7 @@ export function ApplicationsPage() {
             ))}
           </tbody>
         </table>
+        </Card>
       )}
     </main>
   );
