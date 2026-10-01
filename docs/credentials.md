@@ -110,6 +110,25 @@ One-time setup in the CAFI Google Cloud project (console.cloud.google.com):
 python -c "import ee; ee.Initialize(); print(ee.Image('USGS/SRTMGL1_003').getInfo()['id'])"
 ```
 
+## 2a. Geotagged-photo mirror (Supabase Storage)
+
+The photo arrays in the two PES endpoints carry image URLs with **expiring
+SAS query strings**, so the pipeline mirrors the images into a private
+Supabase Storage bucket and the API serves short-lived signed URLs.
+
+One-time setup (Supabase dashboard → Storage):
+
+1. **Create a bucket** named `pes-photos`, **private** (public off).
+2. Copy the project's **service_role key** (Settings → API → service_role —
+   NOT the anon key; it bypasses RLS and must never reach a browser).
+3. Add it as GitHub Actions secret **`CAFI_SUPABASE_SERVICE_KEY`**. The
+   ingest-rs workflow passes it to the pipeline, and deploy-api stages it
+   onto Fly as `CAFI_SUPABASE_SERVICE_KEY` for URL signing.
+
+Without the key, photo points still sync (map/dossier show "image not yet
+available"); mirroring and signed URLs activate on the first run after the
+secret exists.
+
 ## 2b. Governance ingest (WDPA + public GIS sources)
 
 `services/governance` (the ported `cb_forest_ingest` workflow) needs:

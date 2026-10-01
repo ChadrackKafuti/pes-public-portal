@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # legacy HS256 verification instead.
     supabase_url: str = ""
     supabase_jwt_secret: str = ""
+    # Service-role key for Supabase Storage (signed photo URLs). Server-side
+    # only — never shipped to the browser. Empty = photo images disabled.
+    supabase_service_key: str = ""
+    photos_bucket: str = "pes-photos"
     cors_origins: list[str] = ["http://localhost:5173"]
 
     @property

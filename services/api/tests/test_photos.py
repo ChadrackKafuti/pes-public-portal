@@ -1,0 +1,42 @@
+"""Geotagged photo endpoints (M7a). Seed: three photos in conftest.PHOTO_SEED."""
+
+
+def test_photos_geojson_all(client):
+    r = client.get("/api/photos.geojson")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["type"] == "FeatureCollection"
+    uids = {f["properties"]["photoUid"] for f in body["features"]}
+    assert uids == {"aaaa1111", "bbbb2222", "cccc3333"}
+    first = next(f for f in body["features"] if f["properties"]["photoUid"] == "aaaa1111")
+    assert first["geometry"]["coordinates"] == [15.002, -0.998]
+    assert first["properties"]["mirrored"] is True
+    assert first["properties"]["label"] == "Parcel north edge"
+    # expiring source URLs are never exposed
+    assert "url" not in first["properties"]
+
+
+def test_photos_geojson_filters(client):
+    r = client.get("/api/photos.geojson", params={"application": "A1"})
+    uids = {f["properties"]["photoUid"] for f in r.json()["features"]}
+    assert uids == {"aaaa1111", "bbbb2222"}
+    r = client.get("/api/photos.geojson", params={"application": "A1", "kind": "application"})
+    uids = {f["properties"]["photoUid"] for f in r.json()["features"]}
+    assert uids == {"aaaa1111"}
+
+
+def test_application_photos_list(client):
+    r = client.get("/api/applications/A1/photos")
+    assert r.status_code == 200
+    rows = r.json()
+    assert [p["photoUid"] for p in rows] == ["aaaa1111", "bbbb2222"]
+    assert rows[0]["mirrored"] is True and rows[1]["mirrored"] is False
+
+
+def test_image_url_unconfigured_storage(client):
+    # test settings have no service key: a mirrored photo reports 503,
+    # an unmirrored one 404 either way
+    r = client.get("/api/photos/aaaa1111/image-url")
+    assert r.status_code == 503
+    r = client.get("/api/photos/bbbb2222/image-url")
+    assert r.status_code == 404

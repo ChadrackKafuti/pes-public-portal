@@ -177,6 +177,20 @@ def run_once(
                 client.close()
             result.fetched_app, result.fetched_mon = len(applications), len(visits)
 
+            # M7a: raw-payload mirror + geotagged photos. Runs right after the
+            # fetch because the photo URLs carry short-lived SAS tokens; its
+            # own small budget keeps the indicator loop's time intact, and a
+            # failure here never blocks indicator processing.
+            try:
+                from .photos import sync_photos
+
+                photo_stats = sync_photos(conn, config, applications, visits)
+                conn.commit()
+                log.info("photos: %s", photo_stats)
+            except Exception:  # noqa: BLE001
+                conn.rollback()
+                log.exception("photo sync failed; continuing with indicators")
+
             # Cached parents (spec §6.4) BEFORE normalisation: visits whose
             # parent application is not part of this fetch must still resolve
             # their baseline date and inherit the cached parcel.

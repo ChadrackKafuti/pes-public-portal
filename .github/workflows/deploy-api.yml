@@ -27,5 +27,15 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: flyctl secrets set --stage "CAFI_DATABASE_URL=$DATABASE_URL"
+      - name: Sync the storage service key (staged; skipped until the secret exists)
+        working-directory: services/api
+        env:
+          SERVICE_KEY: ${{ secrets.CAFI_SUPABASE_SERVICE_KEY }}
+        run: |
+          if [ -n "$SERVICE_KEY" ]; then
+            flyctl secrets set --stage "CAFI_SUPABASE_SERVICE_KEY=$SERVICE_KEY"
+          else
+            echo "CAFI_SUPABASE_SERVICE_KEY not set; photo image URLs stay disabled"
+          fi
       - run: flyctl deploy --remote-only
         working-directory: services/api

@@ -42,4 +42,8 @@ jobs:
           CAFI_RS_PES_PASSWORD: ${{ secrets.CAFI_RS_PES_PASSWORD }}
           CAFI_RS_GEE_SERVICE_ACCOUNT: ${{ secrets.CAFI_RS_GEE_SERVICE_ACCOUNT }}
           CAFI_RS_GEE_KEY_B64: ${{ secrets.CAFI_RS_GEE_KEY_B64 }}
+          # Photo mirror (M7a). The project URL is public; the service key
+          # gates mirroring — absent, photo rows still sync without images.
+          CAFI_RS_SUPABASE_URL: https://hhdjylwogylmigxxubas.supabase.co
+          CAFI_RS_SUPABASE_SERVICE_KEY: ${{ secrets.CAFI_SUPABASE_SERVICE_KEY }}
         run: python -m pes_rs_pipeline.runner
