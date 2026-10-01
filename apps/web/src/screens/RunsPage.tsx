@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { RunHealth } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtNum, useI18n, useT } from "../i18n";
+import { Card, PageHeader } from "./bits";
 
 export function RunsPage() {
   const t = useT();
@@ -18,7 +19,8 @@ export function RunsPage() {
 
   return (
     <main className="page">
-      <h1>{t("runs_title")}</h1>
+      <PageHeader title={t("runs_title")} desc={t("desc_runs")} />
+      <Card table>
       <table className="data">
         <thead>
           <tr>
@@ -53,6 +55,7 @@ export function RunsPage() {
           ))}
         </tbody>
       </table>
+      </Card>
     </main>
   );
 }
