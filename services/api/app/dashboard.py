@@ -139,7 +139,13 @@ def dashboard(
     t = conn.execute(_TOTALS_SQL, params).fetchone()
     months = conn.execute(_MONTH_SQL, params).fetchall()
     gov = {r[0]: r for r in conn.execute(_GOV_SQL).fetchall()}
-    docs = conn.execute("SELECT count(*) FROM gov_documents WHERE retired = 0").fetchone()[0]
+    docs = conn.execute(
+        """
+        SELECT count(DISTINCT lower(coalesce(split_part(url, '?', 1), '')
+                     || '|' || coalesce(file_name, title, doc_uid)))
+        FROM gov_documents WHERE retired = 0
+        """
+    ).fetchone()[0]  # deduped like the document lists (M17)
     return DashboardOut(
         pes={
             "applications": t[0],

@@ -2614,10 +2614,32 @@ table.data a {
   color: var(--map-text-muted);
 }
 
-/* M16 — photo popup meta line (date · coordinates) */
+/* M16/M17 — photo popup meta row (date chip + coordinates) */
 .map-popup-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-popup-date {
+  background: #e8f2fb;
+  color: #1b365d;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.map-popup-coords {
   font-size: 10.5px;
   color: #5c6b7a;
-  margin: 2px 0;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.popup-photo a {
+  display: block;
+  cursor: zoom-in;
 }

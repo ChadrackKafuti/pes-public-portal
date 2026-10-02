@@ -17,6 +17,7 @@ export const LAYER_ACCENT: Record<GovLayerKey, string> = {
   community_forest_zoning: "#1b5e20",
   local_territories: "#37474f",
   local_territory_zoning: "#37474f",
+  local_governance: "#6a1b9a",
 };
 
 type Chip = [label: string, bg: string, fg: string];
