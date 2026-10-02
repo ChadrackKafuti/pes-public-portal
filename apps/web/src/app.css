@@ -616,7 +616,7 @@ table.data a {
   top: 12px;
   left: 12px;
   bottom: 12px;
-  width: min(360px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -1884,4 +1884,115 @@ table.data a {
   .footer {
     display: none;
   }
+}
+
+/* ---- M9: ArcGIS-parity layer list + parcel overview ---- */
+
+.legend-line {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border: 2px solid;
+  border-radius: 2px;
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+.legend-icon {
+  width: 16px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.pov {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pov-back {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.pov-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pov-sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--map-text-muted);
+}
+
+.pov-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pov-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--map-accent);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--map-border-strong);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.pov-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pov-line.muted {
+  color: var(--map-text-muted);
+  font-size: 12px;
+}
+
+.pov-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pov-table td {
+  border-bottom: 1px solid var(--map-border);
+  padding: 4px 2px;
+}
+
+.pov-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pov-photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.pov-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--map-border);
+}
+
+.pov-thumb-empty {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pov-dossier {
+  color: var(--map-accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
 }
