@@ -3,6 +3,16 @@ import type { GovDocument, GovLayerKey } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT, type Key } from "../i18n";
 import { ZONE_TYPES, govLayerLabel, zoneTypeLabel } from "./governance";
+import {
+  FLAG,
+  IUCN,
+  LAYER_ACCENT,
+  MGMT_CHIP,
+  PA_SUBTYPE,
+  STATUS_CHIP,
+  SUBTYPE,
+  nativeFields,
+} from "./govVocab";
 
 /** M7c — the governance feature inspector: the v1 Arcade popup content
  *  (chips, tiles, timeline, zoning donut, parent card, national
@@ -94,13 +104,32 @@ export function GovInspector({
     if (e > a) pctElapsed = Math.min(100, Math.max(0, ((Date.now() - a) / (e - a)) * 100));
   }
 
-  const chips = [
-    str(d.statusStd) ?? str(d.statusRaw),
-    str(d.statusMgmtStd),
-    cert ? `🏆 ${cert}` : null,
-    d.retired ? t("insp_retired") : null,
-    str(d.situation) === "part_complete" ? t("insp_approx") : null,
-  ].filter(Boolean) as string[];
+  // Arcade house style (M11): per-layer accent, subtype label, colored chips.
+  const iso3 = str(d.iso3);
+  const subTypeStd = str(d.subTypeStd) ?? str(extras.sub_type_std);
+  const pa = layer === "protected_areas" ? PA_SUBTYPE[subTypeStd ?? ""] : undefined;
+  const accent = pa?.[1] ?? LAYER_ACCENT[layer] ?? "#1b5e20";
+  const subTypeLabel =
+    pa?.[0] ?? (subTypeStd ? SUBTYPE[subTypeStd] : null) ?? str(d.subTypeRaw);
+  const iucnKey = (str(extras.iucn_category) ?? str(d.iucnCategory) ?? "").toUpperCase();
+
+  type ChipDef = { label: string; bg?: string; fg?: string };
+  const statusChip = STATUS_CHIP[str(d.statusStd) ?? ""];
+  const mgmtChip = MGMT_CHIP[str(d.statusMgmtStd) ?? ""];
+  const chips: ChipDef[] = [
+    statusChip
+      ? { label: statusChip[0], bg: statusChip[1], fg: statusChip[2] }
+      : str(d.statusRaw)
+        ? { label: str(d.statusRaw)! }
+        : null,
+    mgmtChip ? { label: mgmtChip[0], bg: mgmtChip[1], fg: mgmtChip[2] } : null,
+    iucnKey ? { label: IUCN[iucnKey] ?? `UICN ${iucnKey}`, bg: "#eceff1", fg: "#37474f" } : null,
+    cert ? { label: `🏆 ${cert}`, bg: "#e0f7fa", fg: "#00838f" } : null,
+    d.retired ? { label: t("insp_retired"), bg: "#ffebee", fg: "#c62828" } : null,
+    str(d.situation) === "part_complete"
+      ? { label: t("insp_approx"), bg: "#fbe9e7", fg: "#d84315" }
+      : null,
+  ].filter(Boolean) as ChipDef[];
 
   const dateRows: [Key, string | null][] = [
     ["date_attr", attr],
@@ -145,16 +174,25 @@ export function GovInspector({
 
   return (
     <div className="ms-body gov-inspector">
-      <div className="insp-head">
-        <div>
-          <strong>{title}</strong>
-          <div className="muted small">
-            {govLayerLabel(layer, locale)}
-            {str(d.country) ? ` · ${d.country}` : ""}
+      <div className="insp-banner" style={{ background: accent }}>
+        <div className="insp-banner-main">
+          <strong>
+            {pa ? `${pa[2]} ` : ""}
+            {title}
+          </strong>
+          <span className="insp-banner-sub">
+            {iso3 && FLAG[iso3] ? `${FLAG[iso3]} ` : ""}
+            {str(d.country) ?? govLayerLabel(layer, locale)}
             {str(d.holder) ? ` — ${d.holder}` : str(d.community) ? ` — ${d.community}` : ""}
-          </div>
+          </span>
+          {(subTypeLabel || str(d.reference)) && (
+            <span className="insp-banner-type">
+              {subTypeLabel ?? ""}
+              {str(d.reference) && d.reference !== title ? ` · réf. ${d.reference}` : ""}
+            </span>
+          )}
         </div>
-        <button className="ms-collapse" onClick={onClose} aria-label={t("photo_close")}>
+        <button className="insp-close" onClick={onClose} aria-label={t("photo_close")}>
           ✕
         </button>
       </div>
@@ -162,7 +200,13 @@ export function GovInspector({
       {chips.length > 0 && (
         <p className="chip-row">
           {chips.map((c) => (
-            <span key={c} className="alert-chip">{c}</span>
+            <span
+              key={c.label}
+              className="alert-chip"
+              style={c.bg ? { background: c.bg, color: c.fg, borderColor: "transparent" } : undefined}
+            >
+              {c.label}
+            </span>
           ))}
         </p>
       )}
@@ -321,20 +365,42 @@ export function GovInspector({
         </div>
       )}
 
-      {detail?.srcAttrs && Object.keys(detail.srcAttrs).length > 0 && (
-        <div className="pf-section">
-          <h3>{t("insp_attrs")}{str(d.country) ? ` · ${d.country}` : ""}</h3>
-          <table className="pf-rows">
-            <tbody>
-              {Object.entries(detail.srcAttrs)
-                .slice(0, 25)
-                .map(([k, v]) => (
-                  <tr key={k}><td>{k}</td><td>{String(v)}</td></tr>
+      {detail?.srcAttrs && Object.keys(detail.srcAttrs).length > 0 && (() => {
+        // Arcade parity: label the national source attributes with the
+        // country's field map; fall back to raw keys when unmapped.
+        const attrs = detail.srcAttrs!;
+        const fields = nativeFields(layer, iso3, srcUid);
+        const blank = (v: unknown) => v == null || v === "" || v === "null";
+        const fmt = (v: unknown): string => {
+          if (typeof v === "number" && v > 100000000000) {
+            return fmtDate(new Date(v).toISOString(), locale);
+          }
+          if (typeof v === "boolean") return v ? "oui" : "non";
+          return String(v);
+        };
+        const mapped = fields
+          .filter(([k]) => k in attrs && !blank(attrs[k]))
+          .map(([k, label]) => [label, fmt(attrs[k])] as const);
+        const rows = mapped.length
+          ? mapped
+          : Object.entries(attrs)
+              .filter(([, v]) => !blank(v))
+              .slice(0, 25)
+              .map(([k, v]) => [k, fmt(v)] as const);
+        if (!rows.length) return null;
+        return (
+          <div className="pf-section">
+            <h3>{t("insp_attrs")}{str(d.country) ? ` · ${d.country}` : ""}</h3>
+            <table className="pf-rows">
+              <tbody>
+                {rows.map(([k, v]) => (
+                  <tr key={k}><td>{k}</td><td>{v}</td></tr>
                 ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {detail?.overlaps && detail.overlaps.length > 0 && (
         <div className="pf-section">

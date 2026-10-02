@@ -279,6 +279,17 @@ export interface Profile {
     contractedHa: number | null;
     achievedHa: number | null;
   };
+  baseline?: {
+    parcelAreaHa: number | null;
+    treeCoverHa: number | null;
+    defor5yrHaYr: number | null;
+    baselineYears: number | null;
+    landcoverAtApp: string | null;
+    landcoverAtAppPct: number | null;
+    landcoverCurrent: string | null;
+    landcoverCurrentPct: number | null;
+    landcoverChanged: boolean | null;
+  } | null;
   geometrySource: string | null;
   lastSync: string | null;
 }

@@ -71,24 +71,31 @@ def test_codes_in_listing_and_search(client):
 def test_geojson_features(client):
     fc = client.get("/api/applications.geojson").json()
     assert fc["type"] == "FeatureCollection"
-    by_id = {f["properties"]["applicationId"]: f for f in fc["features"]}
+    by_kind = {
+        (f["properties"]["applicationId"], f["geometry"]["type"]): f for f in fc["features"]
+    }
 
     # A1: WKT polygon parsed server-side, with joined indicator properties.
-    a1 = by_id["A1"]
-    assert a1["geometry"]["type"] == "Polygon"
+    a1 = by_kind[("A1", "Polygon")]
     assert a1["properties"]["contractCode"] == "CTR-001"
     assert a1["properties"]["status"] == "ok"
     assert a1["properties"]["treeCoverHa"] == 2.1
+    assert a1["properties"]["areaHa"] == 3.4
     # M7e filter properties: parcel columns + raw payload fields
     assert a1["properties"]["country"] == "DRC"
     assert a1["properties"]["beneficiaryType"] == "Individual farmer"
     assert a1["properties"]["gender"] == "Female"
     assert a1["properties"]["applicationStatus"] == "In progress"
+    # M11: every application also gets a point — A1 has no native Point, so
+    # its first GPS photo (aaaa1111) supplies the location.
+    a1p = by_kind[("A1", "Point")]
+    assert a1p["geometry"]["coordinates"] == [15.002, -0.998]
 
-    # A2: no shape -> point fallback; unprocessed -> null indicator props.
-    a2 = by_id["A2"]
-    assert a2["geometry"] == {"type": "Point", "coordinates": [15.5, -2.25]}
+    # A2: no shape -> native point only; unprocessed -> null indicator props.
+    a2 = by_kind[("A2", "Point")]
+    assert a2["geometry"]["coordinates"] == [15.5, -2.25]
     assert a2["properties"]["status"] is None
+    assert ("A2", "Polygon") not in by_kind
 
     # A4 has neither shape nor point -> omitted.
-    assert "A4" not in by_id
+    assert not any(k[0] == "A4" for k in by_kind)

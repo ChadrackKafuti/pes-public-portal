@@ -169,6 +169,78 @@ export function ParcelOverview({
             </p>
           )}
 
+          {/* baseline remote-sensing analysis (M11) */}
+          <Section title={t("bl_title")} open>
+            {profile.baseline ? (
+              <>
+                <Rows
+                  rows={[
+                    [
+                      t("bl_parcel_area"),
+                      profile.baseline.parcelAreaHa != null
+                        ? `${num(profile.baseline.parcelAreaHa)} ha`
+                        : null,
+                    ],
+                    [
+                      t("bl_tree_cover"),
+                      profile.baseline.treeCoverHa != null
+                        ? `${num(profile.baseline.treeCoverHa)} ha${
+                            profile.baseline.parcelAreaHa
+                              ? ` (${num(
+                                  (profile.baseline.treeCoverHa /
+                                    profile.baseline.parcelAreaHa) *
+                                    100,
+                                  0,
+                                )}%)`
+                              : ""
+                          }`
+                        : null,
+                    ],
+                    [
+                      t("bl_defor"),
+                      profile.baseline.defor5yrHaYr != null
+                        ? `${num(profile.baseline.defor5yrHaYr, 2)} ha/${locale === "fr" ? "an" : "yr"}`
+                        : null,
+                    ],
+                    [
+                      t("bl_years"),
+                      profile.baseline.baselineYears != null
+                        ? t("bl_years_v", { n: profile.baseline.baselineYears })
+                        : null,
+                    ],
+                    [
+                      t("bl_lc_at_app"),
+                      profile.baseline.landcoverAtApp
+                        ? `${profile.baseline.landcoverAtApp}${
+                            profile.baseline.landcoverAtAppPct != null
+                              ? ` (${num(profile.baseline.landcoverAtAppPct, 0)}%)`
+                              : ""
+                          }`
+                        : null,
+                    ],
+                    [
+                      t("bl_lc_current"),
+                      profile.baseline.landcoverCurrent
+                        ? `${profile.baseline.landcoverCurrent}${
+                            profile.baseline.landcoverCurrentPct != null
+                              ? ` (${num(profile.baseline.landcoverCurrentPct, 0)}%)`
+                              : ""
+                          }`
+                        : null,
+                    ],
+                  ]}
+                />
+                {profile.baseline.landcoverChanged != null && (
+                  <p className="pov-line muted">
+                    {profile.baseline.landcoverChanged ? t("bl_lc_changed") : t("bl_lc_same")}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="pov-line muted">{t("bl_pending")}</p>
+            )}
+          </Section>
+
           {/* performance */}
           {profile.performance && (
             <Section title={t(`perf_title_${profile.activityGroup ?? "generic"}` as Key)} open>

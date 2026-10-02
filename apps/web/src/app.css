@@ -2205,3 +2205,91 @@ table.data a {
   color: #fff;
   font-size: 13px;
 }
+
+/* ---- M11: Arcade-style inspector banner + overview dashboard ---- */
+
+.insp-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.insp-banner-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insp-banner-main strong {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.insp-banner-sub {
+  font-size: 11px;
+  opacity: 0.92;
+}
+
+.insp-banner-type {
+  font-size: 10px;
+  opacity: 0.92;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.insp-close {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.ovd-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.ovd-tile {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--map-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ovd-tile strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ovd-tile span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--map-text-muted);
+}
+
+.ovd-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ovd-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--map-text-faint);
+}
