@@ -8,7 +8,7 @@ applications; description fields fall back to the raw payload mirror.
 from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import CurrentUser, Principal
-from .contracts import visit_contract_links
+from .contracts import contract_code_visibility, visit_contract_links
 from .db import get_conn
 from .profile import _date, _num, _pick
 from .schemas import AnalysesContract, AnnualPoint, ContractAnalysis
@@ -20,7 +20,10 @@ def _parcels_by_contract(conn) -> dict[str, list[tuple]]:
     """pes_parcels rows grouped by their effective contract code: the parcel
     column where filled, else the visit-derived link (production applications
     carry no ContractCode of their own)."""
+    from .visibility import hidden_application_ids
+
     links = visit_contract_links(conn)
+    hidden = hidden_application_ids(conn)
     rows = conn.execute(
         """
         SELECT application_id, contract_code, implementing_org, project_name,
@@ -30,10 +33,15 @@ def _parcels_by_contract(conn) -> dict[str, list[tuple]]:
     ).fetchall()
     groups: dict[str, list[tuple]] = {}
     for r in rows:
+        if str(r[0]) in hidden:  # archived/deleted applications (M14)
+            continue
         code = r[1] or links.get(str(r[0]))
         if code:
             groups.setdefault(str(code), []).append(r)
-    return groups
+    # Archived/deleted contracts: a code seen on visits but with no live
+    # selected visit is retired and leaves the pickers too (M14).
+    live, seen = contract_code_visibility(conn)
+    return {c: g for c, g in groups.items() if c in live or c not in seen}
 
 
 @router.get("/api/analyses/contracts", response_model=list[AnalysesContract])
@@ -99,12 +107,15 @@ def contract_analysis(
         (apps,),
     ).fetchone()
     payloads = [raw[0]] if raw else []
+    from .visibility import visit_hidden
+
     payloads += [
         p
         for (p,) in conn.execute(
             "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
         ).fetchall()
         if str(_pick(p, ["contractcode"]) or "").strip() == contract_code
+        and not visit_hidden(p)
     ]
 
     def pick_any(keys: list[str]):

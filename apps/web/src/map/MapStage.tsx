@@ -55,7 +55,13 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     source: SRC,
     filter: ["==", ["geometry-type"], "Point"],
     paint: {
-      "circle-radius": 4.5,
+      // M14: larger at the basin-wide home zoom so ~0.1 ha parcels (far
+      // sub-pixel as polygons) stay plainly visible, shrinking as the
+      // real footprints take over.
+      "circle-radius": [
+        "interpolate", ["linear"], ["zoom"],
+        4, 6.5, 9, 5, 12, 4.5, 16, 3.5,
+      ],
       "circle-color": APP_YELLOW,
       "circle-stroke-width": 1.25,
       "circle-stroke-color": "#ffffff",
@@ -700,6 +706,35 @@ export function MapStage({
     (window as unknown as Record<string, unknown>).__cafiMap = map;
     map.on("dragstart", () => (userMovedRef.current = true));
     map.on("wheel", () => (userMovedRef.current = true));
+    // M14: home button, stacked below the zoom control (bottom corners
+    // stack newest-on-top, so the home control registers first).
+    map.addControl(
+      {
+        onAdd(m: maplibregl.Map) {
+          const div = document.createElement("div");
+          div.className = "maplibregl-ctrl maplibregl-ctrl-group";
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "ctrl-home";
+          btn.title = t("map_home");
+          btn.setAttribute("aria-label", t("map_home"));
+          btn.innerHTML =
+            '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" ' +
+            'stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">' +
+            '<path d="M3 11 12 3l9 8M6 10v10h4v-6h4v6h4V10"/></svg>';
+          btn.onclick = () => {
+            userMovedRef.current = false;
+            m.fitBounds(homeBounds(), { padding: 24 });
+          };
+          div.appendChild(btn);
+          return div;
+        },
+        onRemove() {
+          /* nothing retained */
+        },
+      },
+      "bottom-right",
+    );
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.ScaleControl());
 
@@ -1122,6 +1157,12 @@ export function MapStage({
     const byGender = new Map<string, number>();
     const byStatus = new Map<string, number>();
     const byYear = new Map<string, number>();
+    const byOrg = new Map<string, number>();
+    const byFire = new Map<string, number>();
+    const byMonth = new Map<string, number>();
+    const byStage = new Map<string, [number, number]>(); // label -> [order, n]
+    let overdueN = 0;
+    let withPhotos = 0;
     for (const p of seen.values()) {
       if (typeof p.areaHa === "number") area += p.areaHa;
       if (typeof p.treeCoverHa === "number") tc += p.treeCoverHa;
@@ -1132,12 +1173,30 @@ export function MapStage({
       bump(byCountry, p.country);
       bump(byGender, p.gender);
       bump(byStatus, p.applicationStatus);
-      if (typeof p.applicationDate === "string" && p.applicationDate.length >= 4) {
+      bump(byOrg, p.org);
+      bump(byFire, p.fireCategory);
+      if (typeof p.applicationDate === "string" && p.applicationDate.length >= 7) {
         bump(byYear, p.applicationDate.slice(0, 4));
+        bump(byMonth, p.applicationDate.slice(0, 7));
       }
+      if (typeof p.stage === "string" && p.stage) {
+        const order = typeof p.stageOrder === "number" ? p.stageOrder : 99;
+        const cur = byStage.get(p.stage);
+        byStage.set(p.stage, [cur?.[0] ?? order, (cur?.[1] ?? 0) + 1]);
+      }
+      if (p.overdue === true) overdueN += 1;
+      if (typeof p.photoCount === "number" && p.photoCount > 0) withPhotos += 1;
     }
     const top = (m: Map<string, number>, n = 5) =>
       [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, n);
+    // last 12 calendar months, zero-filled, oldest first
+    const months: [string, number][] = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      months.push([key, byMonth.get(key) ?? 0]);
+    }
     return {
       n: seen.size,
       area,
@@ -1148,6 +1207,14 @@ export function MapStage({
       byGender: top(byGender, 4),
       byStatus: top(byStatus, 4),
       byYear: [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8),
+      byOrg: top(byOrg),
+      byFire,
+      byStage: [...byStage.entries()]
+        .map(([label, [order, n]]) => ({ label, order, n }))
+        .sort((a, b) => a.order - b.order),
+      byMonth: months,
+      overdueN,
+      withPhotos,
     };
   })();
 
@@ -1241,7 +1308,27 @@ export function MapStage({
                         />
                         <Tile value={`${fmtNum(ovd.tc, locale, 0)} ha`} label={t("dash_tc")} />
                         <Tile value={fmtNum(ovd.countries, locale, 0)} label={t("dash_countries")} />
+                        <Tile value={fmtNum(ovd.overdueN, locale, 0)} label={t("dash_overdue")} />
+                        <Tile
+                          value={`${fmtNum((ovd.withPhotos / ovd.n) * 100, locale, 0)}%`}
+                          label={t("dash_photos")}
+                          sub={`${fmtNum(ovd.withPhotos, locale, 0)}/${fmtNum(ovd.n, locale, 0)}`}
+                        />
                       </div>
+                      {ovd.byMonth.some(([, v]) => v > 0) && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_by_month")}</span>
+                          <MiniColumns
+                            rows={ovd.byMonth.map(([key, v]) => [
+                              new Date(`${key}-01T00:00:00`).toLocaleDateString(
+                                locale === "fr" ? "fr" : "en",
+                                { month: "narrow" },
+                              ),
+                              v,
+                            ])}
+                          />
+                        </div>
+                      )}
                       {ovd.byYear.length >= 2 && (
                         <div className="ovd-block">
                           <span className="ovd-block-title">{t("dash_by_year")}</span>
@@ -1270,6 +1357,46 @@ export function MapStage({
                         <div className="ovd-block">
                           <span className="ovd-block-title">{t("dash_status")}</span>
                           <HBars rows={ovd.byStatus} fmt={(v) => fmtNum(v, locale, 0)} />
+                        </div>
+                      )}
+                      {ovd.byStage.length > 0 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_by_stage")}</span>
+                          <HBars
+                            rows={ovd.byStage.map((s) => [s.label, s.n] as [string, number])}
+                            fmt={(v) => fmtNum(v, locale, 0)}
+                          />
+                        </div>
+                      )}
+                      {ovd.byFire.size > 0 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_fire")}</span>
+                          <HBars
+                            rows={(
+                              [
+                                ["low", "#4caf50"],
+                                ["moderate", "#e0a62e"],
+                                ["high", "#e4673f"],
+                                ["very_high", "#d64550"],
+                              ] as const
+                            )
+                              .filter(([k]) => ovd.byFire.has(k))
+                              .map(
+                                ([k, color]) =>
+                                  [t(`fire_${k}` as Key), ovd.byFire.get(k)!, color] as [
+                                    string,
+                                    number,
+                                    string,
+                                  ],
+                              )}
+                            fmt={(v) => fmtNum(v, locale, 0)}
+                          />
+                        </div>
+                      )}
+                      {ovd.byOrg.length > 1 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_by_org")}</span>
+                          <HBars rows={ovd.byOrg} fmt={(v) => fmtNum(v, locale, 0)} />
                         </div>
                       )}
                       <p className="ovd-hint">{t("dash_filtered_hint")}</p>

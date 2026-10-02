@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends
 from .auth import CurrentUser, Principal
 from .db import get_conn
 from .profile import _fire_category, _int, _pick, _stage
+from .visibility import application_hidden, hidden_application_ids
 from .schemas import DashboardOut
 from .governance import GOV_LAYERS, _PRODUCTION_FILTER
 
@@ -25,7 +26,8 @@ SELECT count(*),
        (SELECT count(*) FROM pes_rs_objects v
          JOIN pes_parcels vp ON vp.application_id = v.application_id
         WHERE v.object_type = 'monitoring_visit'
-          AND (%(country)s::text IS NULL OR vp.country = %(country)s)),
+          AND (%(country)s::text IS NULL OR vp.country = %(country)s)
+          AND NOT (v.application_id = ANY(%(hidden)s))),
        count(*) FILTER (WHERE o.status = 'ok'),
        count(*) FILTER (WHERE o.status = 'partial'),
        count(*) FILTER (WHERE o.status = 'partial_final')
@@ -33,6 +35,7 @@ FROM pes_parcels p
 LEFT JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
 WHERE (%(country)s::text IS NULL OR p.country = %(country)s)
+  AND NOT (p.application_id = ANY(%(hidden)s))
 """
 
 _GROUP_SQL = """
@@ -43,6 +46,7 @@ LEFT JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
 WHERE {column} IS NOT NULL
   AND (%(country)s::text IS NULL OR p.country = %(country)s)
+  AND NOT (p.application_id = ANY(%(hidden)s))
 GROUP BY {column} ORDER BY count(*) DESC, {column}
 """
 
@@ -50,6 +54,7 @@ _MONTH_SQL = """
 SELECT to_char(date_trunc('month', application_date), 'YYYY-MM') AS month, count(*)
 FROM pes_parcels p
 WHERE (%(country)s::text IS NULL OR p.country = %(country)s)
+  AND NOT (p.application_id = ANY(%(hidden)s))
 GROUP BY 1 ORDER BY 1
 """
 
@@ -73,6 +78,7 @@ def _profile_aggregates(conn, country: str | None) -> dict:
     fire: Counter[str] = Counter()
     overdue = 0
     rows = conn.execute(_PROFILE_SQL, {"country": country}).fetchall()
+    rows = [r for r in rows if not application_hidden(r[0])]  # M14
     for payload, burned_ha, parcel_ha in rows:
         stage = _stage(payload)
         if stage is not None and (stage.name or stage.status):
@@ -115,8 +121,10 @@ GROUP BY layer
 """
 
 
-def _groups(conn, column: str, country: str | None) -> list[dict]:
-    rows = conn.execute(_GROUP_SQL.format(column=column), {"country": country}).fetchall()
+def _groups(conn, column: str, country: str | None, hidden: list[str]) -> list[dict]:
+    rows = conn.execute(
+        _GROUP_SQL.format(column=column), {"country": country, "hidden": hidden}
+    ).fetchall()
     return [{"name": r[0], "applications": r[1], "area_ha": r[2]} for r in rows]
 
 
@@ -126,8 +134,10 @@ def dashboard(
     conn=Depends(get_conn),
     user: Principal = CurrentUser,
 ) -> DashboardOut:
-    t = conn.execute(_TOTALS_SQL, {"country": country}).fetchone()
-    months = conn.execute(_MONTH_SQL, {"country": country}).fetchall()
+    hidden = sorted(hidden_application_ids(conn))  # archived/deleted (M14)
+    params = {"country": country, "hidden": hidden}
+    t = conn.execute(_TOTALS_SQL, params).fetchone()
+    months = conn.execute(_MONTH_SQL, params).fetchall()
     gov = {r[0]: r for r in conn.execute(_GOV_SQL).fetchall()}
     docs = conn.execute("SELECT count(*) FROM gov_documents WHERE retired = 0").fetchone()[0]
     return DashboardOut(
@@ -137,8 +147,8 @@ def dashboard(
             "tree_cover_ha": t[2],
             "visits": t[3],
             "status_counts": {"ok": t[4], "partial": t[5], "partial_final": t[6]},
-            "by_country": _groups(conn, "p.country", country),
-            "by_activity": _groups(conn, "p.pes_activity", country),
+            "by_country": _groups(conn, "p.country", country, hidden),
+            "by_activity": _groups(conn, "p.pes_activity", country, hidden),
             "by_month": [{"month": m[0], "applications": m[1]} for m in months],
             **_profile_aggregates(conn, country),
         },

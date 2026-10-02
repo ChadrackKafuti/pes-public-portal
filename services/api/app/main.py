@@ -74,7 +74,8 @@ SELECT p.application_id, p.application_code, p.contract_code,
 FROM pes_parcels p
 LEFT JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
-WHERE (%(activity)s::text IS NULL OR p.pes_activity = %(activity)s)
+WHERE NOT (p.application_id = ANY(%(hidden)s))
+  AND (%(activity)s::text IS NULL OR p.pes_activity = %(activity)s)
   AND (%(country)s::text IS NULL OR p.country = %(country)s)
   AND (%(province)s::text IS NULL OR p.province = %(province)s)
   AND (%(org)s::text IS NULL OR p.implementing_org = %(org)s)
@@ -102,9 +103,12 @@ def list_applications(
     conn=Depends(get_conn),
     user: Principal = CurrentUser,
 ) -> ApplicationList:
+    from .visibility import hidden_application_ids
+
     rows = conn.execute(
         _APPLICATION_LIST_SQL,
         {
+            "hidden": sorted(hidden_application_ids(conn)),
             "activity": activity,
             "country": country,
             "province": province,
@@ -190,8 +194,10 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
     """Every parcel as a GeoJSON FeatureCollection for the map workspace.
     Polygon from shape_raw when it parses, point fallback otherwise;
     records with no usable geometry are omitted."""
+    from .contracts import _APP_REF_KEYS, _visit_date
     from .geo import shape_to_geometry
-    from .profile import _pick
+    from .profile import _fire_category, _pick, _stage
+    from .visibility import application_hidden, visit_hidden
 
     rows = conn.execute(
         """
@@ -199,7 +205,8 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
                p.application_date, p.shape_raw, p.point_lon, p.point_lat,
                o.status, o.tree_cover_ha,
                p.country, p.province, p.implementing_org, p.project_name,
-               r.payload, o.parcel_area_ha, p.estimated_area_ha
+               r.payload, o.parcel_area_ha, p.estimated_area_ha,
+               o.burned_area_5yr_ha
         FROM pes_parcels p
         LEFT JOIN pes_rs_objects o
           ON o.object_id = p.application_id AND o.object_type = 'application'
@@ -207,6 +214,44 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
           ON r.kind = 'application' AND r.record_id = p.application_id
         """
     ).fetchall()
+    photo_counts = dict(
+        conn.execute(
+            """
+            SELECT application_id, count(*) FROM pes_photos
+            WHERE application_id IS NOT NULL GROUP BY application_id
+            """
+        ).fetchall()
+    )
+    # Visit stats per application (overdue flag, notebook rule: has a contract,
+    # no future visit scheduled, and fewer completed visits than visits known).
+    from datetime import date as _date_t
+
+    ref_index: dict[str, str] = {}
+    for r in rows:
+        ref_index[str(r[0])] = str(r[0])
+        if r[1]:
+            ref_index.setdefault(str(r[1]), str(r[0]))
+    visit_stats: dict[str, dict] = {}
+    today = _date_t.today()
+    for (vp,) in conn.execute(
+        "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
+    ).fetchall():
+        if visit_hidden(vp):
+            continue
+        app_id = ref_index.get(str(_pick(vp, _APP_REF_KEYS) or ""))
+        if app_id is None:
+            continue
+        st = visit_stats.setdefault(
+            app_id, {"total": 0, "completed": 0, "future": 0, "contract": False}
+        )
+        st["total"] += 1
+        d = _visit_date(vp)
+        if d is not None and d <= today:
+            st["completed"] += 1
+        elif d is not None:
+            st["future"] += 1
+        if _pick(vp, ["contractcode"]):
+            st["contract"] = True
     # v1 DataLoad parity: EVERY application gets a point so small parcels stay
     # visible at any zoom — the native Point, else the polygon centroid, else
     # its first GPS photo (centroid before photo: a photo can sit anywhere
@@ -224,6 +269,8 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
     }
     features = []
     for r in rows:
+        if application_hidden(r[14]):  # archived/deleted (M14)
+            continue
         geometries: list[dict] = []
         polygon = shape_to_geometry(r[5], None, None)
         if polygon is not None and polygon.get("type") != "Point":
@@ -246,6 +293,18 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
         if point is not None:
             geometries.append({"type": "Point", "coordinates": point})
         payload = r[14] or {}
+        stage = _stage(payload)
+        parcel_ha = r[15]
+        burned_pct = (
+            r[17] / parcel_ha * 100 if r[17] is not None and parcel_ha else None
+        )
+        st = visit_stats.get(str(r[0]))
+        overdue = bool(
+            st
+            and st["contract"]
+            and st["future"] == 0
+            and st["completed"] < st["total"]
+        )
         for geometry in geometries:
             features.append(
             {
@@ -268,6 +327,12 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
                     "beneficiaryType": _pick(payload, ["beneficiarytype"]),
                     "gender": _pick(payload, ["beneficiarygender", "gender"]),
                     "applicationStatus": _pick(payload, ["applicationstatus", "contractstatus", "status"]),
+                    # M14 dashboard props
+                    "stage": stage.name if stage else None,
+                    "stageOrder": stage.order if stage else None,
+                    "fireCategory": _fire_category(burned_pct),
+                    "photoCount": photo_counts.get(str(r[0]), 0),
+                    "overdue": overdue,
                 },
             }
         )
