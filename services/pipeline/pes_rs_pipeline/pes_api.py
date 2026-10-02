@@ -70,17 +70,49 @@ def _as_date(value: Any) -> date | None:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
 
 
+def _bounded(lon: float, lat: float) -> tuple[float, float] | None:
+    return (lon, lat) if abs(lon) <= 180 and abs(lat) <= 90 else None
+
+
 def _as_point(value: Any) -> tuple[float, float] | None:
-    if value is None:
+    """Production ``Point`` values arrive in several shapes (v1 DataLoad
+    parity): esri {x,y}, GeoJSON Point, ``POINT(lon lat)`` WKT, a JSON string,
+    or ``"lat, lon"`` comma text (lat first!)."""
+    if value in (None, "", "null", "None"):
         return None
     if isinstance(value, dict):
-        x = value.get("x") or value.get("lon") or value.get("longitude")
-        y = value.get("y") or value.get("lat") or value.get("latitude")
-        if x is not None and y is not None:
-            return float(x), float(y)
+        try:
+            if "x" in value and "y" in value:
+                return _bounded(float(value["x"]), float(value["y"]))
+            if str(value.get("type", "")).lower() == "point":
+                c = value.get("coordinates") or []
+                return _bounded(float(c[0]), float(c[1]))
+            x = value.get("lon") or value.get("longitude")
+            y = value.get("lat") or value.get("latitude")
+            if x is not None and y is not None:
+                return _bounded(float(x), float(y))
+        except (TypeError, ValueError, IndexError):
+            return None
         return None
     if isinstance(value, (list, tuple)) and len(value) == 2:
-        return float(value[0]), float(value[1])
+        try:
+            return _bounded(float(value[0]), float(value[1]))
+        except (TypeError, ValueError):
+            return None
+    text = str(value).strip()
+    try:
+        if text.upper().startswith("POINT"):
+            parts = text[text.find("(") + 1 : text.find(")")].split()
+            return _bounded(float(parts[0]), float(parts[1]))
+        if text.startswith("{"):
+            import json
+
+            return _as_point(json.loads(text))
+        if "," in text:
+            lat, lon = (float(p.strip()) for p in text.split(",")[:2])
+            return _bounded(lon, lat)
+    except (TypeError, ValueError, IndexError):
+        return None
     return None
 
 

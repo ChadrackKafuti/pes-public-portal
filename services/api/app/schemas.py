@@ -179,6 +179,20 @@ class ProfileProject(ApiModel):
     aggregator: str | None
 
 
+class ProfileBaseline(ApiModel):
+    """M11 — the remote-sensing baseline shown in the Overview panel."""
+
+    parcel_area_ha: float | None
+    tree_cover_ha: float | None
+    defor_5yr_ha_yr: float | None
+    baseline_years: int | None
+    landcover_at_app: str | None
+    landcover_at_app_pct: float | None
+    landcover_current: str | None
+    landcover_current_pct: float | None
+    landcover_changed: bool | None
+
+
 class ProfileOut(ApiModel):
     """The M7b application profile: v1's popup content, section by section."""
 
@@ -196,6 +210,7 @@ class ProfileOut(ApiModel):
     fire: ProfileFire | None
     performance: ProfilePerformance | None
     areas: ProfileAreas
+    baseline: ProfileBaseline | None = None
     geometry_source: str | None
     last_sync: datetime | None
 

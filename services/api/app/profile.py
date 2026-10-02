@@ -19,6 +19,7 @@ from .auth import CurrentUser, Principal
 from .db import get_conn
 from .schemas import (
     ProfileAreas,
+    ProfileBaseline,
     ProfileBeneficiary,
     ProfileContract,
     ProfileFire,
@@ -170,7 +171,10 @@ def application_profile(
     rs = conn.execute(
         """
         SELECT object_type, object_date, parcel_area_ha, burned_area_5yr_ha,
-               fire_alerts_5yr, geom_source, processed_utc
+               fire_alerts_5yr, geom_source, processed_utc,
+               tree_cover_ha, defor_5yr_ha_yr, baseline_years,
+               landcover_at_app, landcover_at_app_pct,
+               landcover_current, landcover_current_pct
         FROM pes_rs_objects WHERE application_id = %s ORDER BY object_date
         """,
         (application_id,),
@@ -349,6 +353,19 @@ def application_profile(
         fire=fire,
         performance=perf,
         areas=areas,
+        baseline=ProfileBaseline(
+            parcel_area_ha=app_rs[2],
+            tree_cover_ha=app_rs[7],
+            defor_5yr_ha_yr=app_rs[8],
+            baseline_years=app_rs[9],
+            landcover_at_app=app_rs[10],
+            landcover_at_app_pct=app_rs[11],
+            landcover_current=app_rs[12],
+            landcover_current_pct=app_rs[13],
+            landcover_changed=(app_rs[10] != app_rs[12]) if app_rs[10] and app_rs[12] else None,
+        )
+        if app_rs is not None
+        else None,
         geometry_source=latest_rs[5] if latest_rs else None,
         last_sync=synced,
     )

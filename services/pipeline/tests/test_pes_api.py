@@ -197,3 +197,21 @@ def test_dedup_key_prefers_visit_code_over_application_code():
     assert _pick(visit, "id") == "MV-1"
     # ApplicationCode is the id only when no visit code is present:
     assert _pick({"ApplicationCode": "CA-1"}, "id") == "CA-1"
+
+
+def test_point_parsing_variants():
+    """v1 DataLoad parity: the Point field arrives in many shapes (M11)."""
+    from pes_rs_pipeline.pes_api import _as_point
+
+    assert _as_point({"x": 15.5, "y": -2.25}) == (15.5, -2.25)
+    assert _as_point({"type": "Point", "coordinates": [15.5, -2.25]}) == (15.5, -2.25)
+    assert _as_point("POINT(15.5 -2.25)") == (15.5, -2.25)
+    assert _as_point('{"type": "Point", "coordinates": [15.5, -2.25]}') == (15.5, -2.25)
+    # comma text is lat,lon (lat first)
+    assert _as_point("-2.25, 15.5") == (15.5, -2.25)
+    assert _as_point({"lon": 15.5, "lat": -2.25}) == (15.5, -2.25)
+    assert _as_point([15.5, -2.25]) == (15.5, -2.25)
+    # out-of-range and junk fail closed
+    assert _as_point("POINT(400 10)") is None
+    assert _as_point("not a point") is None
+    assert _as_point("") is None

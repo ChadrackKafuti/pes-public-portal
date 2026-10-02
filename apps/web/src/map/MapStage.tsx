@@ -455,6 +455,29 @@ export function MapStage({
     return true;
   };
 
+  const fltIdsRef = useRef<Set<string> | null>(null);
+
+  /** Filters apply to every PES layer (v1 §7): photos follow the matched
+   *  application ids. */
+  const applyPhotoData = () => {
+    const map = mapRef.current;
+    const base = photosDataRef.current;
+    if (!map || !base) return;
+    const src = map.getSource("photos") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    const ids = fltIdsRef.current;
+    src.setData(
+      ids
+        ? {
+            type: "FeatureCollection",
+            features: base.features.filter((f) =>
+              ids.has(String((f.properties ?? {}).applicationId ?? "")),
+            ),
+          }
+        : base,
+    );
+  };
+
   const applyFlt = (f: typeof emptyFlt) => {
     const map = mapRef.current;
     const data = dataRef.current;
@@ -469,8 +492,17 @@ export function MapStage({
         }
       : data;
     filteredRef.current = active ? filtered : null;
+    fltIdsRef.current = active
+      ? new Set(
+          filtered.features.map((ft) =>
+            String((ft.properties ?? {}).applicationId ?? ""),
+          ),
+        )
+      : null;
     (map.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(filtered);
-    setFltCount(active ? filtered.features.length : null);
+    applyPhotoData();
+    // the count is applications, not features (each app can be point + polygon)
+    setFltCount(active ? (fltIdsRef.current?.size ?? 0) : null);
   };
 
   /** Distinct sorted values of one geojson property, optionally pre-filtered. */
@@ -722,7 +754,10 @@ export function MapStage({
         (photosOnRef.current.app || photosOnRef.current.visit) &&
         !map.getSource("photos")
       ) {
-        void addPhotoLayers(map, photosDataRef.current).then(() => applyPhotoVisRef.current());
+        void addPhotoLayers(map, photosDataRef.current).then(() => {
+          applyPhotoVisRef.current();
+          applyPhotoData();
+        });
       }
       for (const key of Object.keys(ADMIN_LAYERS) as AdminKey[]) {
         const data = adminDataRef.current[key];
@@ -787,13 +822,17 @@ export function MapStage({
           if (!cancelled && m) {
             await addPhotoLayers(m, data as FeatureCollection);
             applyPhotoVisRef.current();
+            applyPhotoData();
           }
         })
         .catch(() => {
           /* photos not synced yet: leave the toggles inert */
         });
     } else if (any && photosDataRef.current && !map.getSource("photos")) {
-      void addPhotoLayers(map, photosDataRef.current).then(() => applyPhotoVisRef.current());
+      void addPhotoLayers(map, photosDataRef.current).then(() => {
+        applyPhotoVisRef.current();
+        applyPhotoData();
+      });
     } else {
       applyPhotoVisRef.current();
     }
@@ -955,6 +994,43 @@ export function MapStage({
     return () => clearTimeout(handle);
   }, [query]);
 
+  /* M11 — the Overview's default view is a mini dashboard over the applications
+   * currently matching the filters (each app can be a point + a polygon:
+   * de-duplicate by id). Recomputed per render; fltCount/dataVersion renders
+   * keep it in sync with filter applies and the initial load. */
+  const ovd = (() => {
+    const src = filteredRef.current ?? dataRef.current;
+    if (!src) return null;
+    const seen = new Map<string, Record<string, unknown>>();
+    for (const ft of src.features) {
+      const p = (ft.properties ?? {}) as Record<string, unknown>;
+      const id = typeof p.applicationId === "string" ? p.applicationId : null;
+      if (id && !seen.has(id)) seen.set(id, p);
+    }
+    let area = 0;
+    let tc = 0;
+    const byActivity = new Map<string, number>();
+    const byCountry = new Map<string, number>();
+    for (const p of seen.values()) {
+      if (typeof p.areaHa === "number") area += p.areaHa;
+      if (typeof p.treeCoverHa === "number") tc += p.treeCoverHa;
+      const a = typeof p.pesActivity === "string" ? p.pesActivity : null;
+      if (a) byActivity.set(a, (byActivity.get(a) ?? 0) + 1);
+      const c = typeof p.country === "string" ? p.country : null;
+      if (c) byCountry.set(c, (byCountry.get(c) ?? 0) + 1);
+    }
+    const top = (m: Map<string, number>) =>
+      [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5);
+    return {
+      n: seen.size,
+      area,
+      tc,
+      countries: byCountry.size,
+      byActivity: top(byActivity),
+      byCountry: top(byCountry),
+    };
+  })();
+
   const tabs = [
     { id: "overview" as const, label: t("tab_overview"), icon: MS_ICONS.overview },
     { id: "filters" as const, label: t("section_filters"), icon: MS_ICONS.filters },
@@ -1030,6 +1106,45 @@ export function MapStage({
                 />
               ) : (
                 <>
+                  {ovd && ovd.n > 0 && (
+                    <>
+                      <div className="ovd-tiles">
+                        <div className="ovd-tile">
+                          <strong>{fmtNum(ovd.n, locale, 0)}</strong>
+                          <span>{t("dash_applications")}</span>
+                        </div>
+                        <div className="ovd-tile">
+                          <strong>{fmtNum(ovd.area, locale, 0)} ha</strong>
+                          <span>{t("dash_total_area")}</span>
+                        </div>
+                        <div className="ovd-tile">
+                          <strong>{fmtNum(ovd.tc, locale, 0)} ha</strong>
+                          <span>{t("dash_tc")}</span>
+                        </div>
+                        <div className="ovd-tile">
+                          <strong>{fmtNum(ovd.countries, locale, 0)}</strong>
+                          <span>{t("dash_countries")}</span>
+                        </div>
+                      </div>
+                      {ovd.byActivity.length > 0 && (
+                        <div className="ovd-bars">
+                          {(() => {
+                            const max = ovd.byActivity[0][1] || 1;
+                            return ovd.byActivity.map(([label, n]) => (
+                              <div className="barlist-row" key={label}>
+                                <span className="barlist-label" title={label}>{label}</span>
+                                <span className="barlist-track">
+                                  <span className="barlist-bar" style={{ width: `${(n / max) * 100}%` }} />
+                                </span>
+                                <span className="barlist-value">{fmtNum(n, locale, 0)}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      )}
+                      <p className="ovd-hint">{t("dash_filtered_hint")}</p>
+                    </>
+                  )}
                   <p className="panel-hint">{t("overview_hint")}</p>
             <div className="step">
               <span className="step-num">1</span>

@@ -197,7 +197,7 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
                p.application_date, p.shape_raw, p.point_lon, p.point_lat,
                o.status, o.tree_cover_ha,
                p.country, p.province, p.implementing_org, p.project_name,
-               r.payload
+               r.payload, o.parcel_area_ha, p.estimated_area_ha
         FROM pes_parcels p
         LEFT JOIN pes_rs_objects o
           ON o.object_id = p.application_id AND o.object_type = 'application'
@@ -205,16 +205,43 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
           ON r.kind = 'application' AND r.record_id = p.application_id
         """
     ).fetchall()
+    # v1 DataLoad parity: EVERY application gets a point (native Point, else
+    # its first GPS photo, else the polygon centroid) so small parcels stay
+    # visible at any zoom; polygons come on top for records that have shapes.
+    photo_pts = {
+        a: (lon, lat)
+        for a, lon, lat in conn.execute(
+            """
+            SELECT DISTINCT ON (application_id) application_id, lon, lat
+            FROM pes_photos
+            WHERE application_id IS NOT NULL AND NOT (lon = 0 AND lat = 0)
+            ORDER BY application_id, kind, photo_index
+            """
+        ).fetchall()
+    }
     features = []
     for r in rows:
-        # v1 web-map parity: applications exist as two layers, points and
-        # polygons — some records have only one of the two, some have both.
         geometries: list[dict] = []
         polygon = shape_to_geometry(r[5], None, None)
-        if polygon is not None:
+        if polygon is not None and polygon.get("type") != "Point":
             geometries.append(polygon)
+        else:
+            polygon = None
+        point = None
         if r[6] is not None and r[7] is not None:
-            geometries.append({"type": "Point", "coordinates": [r[6], r[7]]})
+            point = [r[6], r[7]]
+        elif r[0] in photo_pts:
+            point = list(photo_pts[r[0]])
+        elif polygon is not None:
+            try:
+                from shapely.geometry import shape as to_shape
+
+                c = to_shape(polygon).centroid
+                point = [c.x, c.y]
+            except Exception:  # noqa: BLE001 — bad shape: no derived point
+                point = None
+        if point is not None:
+            geometries.append({"type": "Point", "coordinates": point})
         payload = r[14] or {}
         for geometry in geometries:
             features.append(
@@ -229,6 +256,7 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
                     "applicationDate": r[4].isoformat(),
                     "status": r[8],
                     "treeCoverHa": r[9],
+                    "areaHa": r[15] if r[15] is not None else r[16],
                     # v1 filter fields (M7e): parcel columns + raw payload.
                     "country": r[10],
                     "province": r[11],
