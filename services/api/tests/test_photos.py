@@ -1,4 +1,5 @@
-"""Geotagged photo endpoints (M7a). Seed: three photos in conftest.PHOTO_SEED."""
+"""Geotagged photo endpoints (M7a). Seed: four photos in conftest.PHOTO_SEED
+(dddd4444 has no GPS and falls back to its parcel's centroid)."""
 
 
 def test_photos_geojson_all(client):
@@ -7,7 +8,11 @@ def test_photos_geojson_all(client):
     body = r.json()
     assert body["type"] == "FeatureCollection"
     uids = {f["properties"]["photoUid"] for f in body["features"]}
-    assert uids == {"aaaa1111", "bbbb2222", "cccc3333"}
+    assert uids == {"aaaa1111", "bbbb2222", "cccc3333", "dddd4444"}
+    # no-GPS photo lands on its application polygon's centroid (M10)
+    nogps = next(f for f in body["features"] if f["properties"]["photoUid"] == "dddd4444")
+    lon, lat = nogps["geometry"]["coordinates"]
+    assert abs(lon - 15.0067) < 0.01 and abs(lat - (-0.9967)) < 0.01
     first = next(f for f in body["features"] if f["properties"]["photoUid"] == "aaaa1111")
     assert first["geometry"]["coordinates"] == [15.002, -0.998]
     assert first["properties"]["mirrored"] is True
@@ -19,17 +24,17 @@ def test_photos_geojson_all(client):
 def test_photos_geojson_filters(client):
     r = client.get("/api/photos.geojson", params={"application": "A1"})
     uids = {f["properties"]["photoUid"] for f in r.json()["features"]}
-    assert uids == {"aaaa1111", "bbbb2222"}
+    assert uids == {"aaaa1111", "bbbb2222", "dddd4444"}
     r = client.get("/api/photos.geojson", params={"application": "A1", "kind": "application"})
     uids = {f["properties"]["photoUid"] for f in r.json()["features"]}
-    assert uids == {"aaaa1111"}
+    assert uids == {"aaaa1111", "dddd4444"}
 
 
 def test_application_photos_list(client):
     r = client.get("/api/applications/A1/photos")
     assert r.status_code == 200
     rows = r.json()
-    assert [p["photoUid"] for p in rows] == ["aaaa1111", "bbbb2222"]
+    assert [p["photoUid"] for p in rows] == ["aaaa1111", "dddd4444", "bbbb2222"]
     assert rows[0]["mirrored"] is True and rows[1]["mirrored"] is False
 
 

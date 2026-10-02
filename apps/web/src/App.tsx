@@ -54,6 +54,59 @@ const I = {
   ),
 };
 
+/** Ground-Impact-style account control: an avatar pill opening a dropdown
+ *  card with the user's identity and a red sign-out row. */
+function AccountMenu() {
+  const t = useT();
+  const { user, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  if (!authEnabled || !user) return null;
+  const handle = user.profile.preferred_username ?? "—";
+  const name = handle.split("@")[0];
+  const initials =
+    name
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((s) => s[0]!.toUpperCase())
+      .join("") || "U";
+  return (
+    <div className="account">
+      <button
+        className="account-pill"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="account-avatar">{initials}</span>
+        <span className="account-name">{name}</span>
+        <span className="account-chev" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="account-menu" role="menu" onMouseLeave={() => setOpen(false)}>
+          <div className="account-id">
+            <span className="account-avatar account-avatar-lg">{initials}</span>
+            <div className="account-who">
+              <strong>{name}</strong>
+              {handle.includes("@") && <span className="account-mail">{handle}</span>}
+              <span className="account-online">● {t("online")}</span>
+            </div>
+          </div>
+          <button className="account-signout" role="menuitem" onClick={logout}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4" strokeLinecap="round" />
+              <path d="M14 8l4 4-4 4M18 12H9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {t("sign_out")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LangToggle() {
   const t = useT();
   const { locale, setLocale } = useI18n();
@@ -140,7 +193,6 @@ type ApiHealth = "checking" | "up" | "down";
  *  the Map and Analyses routes only overlay panels on it. */
 function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
   const t = useT();
-  const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const mapVisible = pathname === "/map" || pathname === "/analyses";
 
@@ -168,12 +220,8 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
           ))}
         </nav>
         <div className="tools">
-          {authEnabled && user && (
-            <button className="lang-item signout" onClick={logout} title={t("sign_out")}>
-              {t("sign_out")}
-            </button>
-          )}
           <LangToggle />
+          <AccountMenu />
           {demoEnabled ? (
             <span className="api-badge api-demo" title={t("demo_hint")}>
               {t("demo_badge")}

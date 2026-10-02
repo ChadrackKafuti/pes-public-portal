@@ -508,7 +508,7 @@ export function MapStage({
 
   /* Reference layers from the UNDP services (admin boundaries, suitability). */
   const [adminOn, setAdminOn] = useState<Record<AdminKey, boolean>>({
-    admin0: false,
+    admin0: true, // the web map's country outlines frame the basin by default
     admin1: false,
   });
   const adminDataRef = useRef<Partial<Record<AdminKey, FeatureCollection>>>({});
@@ -599,6 +599,8 @@ export function MapStage({
     mapRef.current = map;
     // test hook: lets browser automation address the map deterministically
     (window as unknown as Record<string, unknown>).__cafiMap = map;
+    map.on("dragstart", () => (userMovedRef.current = true));
+    map.on("wheel", () => (userMovedRef.current = true));
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.ScaleControl());
 
@@ -817,6 +819,12 @@ export function MapStage({
             adminDataRef.current[key] = data;
             const m = mapRef.current;
             if (!cancelled && m && adminOnRef.current[key]) addAdminLayer(m, key, data);
+            // Admin 0 defines the home extent: re-fit once it arrives, as
+            // long as the map is visible and the user hasn't explored yet.
+            if (!cancelled && m && key === "admin0" && everShownRef.current && !userMovedRef.current) {
+              const b = dataBounds(data);
+              if (b) m.fitBounds(b, { padding: 24 });
+            }
           })
           .catch(() => {
             /* UNDP service unreachable: leave the toggle inert */
@@ -892,14 +900,21 @@ export function MapStage({
 
   // Hidden while another route owns the screen: re-measure when shown again.
   // Mounted hidden (landing first), the initial fit ran on a 0-size canvas,
-  // so the first reveal also re-fits the basin.
+  // so the first reveal also re-fits the home extent — the Admin 0 layer's
+  // bounds once loaded, the basin constant until then.
   const everShownRef = useRef(false);
+  const userMovedRef = useRef(false);
+  const homeBounds = () => {
+    const a0 = adminDataRef.current.admin0;
+    return (a0 && dataBounds(a0)) || new maplibregl.LngLatBounds(CONGO_BASIN);
+  };
   useEffect(() => {
     const map = mapRef.current;
     if (!visible || !map) return;
     map.resize();
-    if (!everShownRef.current) map.fitBounds(CONGO_BASIN, { padding: 24 });
+    if (!everShownRef.current) map.fitBounds(homeBounds(), { padding: 24 });
     everShownRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Governance overlay opacity: scale each layer's base fill opacity.
@@ -933,6 +948,7 @@ export function MapStage({
       });
       setMiss(!hit);
       if (hit) {
+        userMovedRef.current = true; // an explicit search supersedes the home fit
         map.fitBounds(featureBounds(hit), { padding: 80, maxZoom: 15 });
       }
     }, 300);

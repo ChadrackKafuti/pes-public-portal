@@ -115,6 +115,7 @@ const en = {
   footer_data:
     "Data: CAFI PES production API, WDPA, national forest atlases, Google Dynamic World. Basemaps: OpenStreetMap & Esri World Imagery.",
   lang_label: "Language",
+  online: "Online",
   tab_overview: "Overview",
   tab_layers: "Layers",
   panel_collapse: "Collapse panel",
@@ -420,6 +421,7 @@ const fr: Record<Key, string> = {
   footer_data:
     "Données : API de production PSE CAFI, WDPA, atlas forestiers nationaux, Google Dynamic World. Fonds de carte : OpenStreetMap & Esri World Imagery.",
   lang_label: "Langue",
+  online: "En ligne",
   tab_overview: "Aperçu",
   tab_layers: "Couches",
   panel_collapse: "Réduire le panneau",
