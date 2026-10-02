@@ -15,6 +15,7 @@ export const GOV_LAYER_ORDER: GovLayerKey[] = [
   "community_forest_zoning",
   "local_territories",
   "local_territory_zoning",
+  "local_governance",
 ];
 
 export const GOV_LAYER_LABELS: Record<GovLayerKey, { en: string; fr: string }> = {
@@ -25,6 +26,7 @@ export const GOV_LAYER_LABELS: Record<GovLayerKey, { en: string; fr: string }> =
   community_forest_zoning: { en: "Community forests – zoning", fr: "Forêts communautaires – zonage" },
   local_territories: { en: "Local territories – limits", fr: "Terroirs villageois – limites" },
   local_territory_zoning: { en: "Local territories – zoning", fr: "Terroirs villageois – zonage" },
+  local_governance: { en: "Local governance body", fr: "Organes locaux de gouvernance (CLD)" },
 };
 
 export const GOV_ZONING_LAYERS: GovLayerKey[] = [
@@ -39,6 +41,7 @@ export const GOV_LIMIT_COLORS: Record<string, string> = {
   concessions: "#cc783c",
   community_forests: "#3c965a",
   local_territories: "#5078c8",
+  local_governance: "#ab47bc",
 };
 
 /** zone_type_std -> colour + label (portal-v1 palette). */
@@ -149,6 +152,7 @@ export const GOV_LINE_COLORS: Record<string, string> = {
   concessions: "#5d4037",
   community_forests: "#1b5e20",
   local_territories: "#37474f",
+  local_governance: "#6a1b9a",
 };
 
 export function govLineColor(key: GovLayerKey): string {

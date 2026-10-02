@@ -43,6 +43,9 @@ INSERT INTO gov_documents
 VALUES
   ('COG:conc:1:doc:1', 'COG:conc:1', 'concessions', 'Republic of Congo', 'COG',
    'Plan d''aménagement', 'management_plan', 'PA.pdf', 'https://example.org/pa.pdf',
+   'agol_attachment', 0, now()),
+  ('COG:conc:1:doc:2', 'COG:conc:1', 'concessions', 'Republic of Congo', 'COG',
+   'Plan d''aménagement', 'other', 'PA.pdf', 'https://example.org/pa.pdf?sig=dup',
    'agol_attachment', 0, now());
 """
 

@@ -8,6 +8,7 @@ import { api } from "../api/client";
 import { BASEMAPS, type BasemapId } from "./basemaps";
 import {
   GOV_LAYER_ORDER,
+  GOV_LIMIT_COLORS,
   GOV_ZONING_LAYERS,
   ZONE_TYPES,
   PA_PROPOSED,
@@ -227,6 +228,10 @@ function dataBounds(data: FeatureCollection): maplibregl.LngLatBounds | null {
 const govSrc = (key: GovLayerKey) => `gov-${key}`;
 const govFill = (key: GovLayerKey) => `gov-${key}-fill`;
 const govLine = (key: GovLayerKey) => `gov-${key}-line`;
+const govPoint = (key: GovLayerKey) => `gov-${key}-point`;
+/** gov-<key>-(fill|point) -> key */
+const govKeyOf = (layerId: string) =>
+  layerId.replace(/^gov-/, "").replace(/-(fill|line|point)$/, "") as GovLayerKey;
 
 function addGovLayers(map: maplibregl.Map, key: GovLayerKey, data: FeatureCollection) {
   if (map.getSource(govSrc(key))) return;
@@ -256,6 +261,23 @@ function addGovLayers(map: maplibregl.Map, key: GovLayerKey, data: FeatureCollec
       type: "line",
       source: govSrc(key),
       paint: { "line-color": govLineColor(key), "line-width": 0.9 },
+    },
+    before,
+  );
+  // M17: point-geometry governance layers (the CLD "Local governance body"
+  // bodies are points). Harmless for polygon-only layers.
+  map.addLayer(
+    {
+      id: govPoint(key),
+      type: "circle",
+      source: govSrc(key),
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 10, 4.5],
+        "circle-color": (GOV_LIMIT_COLORS[key] ?? "#787878") as string,
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#ffffff",
+      },
     },
     before,
   );
@@ -422,19 +444,22 @@ function photoPopupContent(
 ): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "map-popup";
-  const title = document.createElement("strong");
-  title.textContent = String(p.label ?? "Photo");
-  el.appendChild(title);
-  // M16: parent date + the photo's coordinates
+  // M16/M17: no title — a styled date + coordinates meta row instead.
   const meta = document.createElement("div");
   meta.className = "map-popup-meta";
-  meta.textContent = [
-    dateLabel ?? null,
-    coords ? `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  if (meta.textContent) el.appendChild(meta);
+  if (dateLabel) {
+    const d = document.createElement("span");
+    d.className = "map-popup-date";
+    d.textContent = dateLabel;
+    meta.appendChild(d);
+  }
+  if (coords) {
+    const c = document.createElement("span");
+    c.className = "map-popup-coords";
+    c.textContent = `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`;
+    meta.appendChild(c);
+  }
+  if (meta.childNodes.length) el.appendChild(meta);
   if (typeof p.applicationId === "string" && p.applicationId) {
     const btn = document.createElement("button");
     btn.className = "map-popup-btn";
@@ -452,10 +477,17 @@ function photoPopupContent(
       .photoImageUrl(p.photoUid)
       .then(({ url }) => {
         slot.textContent = "";
+        // M17: the photo opens full-size in a new tab (downloadable there).
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.title = String(p.label ?? "Photo");
         const img = document.createElement("img");
         img.src = url;
         img.alt = String(p.label ?? "Photo");
-        slot.appendChild(img);
+        link.appendChild(img);
+        slot.appendChild(link);
       })
       .catch(() => {
         slot.textContent = pendingLabel;
@@ -891,7 +923,7 @@ export function MapStage({
       map.getCanvas().style.cursor = "";
     });
     // Governance overlays: cursor + popup (parcels win when both are hit).
-    const govFillIds = GOV_LAYER_ORDER.map((k) => govFill(k));
+    const govFillIds = GOV_LAYER_ORDER.flatMap((k) => [govFill(k), govPoint(k)]);
     map.on("mousemove", (e) => {
       if (aoiModeRef.current) return;
       const ids = govFillIds.filter((id) => map.getLayer(id));
@@ -939,7 +971,7 @@ export function MapStage({
       if (!ids.length) return;
       const hit = map.queryRenderedFeatures(e.point, { layers: ids })[0];
       if (!hit) return;
-      const key = hit.layer.id.slice(4, -5) as GovLayerKey; // gov-<key>-fill
+      const key = govKeyOf(hit.layer.id);
       const props = (hit.properties ?? {}) as Record<string, unknown>;
       if (typeof props.srcUid === "string") {
         // M7c: the feature inspector in the sidebar replaces the popup.
@@ -1198,6 +1230,9 @@ export function MapStage({
         const vis = on ? "visible" : "none";
         map.setLayoutProperty(govFill(key), "visibility", vis);
         map.setLayoutProperty(govLine(key), "visibility", vis);
+        if (map.getLayer(govPoint(key))) {
+          map.setLayoutProperty(govPoint(key), "visibility", vis);
+        }
       } else if (on && govDataRef.current[key]) {
         addGovLayers(map, key, govDataRef.current[key]!);
       }

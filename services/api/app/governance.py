@@ -19,6 +19,7 @@ router = APIRouter()
 GOV_LAYERS = [
     "protected_areas", "concessions", "concession_zoning", "community_forests",
     "community_forest_zoning", "local_territories", "local_territory_zoning",
+    "local_governance",  # M17: "Local governance body" (CLD points, uploaded)
 ]
 
 _PRODUCTION_FILTER = "retired = 0 AND situation IN ('complete', 'part_complete')"
@@ -253,16 +254,25 @@ def governance_documents(
     src_uid: str, conn=Depends(get_conn), user: Principal = CurrentUser
 ) -> list[GovDocumentOut]:
     """The feature's public documents (portal-v1 popup document list)."""
+    # M17: sources attach the same document several times (same file under
+    # several ingest passes or categories) — keep ONE row per document,
+    # keyed on the stable part of its URL (else file name, else title).
     rows = conn.execute(
         """
-        SELECT doc_uid, title, category_std, file_name, content_type,
+        SELECT DISTINCT ON (dedupe_key)
+               doc_uid, title, category_std, file_name, content_type,
                size_bytes, date_doc, url, src_system
-        FROM gov_documents
-        WHERE parent_uid = %s AND retired = 0
-        ORDER BY category_std, title
+        FROM (
+          SELECT *, lower(coalesce(split_part(url, '?', 1), '')
+                          || '|' || coalesce(file_name, title, doc_uid)) AS dedupe_key
+          FROM gov_documents
+          WHERE parent_uid = %s AND retired = 0
+        ) d
+        ORDER BY dedupe_key, doc_uid
         """,
         (src_uid,),
     ).fetchall()
+    rows = sorted(rows, key=lambda r: ((r[2] or ""), (r[1] or "")))
     if not rows:
         known = conn.execute(
             "SELECT 1 FROM gov_areas WHERE src_uid = %s", (src_uid,)

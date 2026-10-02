@@ -6,7 +6,7 @@ def test_layers_registry_counts_production_rows_only(client):
     r = client.get("/api/governance/layers")
     assert r.status_code == 200
     by_layer = {row["layer"]: row for row in r.json()}
-    assert len(by_layer) == 7
+    assert len(by_layer) == 8  # + local_governance (M17)
     # retired and no_data rows are excluded from the counts
     assert by_layer["concessions"]["total"] == 1
     assert by_layer["concessions"]["byCountry"] == {"COG": 1}

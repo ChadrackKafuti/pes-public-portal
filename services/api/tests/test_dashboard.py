@@ -20,7 +20,7 @@ def test_dashboard_totals_and_groups(client):
 
     gov = d["governance"]
     by_layer = {g["layer"]: g for g in gov["byLayer"]}
-    assert len(by_layer) == 7  # every layer listed, zeros included
+    assert len(by_layer) == 8  # every layer listed, zeros included (M17: + local_governance)
     assert by_layer["concessions"]["count"] == 1        # production filter applied
     assert by_layer["concession_zoning"]["count"] == 1
     assert by_layer["protected_areas"]["count"] == 0

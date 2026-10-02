@@ -132,7 +132,8 @@ export type GovLayerKey =
   | "community_forests"
   | "community_forest_zoning"
   | "local_territories"
-  | "local_territory_zoning";
+  | "local_territory_zoning"
+  | "local_governance";
 
 /** One gov_documents row (public link). */
 export interface GovDocument {
