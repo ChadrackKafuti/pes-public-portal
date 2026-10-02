@@ -2481,13 +2481,109 @@ table.data a {
   color: var(--map-text-muted);
 }
 
-/* M14 — home button in the map control stack */
-.ctrl-home {
+/* M14/M15 — home button in the map control stack: centred white glyph */
+.map-wrap .maplibregl-ctrl-group button.ctrl-home {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #ffffff;
+  padding: 0;
 }
 
 .ctrl-home svg {
   display: block;
+  margin: auto;
+  stroke: #ffffff;
+}
+
+/* M15 — v1-style contract combobox on the Analyses page */
+.an-combo {
+  position: relative;
+}
+
+.an-combo-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--map-border);
+  border-radius: 6px;
+  color: var(--map-text, #fff);
+  padding: 6px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.an-combo-sel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.an-combo-sel strong,
+.an-combo-list strong {
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+}
+
+.an-combo-sel small,
+.an-combo-list small {
+  font-size: 10.5px;
+  color: var(--map-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.an-combo-ph {
+  color: var(--map-text-muted);
+}
+
+.an-combo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.an-combo-list {
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 290px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: rgba(3, 28, 44, 0.96);
+  border: 1px solid var(--map-border-strong, rgba(255, 255, 255, 0.34));
+  border-radius: 8px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.an-combo-list li button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--map-text, #fff);
+  padding: 6px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.an-combo-list li button:hover,
+.an-combo-list li[aria-selected="true"] button {
+  background: rgba(86, 199, 244, 0.16);
 }

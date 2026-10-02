@@ -179,6 +179,8 @@ export interface DashboardGroup {
 /** M7d — contract analyses (v1 contract-analysis page). */
 export interface AnalysesContract {
   contractCode: string;
+  /** Display code until real contract codes ship (CO54-BE113 style). */
+  applicationCode?: string | null;
   org: string | null;
   project: string | null;
   country: string | null;

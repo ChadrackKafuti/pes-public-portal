@@ -220,6 +220,9 @@ class AnalysesContract(ApiModel):
     """One contract row for the Analyses pickers (M7d)."""
 
     contract_code: str
+    # Until the upcoming contract endpoint ships real contract codes, the
+    # group's application code (CO54-BE113 style) is the display code (M15).
+    application_code: str | None = None
     org: str | None
     project: str | None
     country: str | None

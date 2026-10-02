@@ -234,7 +234,18 @@ def run_once(
 
                 backend = GeeBackend(config)
 
+            # The run's hard deadline; the main loop stops early by the
+            # annual reserve so the annual pass is never starved (M15).
             deadline = result.start_utc + timedelta(minutes=config.max_run_minutes)
+            main_deadline = min(
+                deadline,
+                result.start_utc
+                + timedelta(
+                    minutes=max(
+                        1, config.max_run_minutes - config.annual_reserve_minutes
+                    )
+                ),
+            )
             process_objects(
                 objects,
                 backend,
@@ -242,7 +253,7 @@ def run_once(
                 result,
                 today=today,
                 cached_parents=cached_parents,
-                deadline=deadline,
+                deadline=main_deadline,
             )
 
             store.upsert_parcels(conn, all_applications)
