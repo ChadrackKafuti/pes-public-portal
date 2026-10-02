@@ -27,7 +27,8 @@ def _parcels_by_contract(conn) -> dict[str, list[tuple]]:
     rows = conn.execute(
         """
         SELECT application_id, contract_code, implementing_org, project_name,
-               country, village, pes_activity, estimated_area_ha, application_date
+               country, village, pes_activity, estimated_area_ha, application_date,
+               application_code
         FROM pes_parcels
         """
     ).fetchall()
@@ -56,7 +57,8 @@ def analyses_contracts(
         areas = [r[7] for r in g if r[7] is not None]
         out.append(
             AnalysesContract(
-                contract_code=code, org=mx(2), project=mx(3), country=mx(4),
+                contract_code=code, application_code=mx(9), org=mx(2),
+                project=mx(3), country=mx(4),
                 village=mx(5), activity=mx(6), applications=len(g),
                 estimated_area_ha=sum(areas) if areas else None,
                 first_date=min((r[8] for r in g if r[8] is not None), default=None),

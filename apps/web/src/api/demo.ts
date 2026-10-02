@@ -60,9 +60,16 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
   if (path === "/analyses/contracts") {
     return [
       {
-        contractCode: "DEMO-CT-0001", org: "Org Demo A", project: "Project X",
+        contractCode: "DEMO-CT-0001", applicationCode: "DEMO-CA1001-BE0001",
+        org: "Org Demo A", project: "Project X",
         country: "DRC", village: "Kiasi", activity: "Agroforestry",
         applications: 1, estimatedAreaHa: 3.5, firstDate: "2024-06-01",
+      },
+      {
+        contractCode: "DEMO-CT-0002", applicationCode: "DEMO-CA1002-BE0002",
+        org: "Org Demo A", project: "Project X",
+        country: "DRC", village: "Bokoro", activity: "Reforestation",
+        applications: 1, estimatedAreaHa: 2.1, firstDate: "2024-05-14",
       },
     ] as T;
   }

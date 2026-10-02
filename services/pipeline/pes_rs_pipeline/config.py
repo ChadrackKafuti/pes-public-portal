@@ -46,6 +46,10 @@ class PipelineConfig(BaseSettings):
     # classes; the backlog drains in each run's leftover time budget.
     annual_start_year: int = 2016
     annual_backlog_limit: int = 150
+    # Minutes of each run held back from the main indicator loop so the
+    # annual pass always makes progress — without it, a large main backlog
+    # (e.g. after a geometry-hash change) starves the series for days (M15).
+    annual_reserve_minutes: int = 5
 
 
 # Spec §11.7 — dataset floors.

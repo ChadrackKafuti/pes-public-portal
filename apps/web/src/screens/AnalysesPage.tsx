@@ -103,6 +103,76 @@ function AnnualBars({ title, points }: { title: string; points: [number, number]
   );
 }
 
+/** v1's contract combobox: options show the display code as the heading with
+ *  an "org · village · country" description line (calcite-combobox parity).
+ *  Until real contract codes ship, the application code is the display code. */
+function contractDisplayCode(c: AnalysesContract): string {
+  return c.applicationCode ?? c.contractCode;
+}
+
+function contractDesc(c: AnalysesContract): string {
+  return [c.org, c.village, c.country].filter(Boolean).join(" · ");
+}
+
+function ContractCombo({
+  items,
+  value,
+  onChange,
+  placeholder,
+}: {
+  items: AnalysesContract[];
+  value: string;
+  onChange: (code: string) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = items.find((c) => c.contractCode === value) ?? null;
+  return (
+    <div className="an-combo">
+      <button
+        type="button"
+        className="an-combo-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {current ? (
+          <span className="an-combo-sel">
+            <strong>{contractDisplayCode(current)}</strong>
+            <small>{contractDesc(current)}</small>
+          </span>
+        ) : (
+          <span className="an-combo-ph">{placeholder}</span>
+        )}
+        <span className="chev" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <>
+          <div className="an-combo-backdrop" onClick={() => setOpen(false)} />
+          <ul className="an-combo-list" role="listbox">
+            {items.map((c) => (
+              <li key={c.contractCode} role="option" aria-selected={c.contractCode === value}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(c.contractCode);
+                    setOpen(false);
+                  }}
+                >
+                  <strong>{contractDisplayCode(c)}</strong>
+                  <small>{contractDesc(c)}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AnalysesPage() {
   const t = useT();
   const locale = useI18n((s) => s.locale);
@@ -156,17 +226,12 @@ export function AnalysesPage() {
           <option value="">{t("all_projects")}</option>
           {projects.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select value={code} onChange={(e) => setCode(e.target.value)}>
-          <option value="">{t("an_pick_contract")}</option>
-          {inProject.map((c) => (
-            <option key={c.contractCode} value={c.contractCode}>
-              {c.contractCode}
-              {c.org ? ` · ${c.org}` : ""}
-              {c.village ? ` · ${c.village}` : ""}
-              {c.country ? ` · ${c.country}` : ""}
-            </option>
-          ))}
-        </select>
+        <ContractCombo
+          items={inProject}
+          value={code}
+          onChange={setCode}
+          placeholder={t("an_pick_contract")}
+        />
       </div>
 
       {contracts === null && <p className="panel-hint">{t("loading")}</p>}
@@ -176,7 +241,10 @@ export function AnalysesPage() {
         <>
             <p className="an-desc">
               {t("an_desc", {
-                code: analysis.contractCode,
+                code: (() => {
+                  const picked = (contracts ?? []).find((c) => c.contractCode === code);
+                  return picked ? contractDisplayCode(picked) : analysis.contractCode;
+                })(),
                 beneficiary: analysis.beneficiaryType ?? "—",
                 village: analysis.village ?? "—",
                 country: analysis.country ?? "—",

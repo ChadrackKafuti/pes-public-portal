@@ -47,7 +47,11 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     type: "line",
     source: SRC,
     filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "line-color": APP_YELLOW, "line-width": 2.25 },
+    paint: {
+      "line-color": APP_YELLOW,
+      // M15: fatter at low zoom so sub-pixel parcels still paint a mark
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 3.5, 10, 2.5, 13, 2.25],
+    },
   });
   map.addLayer({
     id: "parcels-point",
@@ -75,10 +79,28 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
  *  fill so clicking anywhere inside the polygon opens the contract's
  *  details — no centre markers (they read as application points). */
 const CONTRACTS_SRC = "contracts";
-const CONTRACT_LAYERS = ["contracts-fill", "contracts-line"] as const;
+const CONTRACT_LAYERS = ["contracts-fill", "contracts-line", "contracts-mark"] as const;
+
+/** A dashed yellow square drawn on a canvas: the contracts' low-zoom marker
+ *  (M15). Unmistakably "contract outline", never an application dot. */
+function contractMarkImage(): ImageData {
+  const s = 22;
+  const canvas = document.createElement("canvas");
+  canvas.width = s;
+  canvas.height = s;
+  const ctx = canvas.getContext("2d")!;
+  ctx.strokeStyle = APP_YELLOW;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([4.5, 3]);
+  ctx.strokeRect(3, 3, s - 6, s - 6);
+  return ctx.getImageData(0, 0, s, s);
+}
 
 function addContractLayers(map: maplibregl.Map, data: FeatureCollection) {
   if (map.getSource(CONTRACTS_SRC)) return;
+  if (!map.hasImage("contract-mark")) {
+    map.addImage("contract-mark", contractMarkImage());
+  }
   map.addSource(CONTRACTS_SRC, { type: "geojson", data });
   const before = map.getLayer("parcels-fill") ? "parcels-fill" : undefined;
   map.addLayer(
@@ -99,8 +121,26 @@ function addContractLayers(map: maplibregl.Map, data: FeatureCollection) {
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
         "line-color": APP_YELLOW,
-        "line-width": 2.25,
+        // M15: fatter at low zoom so sub-pixel contracts still paint a mark
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 3.25, 10, 2.5, 13, 2.25],
         "line-dasharray": [2, 1.5],
+      },
+    },
+    before,
+  );
+  // Low-zoom stand-in: the contract's point rendered as a dashed square,
+  // gone by the zoom where the real polygons are legible.
+  map.addLayer(
+    {
+      id: "contracts-mark",
+      type: "symbol",
+      source: CONTRACTS_SRC,
+      maxzoom: 12,
+      filter: ["==", ["geometry-type"], "Point"],
+      layout: {
+        "icon-image": "contract-mark",
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 11, 0.6],
+        "icon-allow-overlap": true,
       },
     },
     before,
