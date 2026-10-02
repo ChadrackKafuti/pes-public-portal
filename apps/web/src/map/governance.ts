@@ -77,7 +77,80 @@ export function zoneTypeColorExpression(): unknown[] {
   return expr;
 }
 
+/** Protected-area designation palette (symbology_protected_areas.arcade). */
+export const PA_TYPES: Record<string, { color: string; en: string; fr: string }> = {
+  national_park: { color: "#1b5e20", en: "National park", fr: "Parc national" },
+  world_heritage: { color: "#4a148c", en: "World heritage", fr: "Patrimoine mondial" },
+  biosphere_reserve: { color: "#00695c", en: "Biosphere reserve", fr: "Réserve de biosphère" },
+  ramsar: { color: "#0277bd", en: "Ramsar site", fr: "Site Ramsar" },
+  sanctuary: { color: "#2e7d32", en: "Sanctuary", fr: "Sanctuaire" },
+  wildlife_reserve: { color: "#388e3c", en: "Wildlife reserve", fr: "Réserve de faune" },
+  nature_reserve: { color: "#2e7d32", en: "Nature reserve", fr: "Réserve naturelle" },
+  strict_reserve: { color: "#004d40", en: "Strict nature reserve", fr: "Réserve naturelle intégrale" },
+  forest_reserve: { color: "#558b2f", en: "Forest reserve", fr: "Réserve forestière" },
+  community_reserve: { color: "#43a047", en: "Community reserve", fr: "Réserve communautaire" },
+  hunting_zone: { color: "#8d6e63", en: "Hunting zone", fr: "Zone d'intérêt cynégétique" },
+  botanical_garden: { color: "#7cb342", en: "Botanical / zoological garden", fr: "Jardin botanique / zoologique" },
+  natural_monument: { color: "#6d4c41", en: "Natural monument", fr: "Monument naturel" },
+  marine_protected_area: { color: "#01579b", en: "Marine protected area", fr: "Aire marine protégée" },
+  other_protected_area: { color: "#607d8b", en: "Other protected area", fr: "Autre aire protégée" },
+};
+
+/** Proposed (not yet designated) protected areas — symbology arcade. */
+export const PA_PROPOSED = {
+  color: "#90a4ae",
+  en: "Proposed (not yet designated)",
+  fr: "Proposée (non encore désignée)",
+};
+
+/** Attribution-status palette for concessions and community forests
+ *  (symbology_status.arcade labels; colours chosen on its semantics). */
+export const STATUS_TYPES: Record<string, { color: string; en: string; fr: string }> = {
+  attributed: { color: "#2e7d32", en: "Attributed", fr: "Attribuée" },
+  final: { color: "#1b5e20", en: "Final agreement", fr: "Convention définitive" },
+  provisional: { color: "#f9a825", en: "Provisional agreement", fr: "Convention provisoire" },
+  in_process: { color: "#0277bd", en: "Under review", fr: "En cours d'instruction" },
+  not_attributed: { color: "#90a4ae", en: "Not attributed", fr: "Non attribuée" },
+  rejected: { color: "#c62828", en: "Rejected", fr: "Rejetée" },
+  expired: { color: "#6d4c41", en: "Expired / terminated", fr: "Expirée / résiliée" },
+  unknown: { color: "#607d8b", en: "Status not provided", fr: "Statut non renseigné" },
+};
+
+function paColorExpression(): unknown[] {
+  const match: unknown[] = ["match", ["get", "subTypeStd"]];
+  for (const [k, v] of Object.entries(PA_TYPES)) {
+    match.push(k, v.color);
+  }
+  match.push(PA_TYPES.other_protected_area.color);
+  return ["case", ["==", ["get", "statusStd"], "in_process"], PA_PROPOSED.color, match];
+}
+
+function statusColorExpression(): unknown[] {
+  const expr: unknown[] = ["match", ["get", "statusStd"]];
+  for (const [k, v] of Object.entries(STATUS_TYPES)) {
+    if (k !== "unknown") expr.push(k, v.color);
+  }
+  expr.push(STATUS_TYPES.unknown.color);
+  return expr;
+}
+
 export function govFillColor(key: GovLayerKey): unknown {
   if (GOV_ZONING_LAYERS.includes(key)) return zoneTypeColorExpression();
+  // M16 — Arcade-parity unique-value renderers for the limit layers.
+  if (key === "protected_areas") return paColorExpression();
+  if (key === "concessions" || key === "community_forests") return statusColorExpression();
   return GOV_LIMIT_COLORS[key] ?? "#787878";
+}
+
+/** Per-layer outline accents (popup palette) — the old flat grey hid the
+ *  limits on imagery (M16). */
+export const GOV_LINE_COLORS: Record<string, string> = {
+  protected_areas: "#1b5e20",
+  concessions: "#5d4037",
+  community_forests: "#1b5e20",
+  local_territories: "#37474f",
+};
+
+export function govLineColor(key: GovLayerKey): string {
+  return GOV_LINE_COLORS[key] ?? "#4b4b4b";
 }

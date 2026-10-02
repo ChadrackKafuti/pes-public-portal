@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AnalysesContract, ContractAnalysis } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
+import { SearchSelect } from "../map/SearchSelect";
 import { StatTile } from "./bits";
 
 /** M7d — the v1 contract-analysis page: Org → Project → Contract pickers,
@@ -126,7 +127,15 @@ function ContractCombo({
   placeholder: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const t = useT();
   const current = items.find((c) => c.contractCode === value) ?? null;
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? items.filter((c) =>
+        `${contractDisplayCode(c)} ${contractDesc(c)}`.toLowerCase().includes(needle),
+      )
+    : items;
   return (
     <div className="an-combo">
       <button
@@ -134,7 +143,10 @@ function ContractCombo({
         className="an-combo-btn"
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setQ("");
+          setOpen((v) => !v);
+        }}
       >
         {current ? (
           <span className="an-combo-sel">
@@ -151,22 +163,35 @@ function ContractCombo({
       {open && (
         <>
           <div className="an-combo-backdrop" onClick={() => setOpen(false)} />
-          <ul className="an-combo-list" role="listbox">
-            {items.map((c) => (
-              <li key={c.contractCode} role="option" aria-selected={c.contractCode === value}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange(c.contractCode);
-                    setOpen(false);
-                  }}
-                >
-                  <strong>{contractDisplayCode(c)}</strong>
-                  <small>{contractDesc(c)}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="an-combo-list an-combo-panel">
+            <input
+              type="search"
+              className="an-combo-search"
+              value={q}
+              placeholder={t("combo_search")}
+              autoFocus
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setOpen(false);
+              }}
+            />
+            <ul role="listbox">
+              {shown.map((c) => (
+                <li key={c.contractCode} role="option" aria-selected={c.contractCode === value}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(c.contractCode);
+                      setOpen(false);
+                    }}
+                  >
+                    <strong>{contractDisplayCode(c)}</strong>
+                    <small>{contractDesc(c)}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </>
       )}
     </div>
@@ -218,14 +243,20 @@ export function AnalysesPage() {
           {!error && (
             <>
       <div className="an-pickers">
-        <select value={org} onChange={(e) => { setOrg(e.target.value); setProject(""); setCode(""); }}>
-          <option value="">{t("all_organisations")}</option>
-          {orgs.map((o) => <option key={o}>{o}</option>)}
-        </select>
-        <select value={project} onChange={(e) => { setProject(e.target.value); setCode(""); }}>
-          <option value="">{t("all_projects")}</option>
-          {projects.map((p) => <option key={p}>{p}</option>)}
-        </select>
+        <SearchSelect
+          options={orgs}
+          value={org}
+          placeholder={t("all_organisations")}
+          searchPlaceholder={t("combo_search")}
+          onChange={(v) => { setOrg(v); setProject(""); setCode(""); }}
+        />
+        <SearchSelect
+          options={projects}
+          value={project}
+          placeholder={t("all_projects")}
+          searchPlaceholder={t("combo_search")}
+          onChange={(v) => { setProject(v); setCode(""); }}
+        />
         <ContractCombo
           items={inProject}
           value={code}

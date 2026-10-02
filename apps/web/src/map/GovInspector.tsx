@@ -156,19 +156,32 @@ export function GovInspector({
   }
   const catOrder = [...DOCCAT_ORDER, ...[...grouped.keys()].filter((k) => !DOCCAT_ORDER.includes(k))];
 
-  // Zoning donut geometry.
+  // Zoning donut geometry — dissolved by zone type (M16): zones of the same
+  // affectation merge into ONE segment (QGIS-dissolve semantics), instead of
+  // one arc per source polygon.
   const donut = zones.length
     ? (() => {
+        const byType = new Map<string, number>();
+        for (const z of zones) {
+          const k = z.zoneTypeStd ?? "unclassified";
+          byType.set(k, (byType.get(k) ?? 0) + (z.areaCalcHa ?? 0));
+        }
         const total = zonedHa || 1;
-        const r = 40;
-        const c = 2 * Math.PI * r;
+        const c = 2 * Math.PI * 40;
         let offset = 0;
-        return zones.map((z) => {
-          const frac = (z.areaCalcHa ?? 0) / total;
-          const seg = { z, dash: frac * c, off: offset, color: ZONE_TYPES[z.zoneTypeStd ?? ""]?.color ?? "#bdbdbd" };
-          offset += frac * c;
-          return seg;
-        });
+        return [...byType.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, ha]) => {
+            const frac = ha / total;
+            const seg = {
+              key: k,
+              dash: frac * c,
+              off: offset,
+              color: ZONE_TYPES[k]?.color ?? "#bdbdbd",
+            };
+            offset += frac * c;
+            return seg;
+          });
       })()
     : null;
 
@@ -280,7 +293,7 @@ export function GovInspector({
               <circle cx="50" cy="50" r="40" fill="none" stroke="var(--grid)" strokeWidth="12" />
               {donut.map((s) => (
                 <circle
-                  key={s.z.srcUid}
+                  key={s.key}
                   cx="50" cy="50" r="40" fill="none"
                   stroke={s.color} strokeWidth="12"
                   strokeDasharray={`${s.dash} ${2 * Math.PI * 40}`}
