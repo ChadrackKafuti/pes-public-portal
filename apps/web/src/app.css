@@ -1996,3 +1996,212 @@ table.data a {
   font-weight: 600;
   text-decoration: none;
 }
+
+/* ---- M10: account menu (Ground-Impact style) ---- */
+
+.account {
+  position: relative;
+}
+
+.account-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 3px 10px 3px 4px;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #17b890;
+  color: #06281f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.account-avatar-lg {
+  width: 38px;
+  height: 38px;
+  font-size: 14px;
+}
+
+.account-chev {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 230px;
+  background: #fff;
+  color: var(--fg);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(1, 20, 40, 0.35);
+  padding: 12px;
+  z-index: 60;
+}
+
+.account-id {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.account-who strong {
+  font-size: 14px;
+}
+
+.account-mail {
+  font-size: 12px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-online {
+  font-size: 11px;
+  color: #17b890;
+}
+
+.account-signout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  color: var(--status-critical);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-signout:hover {
+  background: #f9dede;
+}
+
+.account-signout svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- M10: dark re-skin for light components inside glass panels ----
+   The governance inspector (and anything else built on the light tokens)
+   inherits the panel's dark values instead of white cards. */
+
+.panel {
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-high: rgba(255, 255, 255, 0.1);
+  --border: var(--map-border);
+  --fg: #ffffff;
+  --fg-muted: var(--map-text-muted);
+  --accent: var(--map-accent);
+  --grid: rgba(255, 255, 255, 0.12);
+  --shadow: none;
+  --color-primary-fixed: rgba(86, 199, 244, 0.16);
+  --color-primary: var(--map-accent);
+}
+
+.panel .pf-section h3 {
+  color: var(--map-accent);
+}
+
+.panel .tl-card,
+.panel .pf-section {
+  padding: 0.6rem 0.7rem;
+}
+
+.panel .doc-card a,
+.panel .pf-section a {
+  color: var(--map-accent);
+}
+
+.panel .insp-head strong {
+  font-size: 15px;
+}
+
+/* ---- M10: full in-panel dossier ---- */
+
+.pov-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-bottom: 0.7rem;
+}
+
+.pov-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pov-foot {
+  margin: 0.2rem 0 0;
+  font-size: 11px;
+  color: var(--map-text-faint);
+}
+
+.pov-thumb-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+.pov-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(1, 15, 26, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: zoom-out;
+  padding: 24px;
+}
+
+.pov-lightbox img {
+  max-width: 92vw;
+  max-height: 84vh;
+  border-radius: 10px;
+  box-shadow: var(--map-shadow);
+}
+
+.pov-lightbox span {
+  color: #fff;
+  font-size: 13px;
+}

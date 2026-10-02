@@ -34,6 +34,36 @@ def _rows(conn, application: str | None, kind: str | None, limit: int):
     ).fetchall()
 
 
+def _app_locations(conn, app_ids: set[str]) -> dict[str, tuple[float, float]]:
+    """Fallback coordinates for photos without GPS: the application's point,
+    else its polygon centroid. Many source photos carry no EXIF position but
+    still belong on the map at their parcel."""
+    if not app_ids:
+        return {}
+    from .geo import shape_to_geometry
+
+    out: dict[str, tuple[float, float]] = {}
+    rows = conn.execute(
+        "SELECT application_id, point_lon, point_lat, shape_raw "
+        "FROM pes_parcels WHERE application_id = ANY(%s)",
+        (list(app_ids),),
+    ).fetchall()
+    for aid, lon, lat, shape in rows:
+        if lon is not None and lat is not None:
+            out[aid] = (lon, lat)
+            continue
+        geom = shape_to_geometry(shape, None, None)
+        if geom is not None:
+            try:
+                from shapely.geometry import shape as to_shape
+
+                c = to_shape(geom).centroid
+                out[aid] = (c.x, c.y)
+            except Exception:  # noqa: BLE001 — bad shape: photo stays unplaced
+                pass
+    return out
+
+
 @router.get("/api/photos.geojson")
 def photos_geojson(
     application: str | None = None,
@@ -42,12 +72,24 @@ def photos_geojson(
     user: Principal = CurrentUser,
 ) -> dict:
     rows = _rows(conn, application, kind, 10000)
-    return {
-        "type": "FeatureCollection",
-        "features": [
+
+    # Source arrays report lon/lat 0 when the photo has no GPS; (0,0) is in
+    # the Atlantic, never a Congo Basin parcel, so it counts as missing too.
+    def gps(r) -> tuple[float, float] | None:
+        if r[8] is None or r[9] is None or (r[8] == 0 and r[9] == 0):
+            return None
+        return (r[8], r[9])
+
+    fallback = _app_locations(conn, {r[3] for r in rows if gps(r) is None and r[3]})
+    features = []
+    for r in rows:
+        coords = gps(r) or fallback.get(r[3])
+        if coords is None:
+            continue  # no GPS and no locatable parcel
+        features.append(
             {
                 "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": [r[8], r[9]]},
+                "geometry": {"type": "Point", "coordinates": [coords[0], coords[1]]},
                 "properties": {
                     "photoUid": r[0],
                     "kind": r[1],
@@ -60,9 +102,8 @@ def photos_geojson(
                     "mirrored": r[10],
                 },
             }
-            for r in rows
-        ],
-    }
+        )
+    return {"type": "FeatureCollection", "features": features}
 
 
 @router.get("/api/applications/{application_id}/photos", response_model=list[PhotoOut])

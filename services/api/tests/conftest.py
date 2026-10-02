@@ -95,6 +95,9 @@ VALUES
   ('bbbb2222', 'monitoring_visit', 'M1', 'A1', 'APP-001', 'CTR-001', 1, 'Visit photo',
    'https://example.org/p2.jpg?sig=y', 'https://example.org/p2.jpg',
    15.003, -0.997, NULL, NULL),
+  ('dddd4444', 'application', 'A1', 'A1', 'APP-001', NULL, 2, 'No GPS photo',
+   'https://example.org/p4.jpg?sig=w', 'https://example.org/p4.jpg',
+   0, 0, NULL, NULL),
   ('cccc3333', 'application', 'A2', 'A2', 'APP-002', NULL, 1, 'Other parcel',
    'https://example.org/p3.jpg?sig=z', 'https://example.org/p3.jpg',
    15.5, -2.25, NULL, 'error');
