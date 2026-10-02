@@ -62,6 +62,48 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
   });
 }
 
+/** PES contracts (M12): the DataLoad-derived layer (one record per contract
+ *  code, latest completed visit, visit shape else application polygon). Drawn
+ *  beneath the parcels in the same yellow but dashed, with ring points, so
+ *  contracts and applications stay tellable apart where they coincide. */
+const CONTRACTS_SRC = "contracts";
+const CONTRACT_LAYERS = ["contracts-line", "contracts-point"] as const;
+
+function addContractLayers(map: maplibregl.Map, data: FeatureCollection) {
+  if (map.getSource(CONTRACTS_SRC)) return;
+  map.addSource(CONTRACTS_SRC, { type: "geojson", data });
+  const before = map.getLayer("parcels-fill") ? "parcels-fill" : undefined;
+  map.addLayer(
+    {
+      id: "contracts-line",
+      type: "line",
+      source: CONTRACTS_SRC,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: {
+        "line-color": APP_YELLOW,
+        "line-width": 2.25,
+        "line-dasharray": [2, 1.5],
+      },
+    },
+    before,
+  );
+  map.addLayer(
+    {
+      id: "contracts-point",
+      type: "circle",
+      source: CONTRACTS_SRC,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-radius": 5,
+        "circle-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 2,
+        "circle-stroke-color": APP_YELLOW,
+      },
+    },
+    before,
+  );
+}
+
 /* Live reference layers from the public UNDP services the v1 web map used
  * (plain HTTP — no ArcGIS SDK). Loaded on demand from the browser. */
 
@@ -501,6 +543,7 @@ export function MapStage({
       : null;
     (map.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(filtered);
     applyPhotoData();
+    applyContractData();
     // the count is applications, not features (each app can be point + polygon)
     setFltCount(active ? (fltIdsRef.current?.size ?? 0) : null);
   };
@@ -524,6 +567,33 @@ export function MapStage({
   const photosDataRef = useRef<FeatureCollection | null>(null);
   const photosOnRef = useRef(photosOn);
   photosOnRef.current = photosOn;
+
+  /* M12 — PES contracts layer (visits-derived, lazy-loaded on first enable). */
+  const [contractsOn, setContractsOn] = useState(false);
+  const contractsDataRef = useRef<FeatureCollection | null>(null);
+  const contractsOnRef = useRef(contractsOn);
+  contractsOnRef.current = contractsOn;
+
+  /** Contracts follow the filters through their linked application ids,
+   *  exactly like the photo layers. */
+  const applyContractData = () => {
+    const map = mapRef.current;
+    const base = contractsDataRef.current;
+    if (!map || !base) return;
+    const src = map.getSource(CONTRACTS_SRC) as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    const ids = fltIdsRef.current;
+    src.setData(
+      ids
+        ? {
+            type: "FeatureCollection",
+            features: base.features.filter((f) =>
+              ids.has(String((f.properties ?? {}).applicationId ?? "")),
+            ),
+          }
+        : base,
+    );
+  };
 
   /* v1 pattern: clicking an application shows its details in the Overview
    * tab, never a separate page. */
@@ -660,7 +730,7 @@ export function MapStage({
       finishAoiRef.current();
     });
 
-    const interactive = [...LAYERS];
+    const interactive = [...LAYERS, ...CONTRACT_LAYERS];
     map.on("mousemove", interactive, () => {
       if (aoiModeRef.current) return;
       map.getCanvas().style.cursor = "pointer";
@@ -700,7 +770,7 @@ export function MapStage({
 
     map.on("click", (e) => {
       if (aoiModeRef.current || photoHit(e)) return;
-      const parcelIds = LAYERS.filter((id) => map.getLayer(id));
+      const parcelIds = [...LAYERS, ...CONTRACT_LAYERS].filter((id) => map.getLayer(id));
       if (parcelIds.length && map.queryRenderedFeatures(e.point, { layers: [...parcelIds] }).length) {
         return; // the parcels handler below owns this click
       }
@@ -758,6 +828,14 @@ export function MapStage({
           applyPhotoVisRef.current();
           applyPhotoData();
         });
+      }
+      if (
+        contractsDataRef.current &&
+        contractsOnRef.current &&
+        !map.getSource(CONTRACTS_SRC)
+      ) {
+        addContractLayers(map, contractsDataRef.current);
+        applyContractData();
       }
       for (const key of Object.keys(ADMIN_LAYERS) as AdminKey[]) {
         const data = adminDataRef.current[key];
@@ -840,6 +918,39 @@ export function MapStage({
       cancelled = true;
     };
   }, [photosOn]);
+
+  // Contracts toggle: lazy-load the derived layer once, then flip visibility.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    let cancelled = false;
+    if (contractsOn && !contractsDataRef.current) {
+      api
+        .contractsGeojson()
+        .then((data) => {
+          contractsDataRef.current = data as FeatureCollection;
+          const m = mapRef.current;
+          if (!cancelled && m && contractsOnRef.current) {
+            addContractLayers(m, data as FeatureCollection);
+            applyContractData();
+          }
+        })
+        .catch(() => {
+          /* visits not synced yet or API down: leave the toggle inert */
+        });
+    } else if (map.getLayer("contracts-line")) {
+      for (const id of CONTRACT_LAYERS) {
+        map.setLayoutProperty(id, "visibility", contractsOn ? "visible" : "none");
+      }
+    } else if (contractsOn && contractsDataRef.current) {
+      addContractLayers(map, contractsDataRef.current);
+      applyContractData();
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractsOn]);
 
   // Admin boundary toggles: fetch the public GeoJSON once, then flip visibility.
   useEffect(() => {
@@ -1280,6 +1391,19 @@ export function MapStage({
                 />
                 <i className="legend-dot" style={{ background: APP_YELLOW }} aria-hidden />
                 {t("lyr_app_points")}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={contractsOn}
+                  onChange={(e) => setContractsOn(e.target.checked)}
+                />
+                <i
+                  className="legend-line"
+                  style={{ borderColor: APP_YELLOW, borderStyle: "dashed" }}
+                  aria-hidden
+                />
+                {t("lyr_contracts")}
               </label>
               <label>
                 <input

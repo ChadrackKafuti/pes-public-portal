@@ -21,6 +21,7 @@ from .db import get_conn
 from .alerts import router as alerts_router
 from .analyses import router as analyses_router
 from .aoi import router as aoi_router
+from .contracts import router as contracts_router
 from .dashboard import router as dashboard_router
 from .photos import router as photos_router
 from .profile import router as profile_router
@@ -41,6 +42,7 @@ app.include_router(dashboard_router)
 app.include_router(alerts_router)
 app.include_router(aoi_router)
 app.include_router(photos_router)
+app.include_router(contracts_router)
 app.include_router(profile_router)
 app.include_router(analyses_router)
 

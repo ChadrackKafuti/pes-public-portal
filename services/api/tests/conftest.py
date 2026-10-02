@@ -81,6 +81,13 @@ INSERT INTO pes_raw_records (kind, record_id, payload) VALUES
   ('monitoring_visit', 'MF', '{
      "MonitoringVisitCode": "MF", "ApplicationId": "A1", "ApplicationCode": "APP-001",
      "ContractCode": "CTR-001", "MonitoringDate": "2099-04-01"
+   }'::jsonb),
+  ('monitoring_visit', 'M2', '{
+     "MonitoringVisitCode": "M2", "ApplicationId": "A2", "ApplicationCode": "APP-002",
+     "ContractCode": "CTR-002", "ContractStatus": "Active",
+     "ContractStartDate": "2024-09-01", "ContractEndDate": "2029-09-01",
+     "ContractedPESArea": 2.0, "MonitoringDate": "2025-05-01",
+     "Shape": "POLYGON((15.5 -2.25,15.51 -2.25,15.51 -2.24,15.5 -2.25))"
    }'::jsonb);
 """
 

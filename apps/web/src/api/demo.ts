@@ -127,6 +127,29 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
     } as T;
   }
   if (path === "/applications.geojson") return load("applications.geojson.json");
+  // Contracts derive from visits in production; the demo derives them from
+  // the application snapshot (one contract per app carrying a contract code).
+  if (path === "/contracts.geojson") {
+    const apps = await load<GeoJSON.FeatureCollection>("applications.geojson.json");
+    const features = apps.features
+      .filter((f) => (f.properties ?? {}).contractCode)
+      .map((f) => ({
+        type: "Feature" as const,
+        geometry: f.geometry,
+        properties: {
+          contractCode: f.properties!.contractCode,
+          applicationId: f.properties!.applicationId,
+          applicationCode: f.properties!.applicationCode,
+          pesActivity: f.properties!.pesActivity,
+          contractStatus: "Active",
+          visitCount: 2,
+          visitsWithGeometry: 0,
+          selectedVisitRule: "latest_completed_visit",
+          geometrySource: "application_shape_fallback",
+        },
+      }));
+    return { type: "FeatureCollection", features } as T;
+  }
   if (path === "/governance/layers") return load("governance/layers.json");
   let m = path.match(/^\/applications\/([^/]+)\/indicators$/);
   if (m) return load(`indicators/${decodeURIComponent(m[1])}.json`);
