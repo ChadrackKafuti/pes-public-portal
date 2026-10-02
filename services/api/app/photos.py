@@ -84,11 +84,38 @@ def photos_geojson(
         return (r[8], r[9])
 
     fallback = _app_locations(conn, {r[3] for r in rows if gps(r) is None and r[3]})
+
+    # M16: the source photo arrays carry no capture date, so the parent
+    # record's date stands in — the visit date for monitoring photos, the
+    # application date otherwise.
+    from .contracts import _VISIT_ID_KEYS, _visit_date
+    from .profile import _pick
+
+    app_dates = {
+        str(a): d
+        for a, d in conn.execute(
+            "SELECT application_id, application_date FROM pes_parcels"
+        ).fetchall()
+    }
+    visit_dates: dict[str, object] = {}
+    for (vp,) in conn.execute(
+        "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
+    ).fetchall():
+        vid = _pick(vp, _VISIT_ID_KEYS)
+        d = _visit_date(vp)
+        if vid is not None and d is not None:
+            visit_dates[str(vid)] = d
+
     features = []
     for r in rows:
         coords = gps(r) or fallback.get(r[3])
         if coords is None:
             continue  # no GPS and no locatable parcel
+        date = (
+            visit_dates.get(str(r[2]))
+            if r[1] == "monitoring_visit"
+            else app_dates.get(str(r[3]))
+        ) or app_dates.get(str(r[3]))
         features.append(
             {
                 "type": "Feature",
@@ -103,6 +130,7 @@ def photos_geojson(
                     "photoIndex": r[6],
                     "label": r[7],
                     "mirrored": r[10],
+                    "date": date.isoformat() if date else None,  # type: ignore[union-attr]
                 },
             }
         )

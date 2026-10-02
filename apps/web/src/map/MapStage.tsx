@@ -10,13 +10,18 @@ import {
   GOV_LAYER_ORDER,
   GOV_ZONING_LAYERS,
   ZONE_TYPES,
+  PA_PROPOSED,
+  PA_TYPES,
+  STATUS_TYPES,
   govFillColor,
   govLayerLabel,
+  govLineColor,
   zoneTypeLabel,
 } from "./governance";
-import { fmtNum, useI18n, useT, type Key } from "../i18n";
+import { fmtDate, fmtNum, useI18n, useT, type Key } from "../i18n";
 import { GovInspector } from "./GovInspector";
 import { ParcelOverview } from "./ParcelOverview";
+import { SearchSelect } from "./SearchSelect";
 import { HBars, MiniColumns, SplitBar, Tile } from "./viz";
 
 /** Congo Basin extent used by portal-v1 (WGS84). */
@@ -235,7 +240,12 @@ function addGovLayers(map: maplibregl.Map, key: GovLayerKey, data: FeatureCollec
       source: govSrc(key),
       paint: {
         "fill-color": govFillColor(key) as never,
-        "fill-opacity": GOV_ZONING_LAYERS.includes(key) ? 0.55 : 0.35,
+        // Arcade parity (M16): PA renders at 40% fill like the web map.
+        "fill-opacity": GOV_ZONING_LAYERS.includes(key)
+          ? 0.55
+          : key === "protected_areas"
+            ? 0.4
+            : 0.35,
       },
     },
     before,
@@ -245,7 +255,7 @@ function addGovLayers(map: maplibregl.Map, key: GovLayerKey, data: FeatureCollec
       id: govLine(key),
       type: "line",
       source: govSrc(key),
-      paint: { "line-color": "#4b4b4b", "line-width": 0.6 },
+      paint: { "line-color": govLineColor(key), "line-width": 0.9 },
     },
     before,
   );
@@ -407,12 +417,24 @@ function photoPopupContent(
   p: Record<string, unknown>,
   pendingLabel: string,
   navigateToDossier: (id: string) => void,
+  coords?: [number, number],
+  dateLabel?: string | null,
 ): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "map-popup";
   const title = document.createElement("strong");
   title.textContent = String(p.label ?? "Photo");
   el.appendChild(title);
+  // M16: parent date + the photo's coordinates
+  const meta = document.createElement("div");
+  meta.className = "map-popup-meta";
+  meta.textContent = [
+    dateLabel ?? null,
+    coords ? `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (meta.textContent) el.appendChild(meta);
   if (typeof p.applicationId === "string" && p.applicationId) {
     const btn = document.createElement("button");
     btn.className = "map-popup-btn";
@@ -587,8 +609,65 @@ export function MapStage({
     (map.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(filtered);
     applyPhotoData();
     applyContractData();
+    // M16: the country/province filters also narrow the admin layers …
+    appliedAdmRef.current = { country: f.country, province: f.province };
+    applyAdminData();
+    // … and applying zooms to the matches, like the code search does.
+    if (active && filtered.features.length) {
+      const b = dataBounds(filtered);
+      if (b) {
+        userMovedRef.current = true;
+        map.fitBounds(b, { padding: 80, maxZoom: 12 });
+      }
+    } else if (!active) {
+      userMovedRef.current = false;
+      map.fitBounds(homeBounds(), { padding: 24 });
+    }
     // the count is applications, not features (each app can be point + polygon)
     setFltCount(active ? (fltIdsRef.current?.size ?? 0) : null);
+  };
+
+  /** M16 — the country/province filters narrow the Admin 0/1 outlines too
+   *  (admin0_pse_name carries the PES country spelling on both services). */
+  const appliedAdmRef = useRef({ country: "", province: "" });
+  const applyAdminData = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const { country, province } = appliedAdmRef.current;
+    const eq = (a: unknown, b: string) =>
+      typeof a === "string" && a.trim().toLowerCase() === b.trim().toLowerCase();
+    const narrow = (
+      key: AdminKey,
+      pred: ((p: Record<string, unknown>) => boolean) | null,
+    ) => {
+      const base = adminDataRef.current[key];
+      const src = map.getSource(`admin-${key}`) as maplibregl.GeoJSONSource | undefined;
+      if (!base || !src) return;
+      src.setData(
+        pred
+          ? {
+              type: "FeatureCollection",
+              features: base.features.filter((f) =>
+                pred((f.properties ?? {}) as Record<string, unknown>),
+              ),
+            }
+          : base,
+      );
+    };
+    narrow(
+      "admin0",
+      country
+        ? (p) => eq(p.admin0_pse_name, country) || eq(p.admin0name, country)
+        : null,
+    );
+    narrow(
+      "admin1",
+      province
+        ? (p) => eq(p.admin1name, province)
+        : country
+          ? (p) => eq(p.admin0_pse1_name, country) || eq(p.admin0name, country)
+          : null,
+    );
   };
 
   /** Distinct sorted values of one geojson property, optionally pre-filtered. */
@@ -826,9 +905,19 @@ export function MapStage({
         if (aoiModeRef.current) return;
         const f: MapGeoJSONFeature | undefined = e.features?.[0];
         if (!f) return;
-        const el = photoPopupContent(f.properties ?? {}, t("photo_pending"), (appId) => {
-          openParcelRef.current(appId, {});
-        });
+        const props = (f.properties ?? {}) as Record<string, unknown>;
+        const pt = (f.geometry as Point).coordinates as [number, number];
+        const el = photoPopupContent(
+          props,
+          t("photo_pending"),
+          (appId) => {
+            openParcelRef.current(appId, {});
+          },
+          pt,
+          typeof props.date === "string"
+            ? fmtDate(props.date, localeRef.current)
+            : null,
+        );
         new maplibregl.Popup({ closeButton: true, maxWidth: "300px" })
           .setLngLat(e.lngLat)
           .setDOMContent(el)
@@ -915,6 +1004,7 @@ export function MapStage({
           addAdminLayer(map, key, data);
         }
       }
+      applyAdminData();
       for (const [key, base] of SUITABILITY_LAYERS) {
         if (suitOnRef.current[key] && !map.getSource(`suit-${key}`)) {
           addSuitabilityLayer(map, key, base);
@@ -1040,7 +1130,10 @@ export function MapStage({
           .then((data: FeatureCollection) => {
             adminDataRef.current[key] = data;
             const m = mapRef.current;
-            if (!cancelled && m && adminOnRef.current[key]) addAdminLayer(m, key, data);
+            if (!cancelled && m && adminOnRef.current[key]) {
+              addAdminLayer(m, key, data);
+              applyAdminData(); // a filter may already narrow this layer
+            }
             // Admin 0 defines the home extent: re-fit once it arrives, as
             // long as the map is visible and the user hasn't explored yet.
             if (!cancelled && m && key === "admin0" && everShownRef.current && !userMovedRef.current) {
@@ -1055,6 +1148,7 @@ export function MapStage({
         map.setLayoutProperty(`admin-${key}`, "visibility", on ? "visible" : "none");
       } else if (on && adminDataRef.current[key]) {
         addAdminLayer(map, key, adminDataRef.current[key]!);
+        applyAdminData();
       }
     }
     return () => {
@@ -1145,7 +1239,11 @@ export function MapStage({
     if (!map) return;
     for (const key of GOV_LAYER_ORDER) {
       if (!map.getLayer(govFill(key))) continue;
-      const base = GOV_ZONING_LAYERS.includes(key) ? 0.55 : 0.35;
+      const base = GOV_ZONING_LAYERS.includes(key)
+        ? 0.55
+        : key === "protected_areas"
+          ? 0.4
+          : 0.35;
       map.setPaintProperty(govFill(key), "fill-opacity", base * govOpacity);
       map.setPaintProperty(govLine(key), "line-opacity", Math.min(1, 0.4 + 0.6 * govOpacity));
     }
@@ -1680,6 +1778,29 @@ export function MapStage({
                 ))}
               </div>
             )}
+            {govVisible.protected_areas && (
+              <div className="gov-legend">
+                <span className="muted small">{t("gov_pa_legend")}</span>
+                {Object.entries(PA_TYPES).map(([k, v]) => (
+                  <span key={k} className="gov-legend-row">
+                    <i style={{ background: v.color }} /> {v[locale]}
+                  </span>
+                ))}
+                <span className="gov-legend-row">
+                  <i style={{ background: PA_PROPOSED.color }} /> {PA_PROPOSED[locale]}
+                </span>
+              </div>
+            )}
+            {(govVisible.concessions || govVisible.community_forests) && (
+              <div className="gov-legend">
+                <span className="muted small">{t("gov_status_legend")}</span>
+                {Object.entries(STATUS_TYPES).map(([k, v]) => (
+                  <span key={k} className="gov-legend-row">
+                    <i style={{ background: v.color }} /> {v[locale]}
+                  </span>
+                ))}
+              </div>
+            )}
             <button className="btn-ghost" onClick={zoomToData}>
               {t("map_zoom_data")}
             </button>
@@ -1729,23 +1850,20 @@ export function MapStage({
                   ["applicationStatus", "flt_status", fltOptions("applicationStatus")],
                 ] as const
               ).map(([key, label, options]) => (
-                <select
+                <SearchSelect
                   key={key}
+                  options={options}
                   value={flt[key]}
-                  aria-label={t(label)}
-                  onChange={(e) =>
+                  placeholder={t(label)}
+                  searchPlaceholder={t("combo_search")}
+                  onChange={(v) =>
                     setFlt((f) => ({
                       ...f,
-                      [key]: e.target.value,
+                      [key]: v,
                       ...(key === "country" ? { province: "" } : null),
                     }))
                   }
-                >
-                  <option value="">{t(label)}</option>
-                  {options.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
+                />
               ))}
             </div>
             <input

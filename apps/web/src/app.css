@@ -2587,3 +2587,37 @@ table.data a {
 .an-combo-list li[aria-selected="true"] button {
   background: rgba(86, 199, 244, 0.16);
 }
+
+/* M16 — search input inside combobox panels */
+.an-combo-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.an-combo-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--map-border);
+  border-radius: 6px;
+  color: var(--map-text, #fff);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.an-combo-search::placeholder {
+  color: var(--map-text-muted);
+}
+
+/* M16 — photo popup meta line (date · coordinates) */
+.map-popup-meta {
+  font-size: 10.5px;
+  color: #5c6b7a;
+  margin: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
