@@ -189,15 +189,20 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
     Polygon from shape_raw when it parses, point fallback otherwise;
     records with no usable geometry are omitted."""
     from .geo import shape_to_geometry
+    from .profile import _pick
 
     rows = conn.execute(
         """
         SELECT p.application_id, p.application_code, p.contract_code, p.pes_activity,
                p.application_date, p.shape_raw, p.point_lon, p.point_lat,
-               o.status, o.tree_cover_ha
+               o.status, o.tree_cover_ha,
+               p.country, p.province, p.implementing_org, p.project_name,
+               r.payload
         FROM pes_parcels p
         LEFT JOIN pes_rs_objects o
           ON o.object_id = p.application_id AND o.object_type = 'application'
+        LEFT JOIN pes_raw_records r
+          ON r.kind = 'application' AND r.record_id = p.application_id
         """
     ).fetchall()
     features = []
@@ -205,6 +210,7 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
         geometry = shape_to_geometry(r[5], r[6], r[7])
         if geometry is None:
             continue
+        payload = r[14] or {}
         features.append(
             {
                 "type": "Feature",
@@ -217,6 +223,14 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
                     "applicationDate": r[4].isoformat(),
                     "status": r[8],
                     "treeCoverHa": r[9],
+                    # v1 filter fields (M7e): parcel columns + raw payload.
+                    "country": r[10],
+                    "province": r[11],
+                    "org": r[12],
+                    "project": r[13],
+                    "beneficiaryType": _pick(payload, ["beneficiarytype"]),
+                    "gender": _pick(payload, ["beneficiarygender", "gender"]),
+                    "applicationStatus": _pick(payload, ["applicationstatus", "contractstatus", "status"]),
                 },
             }
         )

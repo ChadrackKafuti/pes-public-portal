@@ -310,6 +310,17 @@ class DashboardStatusCounts(ApiModel):
     partial_final: int
 
 
+class DashboardStage(ApiModel):
+    name: str
+    order: int | None
+    applications: int
+
+
+class DashboardCount(ApiModel):
+    name: str
+    applications: int
+
+
 class DashboardPes(ApiModel):
     applications: int
     parcel_area_ha: float | None
@@ -319,6 +330,10 @@ class DashboardPes(ApiModel):
     by_country: list[DashboardGroup]
     by_activity: list[DashboardGroup]
     by_month: list[DashboardMonth]
+    by_stage: list[DashboardStage] = []
+    by_gender: list[DashboardCount] = []
+    fire_profile: list[DashboardCount] = []
+    overdue: int | None = None
 
 
 class DashboardGovLayer(ApiModel):

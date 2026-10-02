@@ -6,10 +6,13 @@ forest-governance inventory. Blank-is-not-zero carries through: sums of
 NULL indicator values stay NULL, never 0.
 """
 
+from collections import Counter
+
 from fastapi import APIRouter, Depends
 
 from .auth import CurrentUser, Principal
 from .db import get_conn
+from .profile import _fire_category, _int, _pick, _stage
 from .schemas import DashboardOut
 from .governance import GOV_LAYERS, _PRODUCTION_FILTER
 
@@ -50,6 +53,61 @@ WHERE (%(country)s::text IS NULL OR p.country = %(country)s)
 GROUP BY 1 ORDER BY 1
 """
 
+_PROFILE_SQL = """
+SELECT r.payload, o.burned_area_5yr_ha, o.parcel_area_ha
+FROM pes_raw_records r
+JOIN pes_parcels p ON p.application_id = r.record_id
+LEFT JOIN pes_rs_objects o
+  ON o.object_id = p.application_id AND o.object_type = 'application'
+WHERE r.kind = 'application'
+  AND (%(country)s::text IS NULL OR p.country = %(country)s)
+"""
+
+
+def _profile_aggregates(conn, country: str | None) -> dict:
+    """v1 country-overview figures, derived from the raw payload mirror:
+    stage pipeline, beneficiary gender split, fire-risk profile and the
+    overdue-monitoring count. Empty when no raw records are mirrored yet."""
+    stages: Counter[tuple[int | None, str]] = Counter()
+    genders: Counter[str] = Counter()
+    fire: Counter[str] = Counter()
+    overdue = 0
+    rows = conn.execute(_PROFILE_SQL, {"country": country}).fetchall()
+    for payload, burned_ha, parcel_ha in rows:
+        stage = _stage(payload)
+        if stage is not None and (stage.name or stage.status):
+            stages[(stage.order, str(stage.name or stage.status))] += 1
+        gender = _pick(payload, ["beneficiarygender", "gender"])
+        if gender:
+            genders[str(gender)] += 1
+        burned_pct = (
+            burned_ha / parcel_ha * 100 if burned_ha is not None and parcel_ha else None
+        )
+        category = _fire_category(burned_pct)
+        if category is not None:
+            fire[category] += 1
+        if bool(_int(_pick(payload, ["monitoringoverdue"]))):
+            overdue += 1
+    return {
+        "by_stage": [
+            {"name": name, "order": order, "applications": n}
+            for (order, name), n in sorted(
+                stages.items(), key=lambda kv: (kv[0][0] is None, kv[0][0], kv[0][1])
+            )
+        ],
+        "by_gender": [
+            {"name": g, "applications": n}
+            for g, n in sorted(genders.items(), key=lambda kv: (-kv[1], kv[0]))
+        ],
+        "fire_profile": [
+            {"name": c, "applications": fire[c]}
+            for c in ("low", "moderate", "high", "very_high")
+            if c in fire
+        ],
+        "overdue": overdue if rows else None,
+    }
+
+
 _GOV_SQL = f"""
 SELECT layer, count(*), sum(area_calc_ha)
 FROM gov_areas WHERE {_PRODUCTION_FILTER}
@@ -82,6 +140,7 @@ def dashboard(
             "by_country": _groups(conn, "p.country", country),
             "by_activity": _groups(conn, "p.pes_activity", country),
             "by_month": [{"month": m[0], "applications": m[1]} for m in months],
+            **_profile_aggregates(conn, country),
         },
         governance={
             "by_layer": [

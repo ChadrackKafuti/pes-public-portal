@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Dashboard, DashboardGroup, FilterOptions } from "@cafi/shared";
 import { api } from "../api/client";
-import { fmtNum, useI18n, useT } from "../i18n";
+import { fmtNum, useI18n, useT, type Key } from "../i18n";
 import { GOV_LAYER_ORDER, govLayerLabel } from "../map/governance";
 import { PageHeader, StatTile, StatusBadge } from "./bits";
 
@@ -161,6 +161,9 @@ export function DashboardPage() {
         <StatTile label={t("dash_area")} value={fmtNum(pes.parcelAreaHa, locale)} unit="ha" />
         <StatTile label={t("dash_tree_cover")} value={fmtNum(pes.treeCoverHa, locale)} unit="ha" />
         <StatTile label={t("dash_visits")} value={fmtNum(pes.visits, locale, 0)} />
+        {pes.overdue != null && (
+          <StatTile label={t("dash_overdue")} value={fmtNum(pes.overdue, locale, 0)} />
+        )}
       </div>
 
       <p className="status-row">
@@ -176,6 +179,28 @@ export function DashboardPage() {
         <BarList title={t("dash_by_country")} rows={asGroupRows(pes.byCountry)} />
         <BarList title={t("dash_by_activity")} rows={asGroupRows(pes.byActivity)} />
       </div>
+
+      {/* M7e — v1 country-overview aggregates (hidden until raw records mirror). */}
+      <div className="chart-grid">
+        <BarList
+          title={t("dash_by_stage")}
+          rows={(pes.byStage ?? []).map((s) => ({
+            label: s.order != null ? `${s.order}. ${s.name}` : s.name,
+            value: s.applications,
+          }))}
+        />
+        <BarList
+          title={t("dash_by_gender")}
+          rows={(pes.byGender ?? []).map((g) => ({ label: g.name, value: g.applications }))}
+        />
+      </div>
+      <BarList
+        title={t("dash_fire_profile")}
+        rows={(pes.fireProfile ?? []).map((f) => ({
+          label: t(`fire_${f.name}` as Key),
+          value: f.applications,
+        }))}
+      />
 
       <BarList
         title={t("dash_governance")}

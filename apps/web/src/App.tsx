@@ -6,6 +6,7 @@ import { AlertsPage } from "./screens/AlertsPage";
 import { AnalysesPage } from "./screens/AnalysesPage";
 import { DashboardPage } from "./screens/DashboardPage";
 import { DossierPage } from "./screens/DossierPage";
+import { LandingPage } from "./screens/LandingPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
 import { authEnabled, authMode, useAuth } from "./auth";
@@ -148,7 +149,7 @@ export function App() {
   }
 
   const rail: { to: string; end?: boolean; icon: keyof typeof I; label: string }[] = [
-    { to: "/", end: true, icon: "map", label: t("nav_map") },
+    { to: "/map", icon: "map", label: t("nav_map") },
     { to: "/applications", icon: "applications", label: t("nav_applications") },
     { to: "/dashboard", icon: "dashboard", label: t("nav_dashboard") },
     { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
@@ -199,7 +200,7 @@ export function App() {
           </nav>
           <div className="content">
             <Routes>
-              <Route path="/" element={<MapStage />} />
+              <Route path="/" element={<LandingPage />} />
               <Route path="/applications" element={<ApplicationsPage />} />
               <Route path="/applications/:id" element={<DossierPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />

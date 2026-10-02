@@ -1252,3 +1252,101 @@ table.data a {
     height: auto;
   }
 }
+
+/* ---- M7e: landing hero ---- */
+
+.landing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent),
+    var(--bg);
+}
+
+.landing-hero {
+  margin: auto;
+  max-width: 46rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.landing-kicker {
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  margin: 0 0 0.6rem;
+}
+
+.landing-title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  margin: 0 0 0.9rem;
+}
+
+.landing-lead {
+  color: var(--fg-muted);
+  font-size: 1.02rem;
+  line-height: 1.55;
+  margin: 0 0 1.6rem;
+}
+
+.landing-ctas {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.landing-ctas .btn {
+  text-decoration: none;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+}
+
+.btn.btn-secondary {
+  background: none;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+}
+
+.landing-foot {
+  text-align: center;
+  padding: 0 1.5rem 1.2rem;
+}
+
+/* ---- M7e: map filter section ---- */
+
+.flt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.flt-grid select {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.flt-dates {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0.5rem 0;
+}
+
+.flt-dates label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.flt-dates input {
+  width: 100%;
+  min-width: 0;
+}
