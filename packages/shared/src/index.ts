@@ -289,6 +289,7 @@ export interface Profile {
     landcoverCurrent: string | null;
     landcoverCurrentPct: number | null;
     landcoverChanged: boolean | null;
+    series?: { year: number; tcHa: number | null; lossHa: number | null }[];
   } | null;
   geometrySource: string | null;
   lastSync: string | null;

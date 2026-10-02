@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from .auth import CurrentUser, Principal
 from .db import get_conn
 from .schemas import (
+    AnnualPoint,
     ProfileAreas,
     ProfileBaseline,
     ProfileBeneficiary,
@@ -181,6 +182,15 @@ def application_profile(
     ).fetchall()
     app_rs = next((r for r in rs if r[0] == "application"), None)
     latest_rs = rs[-1] if rs else None
+
+    # M13: the annual Dynamic World series feeds the Overview's baseline chart.
+    annual = conn.execute(
+        """
+        SELECT year, tc_ha, loss_ha FROM pes_annual_indicators
+        WHERE application_id = %s ORDER BY year
+        """,
+        (application_id,),
+    ).fetchall()
 
     # Visits: raw visit payloads linked by application reference (322→ small
     # table today; expression-index when it grows).
@@ -354,17 +364,22 @@ def application_profile(
         performance=perf,
         areas=areas,
         baseline=ProfileBaseline(
-            parcel_area_ha=app_rs[2],
-            tree_cover_ha=app_rs[7],
-            defor_5yr_ha_yr=app_rs[8],
-            baseline_years=app_rs[9],
-            landcover_at_app=app_rs[10],
-            landcover_at_app_pct=app_rs[11],
-            landcover_current=app_rs[12],
-            landcover_current_pct=app_rs[13],
-            landcover_changed=(app_rs[10] != app_rs[12]) if app_rs[10] and app_rs[12] else None,
+            parcel_area_ha=app_rs[2] if app_rs else None,
+            tree_cover_ha=app_rs[7] if app_rs else None,
+            defor_5yr_ha_yr=app_rs[8] if app_rs else None,
+            baseline_years=app_rs[9] if app_rs else None,
+            landcover_at_app=app_rs[10] if app_rs else None,
+            landcover_at_app_pct=app_rs[11] if app_rs else None,
+            landcover_current=app_rs[12] if app_rs else None,
+            landcover_current_pct=app_rs[13] if app_rs else None,
+            landcover_changed=(app_rs[10] != app_rs[12])
+            if app_rs is not None and app_rs[10] and app_rs[12]
+            else None,
+            series=[
+                AnnualPoint(year=a[0], tc_ha=a[1], loss_ha=a[2]) for a in annual
+            ],
         )
-        if app_rs is not None
+        if app_rs is not None or annual
         else None,
         geometry_source=latest_rs[5] if latest_rs else None,
         last_sync=synced,

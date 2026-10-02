@@ -207,9 +207,10 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
           ON r.kind = 'application' AND r.record_id = p.application_id
         """
     ).fetchall()
-    # v1 DataLoad parity: EVERY application gets a point (native Point, else
-    # its first GPS photo, else the polygon centroid) so small parcels stay
-    # visible at any zoom; polygons come on top for records that have shapes.
+    # v1 DataLoad parity: EVERY application gets a point so small parcels stay
+    # visible at any zoom — the native Point, else the polygon centroid, else
+    # its first GPS photo (centroid before photo: a photo can sit anywhere
+    # inside the parcel, which read as mis-placed points).
     photo_pts = {
         a: (lon, lat)
         for a, lon, lat in conn.execute(
@@ -232,16 +233,16 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
         point = None
         if r[6] is not None and r[7] is not None:
             point = [r[6], r[7]]
-        elif r[0] in photo_pts:
-            point = list(photo_pts[r[0]])
         elif polygon is not None:
             try:
                 from shapely.geometry import shape as to_shape
 
                 c = to_shape(polygon).centroid
                 point = [c.x, c.y]
-            except Exception:  # noqa: BLE001 — bad shape: no derived point
+            except Exception:  # noqa: BLE001 — bad shape: try the photo below
                 point = None
+        if point is None and r[0] in photo_pts:
+            point = list(photo_pts[r[0]])
         if point is not None:
             geometries.append({"type": "Point", "coordinates": point})
         payload = r[14] or {}

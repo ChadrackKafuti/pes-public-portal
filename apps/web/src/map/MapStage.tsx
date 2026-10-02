@@ -17,6 +17,7 @@ import {
 import { fmtNum, useI18n, useT, type Key } from "../i18n";
 import { GovInspector } from "./GovInspector";
 import { ParcelOverview } from "./ParcelOverview";
+import { HBars, MiniColumns, SplitBar, Tile } from "./viz";
 
 /** Congo Basin extent used by portal-v1 (WGS84). */
 const CONGO_BASIN: [[number, number], [number, number]] = [
@@ -54,25 +55,36 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     source: SRC,
     filter: ["==", ["geometry-type"], "Point"],
     paint: {
-      "circle-radius": 5.5,
+      "circle-radius": 4.5,
       "circle-color": APP_YELLOW,
-      "circle-stroke-width": 1.5,
+      "circle-stroke-width": 1.25,
       "circle-stroke-color": "#ffffff",
     },
   });
 }
 
-/** PES contracts (M12): the DataLoad-derived layer (one record per contract
- *  code, latest completed visit, visit shape else application polygon). Drawn
- *  beneath the parcels in the same yellow but dashed, with ring points, so
- *  contracts and applications stay tellable apart where they coincide. */
+/** PES contracts (M12/M13): the DataLoad-derived layer (one record per
+ *  contract code, latest completed visit, visit shape else application
+ *  polygon). A dashed outline beneath the parcels, plus a near-invisible
+ *  fill so clicking anywhere inside the polygon opens the contract's
+ *  details — no centre markers (they read as application points). */
 const CONTRACTS_SRC = "contracts";
-const CONTRACT_LAYERS = ["contracts-line", "contracts-point"] as const;
+const CONTRACT_LAYERS = ["contracts-fill", "contracts-line"] as const;
 
 function addContractLayers(map: maplibregl.Map, data: FeatureCollection) {
   if (map.getSource(CONTRACTS_SRC)) return;
   map.addSource(CONTRACTS_SRC, { type: "geojson", data });
   const before = map.getLayer("parcels-fill") ? "parcels-fill" : undefined;
+  map.addLayer(
+    {
+      id: "contracts-fill",
+      type: "fill",
+      source: CONTRACTS_SRC,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: { "fill-color": APP_YELLOW, "fill-opacity": 0.04 },
+    },
+    before,
+  );
   map.addLayer(
     {
       id: "contracts-line",
@@ -83,21 +95,6 @@ function addContractLayers(map: maplibregl.Map, data: FeatureCollection) {
         "line-color": APP_YELLOW,
         "line-width": 2.25,
         "line-dasharray": [2, 1.5],
-      },
-    },
-    before,
-  );
-  map.addLayer(
-    {
-      id: "contracts-point",
-      type: "circle",
-      source: CONTRACTS_SRC,
-      filter: ["==", ["geometry-type"], "Point"],
-      paint: {
-        "circle-radius": 5,
-        "circle-color": "rgba(0,0,0,0)",
-        "circle-stroke-width": 2,
-        "circle-stroke-color": APP_YELLOW,
       },
     },
     before,
@@ -1122,16 +1119,25 @@ export function MapStage({
     let tc = 0;
     const byActivity = new Map<string, number>();
     const byCountry = new Map<string, number>();
+    const byGender = new Map<string, number>();
+    const byStatus = new Map<string, number>();
+    const byYear = new Map<string, number>();
     for (const p of seen.values()) {
       if (typeof p.areaHa === "number") area += p.areaHa;
       if (typeof p.treeCoverHa === "number") tc += p.treeCoverHa;
-      const a = typeof p.pesActivity === "string" ? p.pesActivity : null;
-      if (a) byActivity.set(a, (byActivity.get(a) ?? 0) + 1);
-      const c = typeof p.country === "string" ? p.country : null;
-      if (c) byCountry.set(c, (byCountry.get(c) ?? 0) + 1);
+      const bump = (m: Map<string, number>, v: unknown) => {
+        if (typeof v === "string" && v) m.set(v, (m.get(v) ?? 0) + 1);
+      };
+      bump(byActivity, p.pesActivity);
+      bump(byCountry, p.country);
+      bump(byGender, p.gender);
+      bump(byStatus, p.applicationStatus);
+      if (typeof p.applicationDate === "string" && p.applicationDate.length >= 4) {
+        bump(byYear, p.applicationDate.slice(0, 4));
+      }
     }
-    const top = (m: Map<string, number>) =>
-      [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5);
+    const top = (m: Map<string, number>, n = 5) =>
+      [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, n);
     return {
       n: seen.size,
       area,
@@ -1139,6 +1145,9 @@ export function MapStage({
       countries: byCountry.size,
       byActivity: top(byActivity),
       byCountry: top(byCountry),
+      byGender: top(byGender, 4),
+      byStatus: top(byStatus, 4),
+      byYear: [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-8),
     };
   })();
 
@@ -1220,37 +1229,47 @@ export function MapStage({
                   {ovd && ovd.n > 0 && (
                     <>
                       <div className="ovd-tiles">
-                        <div className="ovd-tile">
-                          <strong>{fmtNum(ovd.n, locale, 0)}</strong>
-                          <span>{t("dash_applications")}</span>
-                        </div>
-                        <div className="ovd-tile">
-                          <strong>{fmtNum(ovd.area, locale, 0)} ha</strong>
-                          <span>{t("dash_total_area")}</span>
-                        </div>
-                        <div className="ovd-tile">
-                          <strong>{fmtNum(ovd.tc, locale, 0)} ha</strong>
-                          <span>{t("dash_tc")}</span>
-                        </div>
-                        <div className="ovd-tile">
-                          <strong>{fmtNum(ovd.countries, locale, 0)}</strong>
-                          <span>{t("dash_countries")}</span>
-                        </div>
+                        <Tile value={fmtNum(ovd.n, locale, 0)} label={t("dash_applications")} />
+                        <Tile
+                          value={`${fmtNum(ovd.area, locale, 0)} ha`}
+                          label={t("dash_total_area")}
+                          sub={
+                            ovd.n
+                              ? `${t("dash_avg_area")}: ${fmtNum(ovd.area / ovd.n, locale, 1)} ha`
+                              : undefined
+                          }
+                        />
+                        <Tile value={`${fmtNum(ovd.tc, locale, 0)} ha`} label={t("dash_tc")} />
+                        <Tile value={fmtNum(ovd.countries, locale, 0)} label={t("dash_countries")} />
                       </div>
+                      {ovd.byYear.length >= 2 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_by_year")}</span>
+                          <MiniColumns rows={ovd.byYear} />
+                        </div>
+                      )}
                       {ovd.byActivity.length > 0 && (
-                        <div className="ovd-bars">
-                          {(() => {
-                            const max = ovd.byActivity[0][1] || 1;
-                            return ovd.byActivity.map(([label, n]) => (
-                              <div className="barlist-row" key={label}>
-                                <span className="barlist-label" title={label}>{label}</span>
-                                <span className="barlist-track">
-                                  <span className="barlist-bar" style={{ width: `${(n / max) * 100}%` }} />
-                                </span>
-                                <span className="barlist-value">{fmtNum(n, locale, 0)}</span>
-                              </div>
-                            ));
-                          })()}
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_by_activity")}</span>
+                          <HBars rows={ovd.byActivity} fmt={(v) => fmtNum(v, locale, 0)} />
+                        </div>
+                      )}
+                      {ovd.byCountry.length > 1 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_by_country")}</span>
+                          <HBars rows={ovd.byCountry} fmt={(v) => fmtNum(v, locale, 0)} />
+                        </div>
+                      )}
+                      {ovd.byGender.length > 0 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_gender")}</span>
+                          <SplitBar parts={ovd.byGender} />
+                        </div>
+                      )}
+                      {ovd.byStatus.length > 0 && (
+                        <div className="ovd-block">
+                          <span className="ovd-block-title">{t("dash_status")}</span>
+                          <HBars rows={ovd.byStatus} fmt={(v) => fmtNum(v, locale, 0)} />
                         </div>
                       )}
                       <p className="ovd-hint">{t("dash_filtered_hint")}</p>

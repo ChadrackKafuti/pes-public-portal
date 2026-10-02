@@ -33,3 +33,19 @@ def test_contract_analysis_series_and_meta(client):
 
 def test_contract_analysis_unknown_404(client):
     assert client.get("/api/analyses/contracts/NOPE").status_code == 404
+
+
+def test_visit_derived_contract_linkage(client):
+    """M13: production applications carry no ContractCode — A2's link to
+    CTR-002 exists only on its monitoring visit, and the contract fields come
+    from that visit's payload."""
+    r = client.get("/api/analyses/contracts")
+    codes = [c["contractCode"] for c in r.json()]
+    assert "CTR-002" in codes
+    c = next(x for x in r.json() if x["contractCode"] == "CTR-002")
+    assert c["applications"] == 1
+
+    a = client.get("/api/analyses/contracts/CTR-002").json()
+    assert a["applications"] == 1
+    assert a["contractedAreaHa"] == 2.0
+    assert a["startDate"] == "2024-09-01"

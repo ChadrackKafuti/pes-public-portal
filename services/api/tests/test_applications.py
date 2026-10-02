@@ -86,10 +86,11 @@ def test_geojson_features(client):
     assert a1["properties"]["beneficiaryType"] == "Individual farmer"
     assert a1["properties"]["gender"] == "Female"
     assert a1["properties"]["applicationStatus"] == "In progress"
-    # M11: every application also gets a point — A1 has no native Point, so
-    # its first GPS photo (aaaa1111) supplies the location.
+    # M11/M13: every application also gets a point — A1 has no native Point,
+    # so its polygon centroid supplies the location (centroid before photo).
     a1p = by_kind[("A1", "Point")]
-    assert a1p["geometry"]["coordinates"] == [15.002, -0.998]
+    lon, lat = a1p["geometry"]["coordinates"]
+    assert abs(lon - 15.0067) < 0.01 and abs(lat + 0.9967) < 0.01
 
     # A2: no shape -> native point only; unprocessed -> null indicator props.
     a2 = by_kind[("A2", "Point")]

@@ -8,6 +8,7 @@ applications; description fields fall back to the raw payload mirror.
 from fastapi import APIRouter, Depends, HTTPException
 
 from .auth import CurrentUser, Principal
+from .contracts import visit_contract_links
 from .db import get_conn
 from .profile import _date, _num, _pick
 from .schemas import AnalysesContract, AnnualPoint, ContractAnalysis
@@ -15,42 +16,52 @@ from .schemas import AnalysesContract, AnnualPoint, ContractAnalysis
 router = APIRouter()
 
 
+def _parcels_by_contract(conn) -> dict[str, list[tuple]]:
+    """pes_parcels rows grouped by their effective contract code: the parcel
+    column where filled, else the visit-derived link (production applications
+    carry no ContractCode of their own)."""
+    links = visit_contract_links(conn)
+    rows = conn.execute(
+        """
+        SELECT application_id, contract_code, implementing_org, project_name,
+               country, village, pes_activity, estimated_area_ha, application_date
+        FROM pes_parcels
+        """
+    ).fetchall()
+    groups: dict[str, list[tuple]] = {}
+    for r in rows:
+        code = r[1] or links.get(str(r[0]))
+        if code:
+            groups.setdefault(str(code), []).append(r)
+    return groups
+
+
 @router.get("/api/analyses/contracts", response_model=list[AnalysesContract])
 def analyses_contracts(
     conn=Depends(get_conn), user: Principal = CurrentUser
 ) -> list[AnalysesContract]:
-    rows = conn.execute(
-        """
-        SELECT contract_code, max(implementing_org), max(project_name),
-               max(country), max(village), max(pes_activity),
-               count(*), sum(estimated_area_ha), min(application_date)
-        FROM pes_parcels
-        WHERE contract_code IS NOT NULL
-        GROUP BY contract_code
-        ORDER BY contract_code
-        """
-    ).fetchall()
-    return [
-        AnalysesContract(
-            contract_code=r[0], org=r[1], project=r[2], country=r[3],
-            village=r[4], activity=r[5], applications=r[6],
-            estimated_area_ha=r[7], first_date=r[8],
+    out = []
+    for code, g in sorted(_parcels_by_contract(conn).items()):
+        def mx(i: int):
+            return max((r[i] for r in g if r[i] is not None), default=None)
+
+        areas = [r[7] for r in g if r[7] is not None]
+        out.append(
+            AnalysesContract(
+                contract_code=code, org=mx(2), project=mx(3), country=mx(4),
+                village=mx(5), activity=mx(6), applications=len(g),
+                estimated_area_ha=sum(areas) if areas else None,
+                first_date=min((r[8] for r in g if r[8] is not None), default=None),
+            )
         )
-        for r in rows
-    ]
+    return out
 
 
 @router.get("/api/analyses/contracts/{contract_code}", response_model=ContractAnalysis)
 def contract_analysis(
     contract_code: str, conn=Depends(get_conn), user: Principal = CurrentUser
 ) -> ContractAnalysis:
-    apps = [
-        r[0]
-        for r in conn.execute(
-            "SELECT application_id FROM pes_parcels WHERE contract_code = %s",
-            (contract_code,),
-        ).fetchall()
-    ]
+    apps = [str(r[0]) for r in _parcels_by_contract(conn).get(contract_code, [])]
     if not apps:
         raise HTTPException(status_code=404, detail="unknown contract")
 
@@ -71,11 +82,14 @@ def contract_analysis(
         FROM pes_parcels p
         LEFT JOIN pes_rs_objects o
           ON o.object_id = p.application_id AND o.object_type = 'application'
-        WHERE p.contract_code = %s
+        WHERE p.application_id = ANY(%s)
         """,
-        (contract_code,),
+        (apps,),
     ).fetchone()
 
+    # Description fields: the application payload where sources carry the
+    # contract block there, else this contract's visit payloads (production
+    # puts ContractStatus/dates/ContractedPESArea on monitoring visits).
     raw = conn.execute(
         """
         SELECT payload FROM pes_raw_records
@@ -84,7 +98,21 @@ def contract_analysis(
         """,
         (apps,),
     ).fetchone()
-    payload = raw[0] if raw else {}
+    payloads = [raw[0]] if raw else []
+    payloads += [
+        p
+        for (p,) in conn.execute(
+            "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
+        ).fetchall()
+        if str(_pick(p, ["contractcode"]) or "").strip() == contract_code
+    ]
+
+    def pick_any(keys: list[str]):
+        for p in payloads:
+            v = _pick(p, keys)
+            if v is not None:
+                return v
+        return None
 
     return ContractAnalysis(
         contract_code=contract_code,
@@ -95,9 +123,9 @@ def contract_analysis(
         activity=meta[4],
         applications=len(apps),
         parcel_area_ha=meta[5],
-        contracted_area_ha=_num(_pick(payload, ["contractedpesarea", "contractedarea"])),
-        beneficiary_type=_pick(payload, ["beneficiarytype"]),
-        start_date=_date(_pick(payload, ["contractstartdate", "startdate"])),
-        end_date=_date(_pick(payload, ["contractenddate", "enddate"])),
+        contracted_area_ha=_num(pick_any(["contractedpesarea", "contractedarea"])),
+        beneficiary_type=pick_any(["beneficiarytype"]),
+        start_date=_date(pick_any(["contractstartdate", "startdate"])),
+        end_date=_date(pick_any(["contractenddate", "enddate"])),
         series=[AnnualPoint(year=r[0], tc_ha=r[1], loss_ha=r[2]) for r in series],
     )

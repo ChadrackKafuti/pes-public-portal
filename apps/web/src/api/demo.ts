@@ -122,6 +122,20 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
         observedLandCover: "Cropland", observedLandCoverPct: 61.5,
       },
       areas: { estimatedHa: 3.5, declaredHa: 3.2, contractedHa: 3.0, achievedHa: 2.1 },
+      baseline: {
+        parcelAreaHa: 3.4, treeCoverHa: 2.1, defor5yrHaYr: 0.05, baselineYears: 5,
+        landcoverAtApp: "Cropland", landcoverAtAppPct: 61.5,
+        landcoverCurrent: "Trees", landcoverCurrentPct: 48.0, landcoverChanged: true,
+        series: [
+          { year: 2019, tcHa: 2.6, lossHa: null },
+          { year: 2020, tcHa: 2.5, lossHa: 0.1 },
+          { year: 2021, tcHa: 2.45, lossHa: 0.05 },
+          { year: 2022, tcHa: 2.4, lossHa: 0.05 },
+          { year: 2023, tcHa: 2.2, lossHa: 0.2 },
+          { year: 2024, tcHa: 2.0, lossHa: 0.2 },
+          { year: 2025, tcHa: 2.1, lossHa: 0.0 },
+        ],
+      },
       geometrySource: "polygon",
       lastSync: "2026-10-01T12:30:00Z",
     } as T;

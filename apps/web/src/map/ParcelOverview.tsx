@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { Photo, Profile } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT, type Key } from "../i18n";
+import { AnnualChart, Donut, Dots, HBars, Progress } from "./viz";
 
 /** M9/M10 — v1's Overview behaviour: the clicked application's COMPLETE
  *  dossier renders in the panel's Overview tab; nothing navigates away.
@@ -146,25 +147,35 @@ export function ParcelOverview({
             </p>
           )}
           {profile.contract?.start && profile.contract.end && (
-            <p className="pov-line">
-              {fmtDate(profile.contract.start, locale)} → {fmtDate(profile.contract.end, locale)}
-              {profile.contract.pctElapsed != null
-                ? ` · ${fmtNum(profile.contract.pctElapsed, locale, 0)}% ${t("pf_elapsed")}`
-                : ""}
-            </p>
+            <Progress
+              pct={profile.contract.pctElapsed ?? 0}
+              left={fmtDate(profile.contract.start, locale)}
+              right={fmtDate(profile.contract.end, locale)}
+              caption={
+                profile.contract.pctElapsed != null
+                  ? `${fmtNum(profile.contract.pctElapsed, locale, 0)}% ${t("pf_elapsed")}`
+                  : undefined
+              }
+            />
           )}
-          {profile.visits && (
-            <p className="pov-line">
-              {t("pf_visits_title")}:{" "}
-              {t("pf_visits_done", {
+          {profile.visits && profile.visits.expected != null && (
+            <Dots
+              done={profile.visits.completed ?? 0}
+              total={profile.visits.expected}
+              label={t("pf_visits_done", {
                 done: profile.visits.completed ?? 0,
-                total: profile.visits.expected ?? "—",
+                total: profile.visits.expected,
               })}
+            />
+          )}
+          {profile.visits && (profile.visits.lastDate || profile.visits.nextDue) && (
+            <p className="pov-line muted">
               {profile.visits.lastDate
-                ? ` · ${t("pf_last_visit")} ${fmtDate(profile.visits.lastDate, locale)}`
+                ? `${t("pf_last_visit")} ${fmtDate(profile.visits.lastDate, locale)}`
                 : ""}
+              {profile.visits.lastDate && profile.visits.nextDue ? " · " : ""}
               {profile.visits.nextDue
-                ? ` · ${t("pf_next_visit")} ${fmtDate(profile.visits.nextDue, locale)}`
+                ? `${t("pf_next_visit")} ${fmtDate(profile.visits.nextDue, locale)}`
                 : ""}
             </p>
           )}
@@ -235,6 +246,14 @@ export function ParcelOverview({
                     {profile.baseline.landcoverChanged ? t("bl_lc_changed") : t("bl_lc_same")}
                   </p>
                 )}
+                {(profile.baseline.series?.length ?? 0) >= 2 && (
+                  <AnnualChart
+                    series={profile.baseline.series!}
+                    tcLabel={t("viz_tc")}
+                    lossLabel={t("viz_loss")}
+                    fmt={(v) => fmtNum(v, locale, 1)}
+                  />
+                )}
               </>
             ) : (
               <p className="pov-line muted">{t("bl_pending")}</p>
@@ -245,10 +264,7 @@ export function ParcelOverview({
           {profile.performance && (
             <Section title={t(`perf_title_${profile.activityGroup ?? "generic"}` as Key)} open>
               {profile.performance.achievedPct != null && (
-                <p className="pov-line">
-                  <strong>{Math.round(profile.performance.achievedPct)}%</strong>{" "}
-                  {t("perf_achieved")}
-                </p>
+                <Donut pct={profile.performance.achievedPct} label={t("perf_achieved")} />
               )}
               <Rows
                 rows={[
@@ -274,13 +290,17 @@ export function ParcelOverview({
           {/* areas */}
           {profile.areas && (
             <Section title={t("area_comparison")} open>
-              <Rows
-                rows={[
-                  [t("area_estimated"), num(profile.areas.estimatedHa)],
-                  [t("area_declared"), num(profile.areas.declaredHa)],
-                  [t("area_contracted"), num(profile.areas.contractedHa)],
-                  [t(perfMainKey), num(profile.areas.achievedHa)],
-                ].map(([k, v]) => [k as string, v != null ? `${v} ha` : null])}
+              <HBars
+                rows={(
+                  [
+                    [t("area_estimated"), profile.areas.estimatedHa],
+                    [t("area_declared"), profile.areas.declaredHa],
+                    [t("area_contracted"), profile.areas.contractedHa],
+                    [t(perfMainKey), profile.areas.achievedHa],
+                  ] as [string, number | null][]
+                ).filter((r): r is [string, number] => r[1] != null)}
+                unit=" ha"
+                fmt={(v) => fmtNum(v, locale, 1)}
               />
             </Section>
           )}
