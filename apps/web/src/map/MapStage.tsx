@@ -214,33 +214,27 @@ const MS_ICONS: Record<string, ReactNode> = {
       <path d="M3 12h18M12 3c3 3.5 3 14 0 18-3-4-3-14.5 0-18Z" />
     </svg>
   ),
+  overview: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="5" rx="1.5" />
+      <rect x="13" y="10" width="8" height="11" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+    </svg>
+  ),
+  panelClose: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16M16 10l-2.5 2L16 14" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  panelOpen: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16M13.5 10l2.5 2-2.5 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 };
-
-/** One collapsible sidebar section (hand-rolled accordion). */
-function MsSection({
-  title,
-  icon,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  icon: ReactNode;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <section className="ms-section">
-      <button className="ms-head" aria-expanded={open} onClick={onToggle}>
-        {icon}
-        {title}
-        <span className="ms-chevron">▶</span>
-      </button>
-      {open && <div className="ms-body">{children}</div>}
-    </section>
-  );
-}
 
 /** Photo points (M7a): neutral violet, never a status hue. */
 const PHOTO_COLOR = "#7e57c2";
@@ -318,10 +312,18 @@ function featureBounds(f: Feature): maplibregl.LngLatBounds {
 }
 
 /**
- * The single shared map. Parcels come from the API's GeoJSON endpoint —
- * the frontend never talks to upstream GIS services directly.
+ * The single shared map (v1 pattern: mounted once by the shell and kept
+ * alive; the Map route shows the panel, Analyses only the map behind its
+ * own overlay). Parcels come from the API's GeoJSON endpoint — the
+ * frontend never talks to upstream GIS services directly.
  */
-export function MapStage() {
+export function MapStage({
+  showPanel = true,
+  visible = true,
+}: {
+  showPanel?: boolean;
+  visible?: boolean;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const dataRef = useRef<FeatureCollection | null>(null);
@@ -336,15 +338,8 @@ export function MapStage() {
   const [query, setQuery] = useState("");
   const [miss, setMiss] = useState(false);
   const [sideOpen, setSideOpen] = useState(true);
-  const [sections, setSections] = useState({
-    analysis: true,
-    layers: true,
-    filters: false,
-    find: false,
-    basemap: false,
-  });
-  const toggleSection = (k: keyof typeof sections) =>
-    setSections((s) => ({ ...s, [k]: !s[k] }));
+  const [tab, setTab] = useState<"overview" | "filters" | "layers">("overview");
+  const [basemapOpen, setBasemapOpen] = useState(false);
   const [govInfo, setGovInfo] = useState<GovLayerInfo[] | null>(null);
   const [govVisible, setGovVisible] = useState<Partial<Record<GovLayerKey, boolean>>>({});
   const [govOpacity, setGovOpacity] = useState(1);
@@ -360,6 +355,7 @@ export function MapStage() {
   const openInspectorRef = useRef((srcUid: string, layer: GovLayerKey, seed: Record<string, unknown>) => {
     setInspect({ srcUid, layer, seed });
     setSideOpen(true);
+    setTab("overview"); // v1: selecting a feature jumps to Overview
   });
 
   /* M7e — client-side parcel filters (v1 §7): draft → Apply/Reset semantics. */
@@ -505,7 +501,7 @@ export function MapStage() {
       attributionControl: { compact: true },
     });
     mapRef.current = map;
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.ScaleControl());
 
     map.on("load", async () => {
@@ -727,17 +723,24 @@ export function MapStage() {
     };
   }, [govVisible]);
 
-  // Layer inventory, fetched the first time the layers section shows.
+  // Layer inventory, fetched the first time the Layers tab shows.
   useEffect(() => {
-    if (sideOpen && sections.layers && govInfo === null) {
+    if (sideOpen && tab === "layers" && govInfo === null) {
       api.governanceLayers().then(setGovInfo).catch(() => setGovInfo([]));
     }
-  }, [sideOpen, sections.layers, govInfo]);
+  }, [sideOpen, tab, govInfo]);
 
-  // The map shares the row with the sidebar: re-measure on toggle.
+  // Hidden while another route owns the screen: re-measure when shown again.
+  // Mounted hidden (landing first), the initial fit ran on a 0-size canvas,
+  // so the first reveal also re-fits the basin.
+  const everShownRef = useRef(false);
   useEffect(() => {
-    mapRef.current?.resize();
-  }, [sideOpen]);
+    const map = mapRef.current;
+    if (!visible || !map) return;
+    map.resize();
+    if (!everShownRef.current) map.fitBounds(CONGO_BASIN, { padding: 24 });
+    everShownRef.current = true;
+  }, [visible]);
 
   // Governance overlay opacity: scale each layer's base fill opacity.
   useEffect(() => {
@@ -776,26 +779,76 @@ export function MapStage() {
     return () => clearTimeout(handle);
   }, [query]);
 
+  const tabs = [
+    { id: "overview" as const, label: t("tab_overview"), icon: MS_ICONS.overview },
+    { id: "filters" as const, label: t("section_filters"), icon: MS_ICONS.filters },
+    { id: "layers" as const, label: t("tab_layers"), icon: MS_ICONS.layers },
+  ];
+
   return (
     <div className="map-wrap">
-      {sideOpen ? (
-        <aside className="map-sidebar">
-          {inspect && (
-            <section className="ms-section">
-              <GovInspector
-                srcUid={inspect.srcUid}
-                layer={inspect.layer}
-                seed={inspect.seed}
-                onClose={() => setInspect(null)}
-              />
-            </section>
-          )}
-          <MsSection
-            title={t("section_analysis")}
-            icon={MS_ICONS.analysis}
-            open={sections.analysis}
-            onToggle={() => toggleSection("analysis")}
+      <div ref={container} className="map-stage" />
+      {showPanel && (
+        <form className="code-search" role="search" onSubmit={(e) => e.preventDefault()}>
+          {MS_ICONS.find}
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("map_find_placeholder")}
+            aria-label={t("map_find_placeholder")}
+          />
+          {miss && <div className="code-search-miss">{t("map_no_match")}</div>}
+        </form>
+      )}
+      {showPanel && !sideOpen && (
+        <div className="glass panel collapsed">
+          <button
+            className="panel-toggle"
+            onClick={() => setSideOpen(true)}
+            title={t("panel_expand")}
+            aria-label={t("panel_expand")}
           >
+            {MS_ICONS.panelOpen}
+          </button>
+        </div>
+      )}
+      {showPanel && sideOpen && (
+        <div className="glass panel">
+          <button
+            className="panel-toggle"
+            onClick={() => setSideOpen(false)}
+            title={t("panel_collapse")}
+            aria-label={t("panel_collapse")}
+          >
+            {MS_ICONS.panelClose}
+          </button>
+          <div className="tablist" role="tablist">
+            {tabs.map((tb) => (
+              <button
+                key={tb.id}
+                role="tab"
+                aria-selected={tab === tb.id}
+                className={`tab${tab === tb.id ? " tab-active" : ""}`}
+                onClick={() => setTab(tb.id)}
+              >
+                {tb.icon}
+                <span>{tb.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="panel-body scroll">
+            <div role="tabpanel" hidden={tab !== "overview"} className="tabpanel">
+              {inspect ? (
+                <GovInspector
+                  srcUid={inspect.srcUid}
+                  layer={inspect.layer}
+                  seed={inspect.seed}
+                  onClose={() => setInspect(null)}
+                />
+              ) : (
+                <>
+                  <p className="panel-hint">{t("overview_hint")}</p>
             <div className="step">
               <span className="step-num">1</span>
               <div className="step-body">
@@ -906,14 +959,11 @@ export function MapStage() {
                 )}
               </div>
             </div>
-          </MsSection>
+                </>
+              )}
+            </div>
 
-          <MsSection
-            title={t("section_layers")}
-            icon={MS_ICONS.layers}
-            open={sections.layers}
-            onToggle={() => toggleSection("layers")}
-          >
+            <div role="tabpanel" hidden={tab !== "layers"} className="tabpanel">
             <span className="muted small">{t("parcels_title")}</span>
             <span className="gov-legend-row">
               <i style={{ background: PARCEL_DEFAULT_COLOR }} /> {t("legend_not_processed")}
@@ -981,14 +1031,35 @@ export function MapStage() {
             <button className="btn-ghost" onClick={zoomToData}>
               {t("map_zoom_data")}
             </button>
-          </MsSection>
+            <section className="panel-collapsible">
+              <button
+                className="panel-collapsible-head"
+                aria-expanded={basemapOpen}
+                onClick={() => setBasemapOpen((v) => !v)}
+              >
+                {t("section_basemap")}
+                <span className="chev" aria-hidden>
+                  ▾
+                </span>
+              </button>
+              {basemapOpen && (
+                <div className="bm-grid">
+                  {(["streets", "imagery"] as const).map((id) => (
+                    <button
+                      key={id}
+                      className={`bm-item${basemap === id ? " bm-active" : ""}`}
+                      aria-pressed={basemap === id}
+                      onClick={() => setBasemap(id)}
+                    >
+                      {t(id === "streets" ? "basemap_streets" : "basemap_imagery")}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+            </div>
 
-          <MsSection
-            title={t("section_filters")}
-            icon={MS_ICONS.filters}
-            open={sections.filters}
-            onToggle={() => toggleSection("filters")}
-          >
+            <div role="tabpanel" hidden={tab !== "filters"} className="tabpanel">
             <div className="flt-grid">
               {(
                 [
@@ -1065,71 +1136,11 @@ export function MapStage() {
               </button>
             </div>
             {fltCount !== null && (
-              <span className="muted small">{t("flt_match", { n: fltCount })}</span>
+              <span className="flt-matches">{t("flt_match", { n: fltCount })}</span>
             )}
-          </MsSection>
-
-          <MsSection
-            title={t("section_find")}
-            icon={MS_ICONS.find}
-            open={sections.find}
-            onToggle={() => toggleSection("find")}
-          >
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("map_find_placeholder")}
-              aria-label={t("map_find_placeholder")}
-            />
-            {miss && <span className="map-miss">{t("map_no_match")}</span>}
-          </MsSection>
-
-          <MsSection
-            title={t("section_basemap")}
-            icon={MS_ICONS.basemap}
-            open={sections.basemap}
-            onToggle={() => toggleSection("basemap")}
-          >
-            <div className="basemap-row">
-              <button
-                className={`btn-ghost${basemap === "streets" ? " active" : ""}`}
-                onClick={() => setBasemap("streets")}
-              >
-                {t("basemap_streets")}
-              </button>
-              <button
-                className={`btn-ghost${basemap === "imagery" ? " active" : ""}`}
-                onClick={() => setBasemap("imagery")}
-              >
-                {t("basemap_imagery")}
-              </button>
             </div>
-          </MsSection>
-
-          <div className="ms-foot">
-            <button className="ms-collapse" onClick={() => setSideOpen(false)}>
-              « {t("sidebar_collapse")}
-            </button>
           </div>
-        </aside>
-      ) : (
-        <button className="ms-toggle" onClick={() => setSideOpen(true)} title={t("sidebar_expand")}>
-          ☰
-        </button>
-      )}
-      <div ref={container} className="map-stage" />
-      {!sideOpen && (
-      <div className="map-legend legend-flush">
-        <span className="gov-legend-row">
-          <i style={{ background: PARCEL_DEFAULT_COLOR }} /> {t("legend_not_processed")}
-        </span>
-        {Object.entries(PARCEL_STATUS_COLORS).map(([k, c]) => (
-          <span key={k} className="gov-legend-row">
-            <i style={{ background: c }} /> {k}
-          </span>
-        ))}
-      </div>
+        </div>
       )}
     </div>
   );

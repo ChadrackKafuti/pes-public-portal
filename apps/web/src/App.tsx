@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HashRouter, NavLink, Route, Routes } from "react-router";
+import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router";
 import { MapStage } from "./map/MapStage";
 import { ApplicationsPage } from "./screens/ApplicationsPage";
 import { AlertsPage } from "./screens/AlertsPage";
@@ -12,49 +12,79 @@ import { useI18n, useT } from "./i18n";
 import { authEnabled, authMode, useAuth } from "./auth";
 import { demoEnabled } from "./api/demo";
 
-/* Inline nav icons (stroke style, 24px viewBox) — no icon library. */
+const APP_VERSION = "2.0.0";
+
+/* Inline nav icons (lucide-style strokes, 24px viewBox, drawn at 16px). */
 const I = {
+  home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V10Z" strokeLinejoin="round" />
+    </svg>
+  ),
   map: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" strokeLinejoin="round" />
       <path d="M9 4v14M15 6v14" />
     </svg>
   ),
   applications: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <rect x="4" y="3" width="16" height="18" rx="2" />
       <path d="M8 8h8M8 12h8M8 16h5" strokeLinecap="round" />
     </svg>
   ),
   dashboard: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" strokeLinecap="round" />
     </svg>
   ),
   analyses: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M3 20h18M5 17c2-6 4-9 6-9s3 2 4 5 2 4 4 4" strokeLinecap="round" />
     </svg>
   ),
   alerts: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M12 3 2.5 20h19L12 3Z" strokeLinejoin="round" />
       <path d="M12 10v5M12 17.5v.5" strokeLinecap="round" />
     </svg>
   ),
   runs: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M2 12h4l3-7 4 14 3-7h6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
 };
 
-function Brand({ sub }: { sub: string }) {
+function LangToggle() {
+  const t = useT();
+  const { locale, setLocale } = useI18n();
   return (
-    <div className="brand">
-      <span className="brand-title">CAFI RS Platform</span>
-      <span className="brand-sub">{sub}</span>
+    <div className="lang-group" role="group" aria-label={t("lang_label")}>
+      {(["en", "fr"] as const).map((l) => (
+        <button
+          key={l}
+          className="lang-item"
+          aria-pressed={locale === l}
+          onClick={() => setLocale(l)}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
     </div>
+  );
+}
+
+function Brand() {
+  const t = useT();
+  return (
+    <NavLink to="/" className="brand" aria-label="CAFI Monitor">
+      <img src="branding/cafi-monitor-icon.png" width="36" height="36" alt="" />
+      <span>
+        <strong>CAFI Monitor</strong>
+        <small>{t("app_subtitle")}</small>
+      </span>
+    </NavLink>
   );
 }
 
@@ -108,11 +138,91 @@ function SupabaseSignIn() {
 
 type ApiHealth = "checking" | "up" | "down";
 
+/** v1 shell layout: the single map stage is mounted once and kept alive;
+ *  the Map and Analyses routes only overlay panels on it. */
+function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
+  const t = useT();
+  const { user, logout } = useAuth();
+  const { pathname } = useLocation();
+  const mapVisible = pathname === "/map" || pathname === "/analyses";
+
+  const nav: { to: string; end?: boolean; icon: keyof typeof I; label: string }[] = [
+    { to: "/", end: true, icon: "home", label: t("nav_home") },
+    { to: "/map", icon: "map", label: t("nav_map") },
+    { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
+    { to: "/alerts", icon: "alerts", label: t("nav_alerts") },
+    { to: "/dashboard", icon: "dashboard", label: t("nav_dashboard") },
+    { to: "/applications", icon: "applications", label: t("nav_applications") },
+    { to: "/runs", icon: "runs", label: t("nav_runs") },
+  ];
+
+  return (
+    <div className="shell" data-surface={mapVisible ? "dark" : "light"}>
+      <a className="skip" href="#main">
+        {t("app_skip")}
+      </a>
+      <header className="topbar">
+        <Brand />
+        <nav className="nav" aria-label={t("nav_main")}>
+          {nav.map((r) => (
+            <NavLink key={r.to} to={r.to} end={r.end} title={r.label}>
+              {I[r.icon]}
+              <span>{r.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="tools">
+          {authEnabled && user && (
+            <button className="lang-item signout" onClick={logout} title={t("sign_out")}>
+              {t("sign_out")}
+            </button>
+          )}
+          <LangToggle />
+          {demoEnabled ? (
+            <span className="api-badge api-demo" title={t("demo_hint")}>
+              {t("demo_badge")}
+            </span>
+          ) : (
+            <span className={`api-badge api-${apiHealth}`}>
+              API: {apiHealth === "checking" ? "…" : apiHealth}
+            </span>
+          )}
+          <img className="partner" src="branding/cafi-logo.png" alt="CAFI" />
+          <img className="partner" src="branding/undp-logo.svg" alt="UNDP" />
+        </div>
+      </header>
+      <main id="main" className="main">
+        <div className="stage" hidden={!mapVisible}>
+          <MapStage showPanel={pathname === "/map"} visible={mapVisible} />
+        </div>
+        <div className="route-layer" data-overlay={mapVisible}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/map" element={null} />
+            <Route path="/analyses" element={<AnalysesPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/applications" element={<ApplicationsPage />} />
+            <Route path="/applications/:id" element={<DossierPage />} />
+            <Route path="/runs" element={<RunsPage />} />
+          </Routes>
+        </div>
+      </main>
+      <footer className="footer">
+        <span>{t("footer_data")}</span>
+        <span className="spacer" />
+        <span>
+          {t("footer_version")} {APP_VERSION}
+        </span>
+      </footer>
+    </div>
+  );
+}
+
 export function App() {
   const [apiHealth, setApiHealth] = useState<ApiHealth>("checking");
   const t = useT();
-  const { locale, setLocale } = useI18n();
-  const { ready, user, login, logout } = useAuth();
+  const { ready, user, login } = useAuth();
 
   useEffect(() => {
     if (demoEnabled) return;
@@ -128,7 +238,13 @@ export function App() {
       <div className="shell signin">
         <div className="signin-card">
           <div className="signin-brand">
-            <Brand sub={t("app_subtitle")} />
+            <div className="brand signin-brand-row">
+              <img src="branding/cafi-monitor-icon.png" width="36" height="36" alt="" />
+              <span>
+                <strong>CAFI Monitor</strong>
+                <small>{t("app_subtitle")}</small>
+              </span>
+            </div>
             <p>{t("brand_mission")}</p>
           </div>
           <div className="signin-main">
@@ -148,70 +264,9 @@ export function App() {
     );
   }
 
-  const rail: { to: string; end?: boolean; icon: keyof typeof I; label: string }[] = [
-    { to: "/map", icon: "map", label: t("nav_map") },
-    { to: "/applications", icon: "applications", label: t("nav_applications") },
-    { to: "/dashboard", icon: "dashboard", label: t("nav_dashboard") },
-    { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
-    { to: "/alerts", icon: "alerts", label: t("nav_alerts") },
-    { to: "/runs", icon: "runs", label: t("nav_runs") },
-  ];
-
   return (
     <HashRouter>
-      <div className="shell">
-        <header className="topbar">
-          <Brand sub={t("app_subtitle")} />
-          <span className="topbar-right">
-            {authEnabled && user && (
-              <>
-                <span className="muted small">{user.profile.preferred_username}</span>
-                <button className="lang" onClick={logout}>
-                  {t("sign_out")}
-                </button>
-              </>
-            )}
-            <button
-              className="lang"
-              onClick={() => setLocale(locale === "en" ? "fr" : "en")}
-              aria-label="Switch language"
-            >
-              {locale === "en" ? "FR" : "EN"}
-            </button>
-            {demoEnabled ? (
-              <span className="api-badge api-demo" title={t("demo_hint")}>
-                {t("demo_badge")}
-              </span>
-            ) : (
-              <span className={`api-badge api-${apiHealth}`}>
-                API: {apiHealth === "checking" ? "…" : apiHealth}
-              </span>
-            )}
-          </span>
-        </header>
-        <div className="shell-body">
-          <nav className="rail" aria-label={t("nav_main")}>
-            {rail.map((r) => (
-              <NavLink key={r.to} to={r.to} end={r.end} title={r.label}>
-                {I[r.icon]}
-                <span>{r.label}</span>
-              </NavLink>
-            ))}
-          </nav>
-          <div className="content">
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/applications" element={<ApplicationsPage />} />
-              <Route path="/applications/:id" element={<DossierPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/analyses" element={<AnalysesPage />} />
-              <Route path="/alerts" element={<AlertsPage />} />
-              <Route path="/map" element={<MapStage />} />
-              <Route path="/runs" element={<RunsPage />} />
-            </Routes>
-          </div>
-        </div>
-      </div>
+      <Shell apiHealth={apiHealth} />
     </HashRouter>
   );
 }

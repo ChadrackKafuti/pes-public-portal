@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AnalysesContract, ContractAnalysis } from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
-import { Card, PageHeader, StatTile } from "./bits";
+import { StatTile } from "./bits";
 
 /** M7d — the v1 contract-analysis page: Org → Project → Contract pickers,
  *  the generated description sentence, three KPIs for the latest year, the
@@ -86,7 +86,7 @@ function AnnualBars({ title, points }: { title: string; points: [number, number]
           <g key={year} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
             <rect
               x={px(i, points.length) - bw / 2} y={py(v)} width={bw}
-              height={Math.max(1, py(0) - py(v))} rx="3" fill="var(--series-1)"
+              height={Math.max(1, py(0) - py(v))} rx="3" fill="var(--series-2, var(--series-1))"
             />
             <text x={px(i, points.length)} y={H - PAD.bottom + 14} textAnchor="middle" className="axis-text">
               {year}
@@ -133,17 +133,21 @@ export function AnalysesPage() {
   const projects = [...new Set(inOrg.map((c) => c.project).filter(Boolean))] as string[];
   const inProject = inOrg.filter((c) => !project || c.project === project);
 
-  if (error) return <main className="page"><p className="notice">{t("error_load")}</p></main>;
-
   const latest = analysis?.series.at(-1);
   const baseArea = analysis?.parcelAreaHa ?? analysis?.contractedAreaHa ?? null;
   const share =
     latest?.tcHa != null && baseArea ? Math.min(100, (latest.tcHa / baseArea) * 100) : null;
 
+  /* v1 pattern: a glass side panel floating over the live map stage. */
   return (
-    <main className="page">
-      <PageHeader title={t("nav_analyses")} desc={t("desc_analyses")} />
-      <div className="filters">
+    <div className="an-overlay">
+      <div className="glass panel an-panel">
+        <div className="panel-body scroll">
+          <h2 className="an-heading">{t("an_title")}</h2>
+          {error && <p className="panel-hint">{t("error_load")}</p>}
+          {!error && (
+            <>
+      <div className="an-pickers">
         <select value={org} onChange={(e) => { setOrg(e.target.value); setProject(""); setCode(""); }}>
           <option value="">{t("all_organisations")}</option>
           {orgs.map((o) => <option key={o}>{o}</option>)}
@@ -165,13 +169,12 @@ export function AnalysesPage() {
         </select>
       </div>
 
-      {contracts === null && <p className="notice">{t("loading")}</p>}
-      {contracts !== null && !code && <p className="notice">{t("an_select_hint")}</p>}
+      {contracts === null && <p className="panel-hint">{t("loading")}</p>}
+      {contracts !== null && !code && <p className="panel-hint">{t("an_select_hint")}</p>}
 
       {analysis && (
         <>
-          <Card>
-            <p style={{ margin: 0 }}>
+            <p className="an-desc">
               {t("an_desc", {
                 code: analysis.contractCode,
                 beneficiary: analysis.beneficiaryType ?? "—",
@@ -184,13 +187,12 @@ export function AnalysesPage() {
                 end: analysis.endDate ? fmtDate(analysis.endDate, locale) : "—",
               })}
             </p>
-          </Card>
 
           {analysis.series.length === 0 ? (
-            <p className="notice">{t("an_none")}</p>
+            <p className="panel-hint">{t("an_none")}</p>
           ) : (
             <>
-              <div className="stat-row">
+              <div className="an-tiles">
                 <StatTile
                   label={t("an_kpi_tc")}
                   value={fmtNum(latest?.tcHa ?? null, locale)}
@@ -220,7 +222,7 @@ export function AnalysesPage() {
                 points={analysis.series.filter((p) => p.lossHa != null).map((p) => [p.year, p.lossHa!])}
               />
 
-              <details className="card">
+              <details className="an-table">
                 <summary>{t("an_table")}</summary>
                 <table className="data">
                   <thead>
@@ -244,12 +246,16 @@ export function AnalysesPage() {
             </>
           )}
 
-          <p className="muted small">
+          <p className="an-source">
             Source: Brown, C.F. et al. Dynamic World, near real-time global 10 m land use land
             cover mapping. Sci Data 9, 251 (2022).
           </p>
         </>
       )}
-    </main>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
