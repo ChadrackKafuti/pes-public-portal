@@ -77,6 +77,7 @@ export const api = {
   dashboard: (country?: string) =>
     get<Dashboard>("/dashboard", country ? { country } : undefined),
   applicationsGeojson: () => get<GeoJSON.FeatureCollection>("/applications.geojson"),
+  contractsGeojson: () => get<GeoJSON.FeatureCollection>("/contracts.geojson"),
   governanceLayers: () => get<GovLayerInfo[]>("/governance/layers"),
   governanceGeojson: (layer: GovLayerKey) =>
     get<GeoJSON.FeatureCollection>(`/governance/${layer}.geojson`),
