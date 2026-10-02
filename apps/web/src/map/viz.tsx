@@ -61,7 +61,7 @@ export function HBars({
   color = VIZ.accent,
   fmt = (v: number) => String(v),
 }: {
-  rows: [string, number][];
+  rows: ([string, number] | [string, number, string])[];
   unit?: string;
   color?: string;
   fmt?: (v: number) => string;
@@ -71,7 +71,7 @@ export function HBars({
   const max = Math.max(...filled.map(([, v]) => v)) || 1;
   return (
     <div className="viz-bars">
-      {filled.map(([label, v]) => (
+      {filled.map(([label, v, rowColor]) => (
         <div className="viz-bar-row" key={label}>
           <span className="viz-bar-label" title={label}>
             {label}
@@ -79,7 +79,10 @@ export function HBars({
           <span className="viz-bar-track">
             <span
               className="viz-bar-fill"
-              style={{ width: `${Math.max(2, (v / max) * 100)}%`, background: color }}
+              style={{
+                width: `${Math.max(2, (v / max) * 100)}%`,
+                background: rowColor ?? color,
+              }}
             />
           </span>
           <span className="viz-bar-value">

@@ -49,10 +49,14 @@ def visit_contract_links(conn) -> dict[str, str]:
         index[str(aid)] = str(aid)
         if acode:
             index.setdefault(str(acode), str(aid))
+    from .visibility import visit_hidden
+
     links: dict[str, str] = {}
     for (payload,) in conn.execute(
         "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
     ).fetchall():
+        if visit_hidden(payload):  # archived/deleted visits (M14)
+            continue
         code = _pick(payload, ["contractcode"])
         ref = _pick(payload, _APP_REF_KEYS)
         if code is None or ref is None:
@@ -126,6 +130,10 @@ def build_contracts(
             base, rule = future[0], "earliest_future_visit_no_completed_visit"
         else:
             base, rule = undated[0], "undated_visit_no_dated_visit"
+        from .visibility import contract_hidden  # late: avoids import cycle
+
+        if contract_hidden(base):  # archived/deleted contract (M14)
+            continue
 
         polygon = None
         source = None
@@ -184,17 +192,43 @@ def build_contracts(
     return out
 
 
+def contract_code_visibility(conn) -> tuple[set[str], set[str]]:
+    """(contract codes whose selected visit is live, all codes seen on any
+    visit). A code present on visits but absent from the live set is an
+    archived/deleted contract (M14) and must not be served anywhere."""
+    from .visibility import visit_hidden
+
+    visits = [
+        p
+        for (p,) in conn.execute(
+            "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
+        ).fetchall()
+        if not visit_hidden(p)
+    ]
+    all_codes = {
+        str(_pick(v, ["contractcode"])).strip()
+        for v in visits
+        if _pick(v, ["contractcode"])
+    }
+    live = {c["contract_code"] for c in build_contracts(visits, {}, date.today())}
+    return live, all_codes
+
+
 @router.get("/api/contracts.geojson")
 def contracts_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) -> dict:
     """Contracts as a FeatureCollection: a Polygon per contract with usable
     geometry plus a Point for every contract (centroid else application
     point), mirroring the applications layer's small-parcel visibility."""
+    from .visibility import hidden_application_ids, visit_hidden
+
     visits = [
         r[0]
         for r in conn.execute(
             "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
         ).fetchall()
+        if not visit_hidden(r[0])  # archived/deleted visits (M14)
     ]
+    hidden_apps = hidden_application_ids(conn)
     parcels: dict[str, dict[str, Any]] = {}
     for aid, acode, shape_raw, lon, lat in conn.execute(
         """
@@ -213,6 +247,8 @@ def contracts_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) -> 
 
     features = []
     for c in build_contracts(visits, parcels, date.today()):
+        if c["application_id"] in hidden_apps:  # archived application (M14)
+            continue
         props = {
             "contractCode": c["contract_code"],
             "applicationId": c["application_id"],

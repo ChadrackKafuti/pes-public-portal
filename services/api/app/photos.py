@@ -71,7 +71,10 @@ def photos_geojson(
     conn=Depends(get_conn),
     user: Principal = CurrentUser,
 ) -> dict:
-    rows = _rows(conn, application, kind, 10000)
+    from .visibility import hidden_application_ids
+
+    hidden = hidden_application_ids(conn)  # archived/deleted apps (M14)
+    rows = [r for r in _rows(conn, application, kind, 10000) if str(r[3]) not in hidden]
 
     # Source arrays report lon/lat 0 when the photo has no GPS; (0,0) is in
     # the Atlantic, never a Congo Basin parcel, so it counts as missing too.

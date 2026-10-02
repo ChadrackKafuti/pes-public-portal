@@ -88,6 +88,19 @@ INSERT INTO pes_raw_records (kind, record_id, payload) VALUES
      "ContractStartDate": "2024-09-01", "ContractEndDate": "2029-09-01",
      "ContractedPESArea": 2.0, "MonitoringDate": "2025-05-01",
      "Shape": "POLYGON((15.5 -2.25,15.51 -2.25,15.51 -2.24,15.5 -2.25))"
+   }'::jsonb),
+  ('application', 'A5', '{
+     "ApplicationCode": "APP-005", "Stage": "Archived",
+     "ActivityType": "Agroforestry", "BeneficiaryGender": "Female"
+   }'::jsonb),
+  ('monitoring_visit', 'MD', '{
+     "MonitoringVisitCode": "MD", "ApplicationId": "A1", "ApplicationCode": "APP-001",
+     "ContractCode": "CTR-001", "MonitoringDate": "2025-07-01", "IsDeleted": true
+   }'::jsonb),
+  ('monitoring_visit', 'MA', '{
+     "MonitoringVisitCode": "MA", "ApplicationCode": "APP-004",
+     "ContractCode": "CTR-003", "MonitoringDate": "2025-01-15",
+     "ContractStatus": "Archived"
    }'::jsonb);
 """
 
@@ -121,7 +134,9 @@ VALUES
   ('A2', 'APP-002', NULL, '2024-07-01', NULL, 15.5, -2.25, 2.0, 'Reforestation',
    'DRC', 'Kinshasa', 'Org B', 'Project X', 'h2'),
   ('A4', 'APP-004', NULL, '2024-08-01', NULL, NULL, NULL, 1.0, 'Regeneration',
-   'ROC', 'Sangha', 'Org A', 'Project Y', 'h4');
+   'ROC', 'Sangha', 'Org A', 'Project Y', 'h4'),
+  ('A5', 'APP-005', NULL, '2024-09-01', 'POLYGON((15 -1,15.01 -1,15.01 -0.99,15 -1))',
+   NULL, NULL, 2.0, 'Agroforestry', 'DRC', 'Kinshasa', 'Org A', 'Project X', 'h5');
 
 INSERT INTO pes_rs_objects
   (object_id, object_type, object_date, application_id, application_code,

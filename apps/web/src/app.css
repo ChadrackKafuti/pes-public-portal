@@ -2480,3 +2480,14 @@ table.data a {
   font-size: 11px;
   color: var(--map-text-muted);
 }
+
+/* M14 — home button in the map control stack */
+.ctrl-home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctrl-home svg {
+  display: block;
+}

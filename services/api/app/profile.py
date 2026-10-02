@@ -194,6 +194,8 @@ def application_profile(
 
     # Visits: raw visit payloads linked by application reference (322→ small
     # table today; expression-index when it grows).
+    from .visibility import visit_hidden  # late: visibility imports profile
+
     visit_payloads = [
         r[0]
         for r in conn.execute(
@@ -203,6 +205,7 @@ def application_profile(
             _pick(r[0], ["applicationid", "parentrecordid", "contractapplicationid", "applicationcode"])
         )
         == application_id
+        and not visit_hidden(r[0])
     ]
     today = date.today()
     visit_dates = sorted(
