@@ -79,6 +79,11 @@ def test_geojson_features(client):
     assert a1["properties"]["contractCode"] == "CTR-001"
     assert a1["properties"]["status"] == "ok"
     assert a1["properties"]["treeCoverHa"] == 2.1
+    # M7e filter properties: parcel columns + raw payload fields
+    assert a1["properties"]["country"] == "DRC"
+    assert a1["properties"]["beneficiaryType"] == "Individual farmer"
+    assert a1["properties"]["gender"] == "Female"
+    assert a1["properties"]["applicationStatus"] == "In progress"
 
     # A2: no shape -> point fallback; unprocessed -> null indicator props.
     a2 = by_id["A2"]

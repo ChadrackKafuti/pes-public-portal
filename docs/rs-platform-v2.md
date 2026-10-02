@@ -251,6 +251,40 @@ Still open:
 5. **Partner sequencing:** which R&D socket lands first (FAO DDD land cover, CTrees biomass, WUR indicators)? Shapes P3.
 6. **Mobile collection tooling:** KoboToolbox vs ODK vs the PES system's own mobile app for M6 site checks.
 
+## 9. Build record — M7: portal-v1 valorization (Oct 2026)
+
+Shipped in sequence, one PR per milestone, on top of the live pipeline (hourly
+ingest, GEE indicators, governance ETL) and the ABC-Map-inspired shell:
+
+- **M7a — Geotagged photos** (PR #16): both PES endpoints' photo arrays flatten
+  into `pes_photos` with v1's stable identity (sha1 of parent/field/index/
+  URL-without-query/coords); images mirror into a private Supabase Storage
+  bucket under a per-run budget; `pes_raw_records` mirrors full payload JSONB.
+  API serves photo points and short-lived signed image URLs; map photo layer +
+  dossier gallery with lightbox.
+- **M7b — Application dossier at v1 depth** (PR #17):
+  `/api/applications/{id}/profile` assembles the v1 ArcGIS popup content from
+  the raw mirror (stage tracker, contract timeline, visit schedule,
+  beneficiary/project/contract sections, latest-visit performance, fire-risk
+  category, area comparison); the dossier and map popup render it EN/FR.
+- **M7c — Governance inspector** (PR #18): full-depth feature inspector in the
+  map sidebar (chips, KPI tiles, zoning donut, parent/zones, CFCL procedure
+  tracker, national source attributes, PA/forest-title overlaps via PostGIS,
+  documents grouped by v1's twelve categories).
+- **M7d — Analyses + annual indicators** (PR #19): `indicators/annual.py`
+  computes per-application annual Dynamic World tree-cover series (2016→) with
+  derived loss, plus dominant land cover at application date vs current
+  (`pes_annual_indicators` + `landcover_*` columns, 007 migration); the
+  Analyses page serves v1's contract analysis (pickers, description sentence,
+  KPIs, line/bar charts, data table, citation). The backlog drains inside each
+  hourly run's leftover time budget.
+- **M7e — Landing, filters, country profile** (PR #20): v1 landing hero with
+  the two entry CTAs and data-attribution footer (map moves to `/map`); map
+  sidebar Filters section (eight dimensions + code search + date range,
+  client-side with Apply/Reset and match count); dashboard gains v1's
+  country-overview aggregates (pipeline by stage, gender split, fire-risk
+  profile, overdue count) computed from the raw mirror.
+
 ---
 
 *This document is the v2 design baseline. Each phase should open with a short technical design note (schema migrations, endpoint contracts, style catalog) against this baseline.*

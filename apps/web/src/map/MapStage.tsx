@@ -203,6 +203,11 @@ const MS_ICONS: Record<string, ReactNode> = {
       <path d="m15.5 15.5 5 5" strokeLinecap="round" />
     </svg>
   ),
+  filters: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M3 5h18l-7 8v6l-4-2v-4L3 5Z" strokeLinejoin="round" />
+    </svg>
+  ),
   basemap: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <circle cx="12" cy="12" r="9" />
@@ -334,6 +339,7 @@ export function MapStage() {
   const [sections, setSections] = useState({
     analysis: true,
     layers: true,
+    filters: false,
     find: false,
     basemap: false,
   });
@@ -355,6 +361,73 @@ export function MapStage() {
     setInspect({ srcUid, layer, seed });
     setSideOpen(true);
   });
+
+  /* M7e — client-side parcel filters (v1 §7): draft → Apply/Reset semantics. */
+  const emptyFlt = {
+    country: "", province: "", org: "", project: "", activity: "",
+    beneficiaryType: "", gender: "", applicationStatus: "",
+    code: "", from: "", to: "",
+  };
+  const [flt, setFlt] = useState(emptyFlt);
+  const [fltCount, setFltCount] = useState<number | null>(null);
+  const filteredRef = useRef<FeatureCollection | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
+
+  const fltMatch = (p: Record<string, unknown>, f: typeof emptyFlt): boolean => {
+    const selects: [keyof typeof emptyFlt, string][] = [
+      ["country", "country"], ["province", "province"], ["org", "org"],
+      ["project", "project"], ["activity", "pesActivity"],
+      ["beneficiaryType", "beneficiaryType"], ["gender", "gender"],
+      ["applicationStatus", "applicationStatus"],
+    ];
+    for (const [k, prop] of selects) {
+      if (f[k] && String(p[prop] ?? "") !== f[k]) return false;
+    }
+    if (f.code) {
+      const q = f.code.toUpperCase();
+      const hit = ["applicationId", "applicationCode", "contractCode"].some(
+        (k) => typeof p[k] === "string" && (p[k] as string).toUpperCase().includes(q),
+      );
+      if (!hit) return false;
+    }
+    const d = typeof p.applicationDate === "string" ? p.applicationDate.slice(0, 10) : "";
+    if (f.from && (!d || d < f.from)) return false;
+    if (f.to && (!d || d > f.to)) return false;
+    return true;
+  };
+
+  const applyFlt = (f: typeof emptyFlt) => {
+    const map = mapRef.current;
+    const data = dataRef.current;
+    if (!map || !data) return;
+    const active = Object.values(f).some((v) => v !== "");
+    const filtered: FeatureCollection = active
+      ? {
+          type: "FeatureCollection",
+          features: data.features.filter((ft) =>
+            fltMatch((ft.properties ?? {}) as Record<string, unknown>, f),
+          ),
+        }
+      : data;
+    filteredRef.current = active ? filtered : null;
+    (map.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(filtered);
+    setFltCount(active ? filtered.features.length : null);
+  };
+
+  /** Distinct sorted values of one geojson property, optionally pre-filtered. */
+  const fltOptions = (prop: string, pre?: (p: Record<string, unknown>) => boolean): string[] => {
+    const data = dataRef.current;
+    if (!data) return [];
+    const out = new Set<string>();
+    for (const ft of data.features) {
+      const p = (ft.properties ?? {}) as Record<string, unknown>;
+      if (pre && !pre(p)) continue;
+      const v = p[prop];
+      if (typeof v === "string" && v) out.add(v);
+    }
+    return [...out].sort();
+  };
+  void dataVersion; // options recompute when the geojson arrives
 
   const [photosOn, setPhotosOn] = useState(false);
   const photosDataRef = useRef<FeatureCollection | null>(null);
@@ -440,6 +513,7 @@ export function MapStage() {
         const data = (await api.applicationsGeojson()) as FeatureCollection;
         dataRef.current = data;
         addParcelLayers(map, data);
+        setDataVersion((v) => v + 1);
       } catch {
         /* API down: basemap-only map is still useful */
       }
@@ -573,7 +647,7 @@ export function MapStage() {
     map.setStyle(BASEMAPS[basemap]);
     map.once("styledata", () => {
       if (dataRef.current && !map.getSource(SRC)) {
-        addParcelLayers(map, dataRef.current);
+        addParcelLayers(map, filteredRef.current ?? dataRef.current);
       }
       for (const key of GOV_LAYER_ORDER) {
         const data = govDataRef.current[key];
@@ -907,6 +981,92 @@ export function MapStage() {
             <button className="btn-ghost" onClick={zoomToData}>
               {t("map_zoom_data")}
             </button>
+          </MsSection>
+
+          <MsSection
+            title={t("section_filters")}
+            icon={MS_ICONS.filters}
+            open={sections.filters}
+            onToggle={() => toggleSection("filters")}
+          >
+            <div className="flt-grid">
+              {(
+                [
+                  ["country", "flt_country", fltOptions("country")],
+                  [
+                    "province",
+                    "flt_province",
+                    fltOptions("province", flt.country ? (p) => p.country === flt.country : undefined),
+                  ],
+                  ["org", "flt_org", fltOptions("org")],
+                  ["project", "flt_project", fltOptions("project")],
+                  ["activity", "flt_activity", fltOptions("pesActivity")],
+                  ["beneficiaryType", "flt_beneficiary", fltOptions("beneficiaryType")],
+                  ["gender", "flt_gender", fltOptions("gender")],
+                  ["applicationStatus", "flt_status", fltOptions("applicationStatus")],
+                ] as const
+              ).map(([key, label, options]) => (
+                <select
+                  key={key}
+                  value={flt[key]}
+                  aria-label={t(label)}
+                  onChange={(e) =>
+                    setFlt((f) => ({
+                      ...f,
+                      [key]: e.target.value,
+                      ...(key === "country" ? { province: "" } : null),
+                    }))
+                  }
+                >
+                  <option value="">{t(label)}</option>
+                  {options.map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={flt.code}
+              onChange={(e) => setFlt((f) => ({ ...f, code: e.target.value }))}
+              placeholder={t("flt_code_ph")}
+              aria-label={t("flt_code_ph")}
+            />
+            <div className="flt-dates">
+              <label className="muted small">
+                {t("flt_from")}
+                <input
+                  type="date"
+                  value={flt.from}
+                  onChange={(e) => setFlt((f) => ({ ...f, from: e.target.value }))}
+                />
+              </label>
+              <label className="muted small">
+                {t("flt_to")}
+                <input
+                  type="date"
+                  value={flt.to}
+                  onChange={(e) => setFlt((f) => ({ ...f, to: e.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="basemap-row">
+              <button className="btn" onClick={() => applyFlt(flt)}>
+                {t("flt_apply")}
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  setFlt(emptyFlt);
+                  applyFlt(emptyFlt);
+                }}
+              >
+                {t("flt_reset")}
+              </button>
+            </div>
+            {fltCount !== null && (
+              <span className="muted small">{t("flt_match", { n: fltCount })}</span>
+            )}
           </MsSection>
 
           <MsSection

@@ -27,6 +27,17 @@ def test_dashboard_totals_and_groups(client):
     assert gov["documents"] == 1
 
 
+def test_dashboard_profile_aggregates(client):
+    """M7e: v1 country-overview figures from the raw payload mirror (only A1
+    has a raw record: stage Validated/5, gender Female, no overdue flag,
+    no burned area -> empty fire profile)."""
+    pes = client.get("/api/dashboard").json()["pes"]
+    assert pes["byStage"] == [{"name": "Validated", "order": 5, "applications": 1}]
+    assert pes["byGender"] == [{"name": "Female", "applications": 1}]
+    assert pes["fireProfile"] == []
+    assert pes["overdue"] == 0
+
+
 def test_dashboard_country_filter(client):
     d = client.get("/api/dashboard", params={"country": "ROC"}).json()
     pes = d["pes"]
@@ -34,5 +45,8 @@ def test_dashboard_country_filter(client):
     assert pes["visits"] == 0
     assert pes["treeCoverHa"] is None  # blank is not zero
     assert [g["name"] for g in pes["byCountry"]] == ["ROC"]
+    # no raw records for ROC applications -> profile aggregates stay empty
+    assert pes["byStage"] == []
+    assert pes["overdue"] is None
     # governance stays basin-wide (iso3-keyed, not narrowed by PES country names)
     assert d["governance"]["documents"] == 1

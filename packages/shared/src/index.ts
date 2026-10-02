@@ -158,6 +158,11 @@ export interface Dashboard {
     byCountry: DashboardGroup[];
     byActivity: DashboardGroup[];
     byMonth: { month: string; applications: number }[];
+    /** M7e — v1 country-overview aggregates (absent until raw records mirror). */
+    byStage?: { name: string; order: number | null; applications: number }[];
+    byGender?: { name: string; applications: number }[];
+    fireProfile?: { name: string; applications: number }[];
+    overdue?: number | null;
   };
   governance: {
     byLayer: { layer: GovLayerKey; count: number; areaHa: number | null }[];
