@@ -207,11 +207,17 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
     ).fetchall()
     features = []
     for r in rows:
-        geometry = shape_to_geometry(r[5], r[6], r[7])
-        if geometry is None:
-            continue
+        # v1 web-map parity: applications exist as two layers, points and
+        # polygons — some records have only one of the two, some have both.
+        geometries: list[dict] = []
+        polygon = shape_to_geometry(r[5], None, None)
+        if polygon is not None:
+            geometries.append(polygon)
+        if r[6] is not None and r[7] is not None:
+            geometries.append({"type": "Point", "coordinates": [r[6], r[7]]})
         payload = r[14] or {}
-        features.append(
+        for geometry in geometries:
+            features.append(
             {
                 "type": "Feature",
                 "geometry": geometry,

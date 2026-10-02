@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router";
 import { MapStage } from "./map/MapStage";
-import { ApplicationsPage } from "./screens/ApplicationsPage";
 import { AlertsPage } from "./screens/AlertsPage";
 import { AnalysesPage } from "./screens/AnalysesPage";
-import { DashboardPage } from "./screens/DashboardPage";
 import { DossierPage } from "./screens/DossierPage";
 import { LandingPage } from "./screens/LandingPage";
 import { RunsPage } from "./screens/RunsPage";
@@ -151,8 +149,6 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
     { to: "/map", icon: "map", label: t("nav_map") },
     { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
     { to: "/alerts", icon: "alerts", label: t("nav_alerts") },
-    { to: "/dashboard", icon: "dashboard", label: t("nav_dashboard") },
-    { to: "/applications", icon: "applications", label: t("nav_applications") },
     { to: "/runs", icon: "runs", label: t("nav_runs") },
   ];
 
@@ -187,8 +183,6 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
               API: {apiHealth === "checking" ? "…" : apiHealth}
             </span>
           )}
-          <img className="partner" src="branding/cafi-logo.png" alt="CAFI" />
-          <img className="partner" src="branding/undp-logo.svg" alt="UNDP" />
         </div>
       </header>
       <main id="main" className="main">
@@ -201,8 +195,8 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
             <Route path="/map" element={null} />
             <Route path="/analyses" element={<AnalysesPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/applications" element={<ApplicationsPage />} />
+            {/* the dossier stays reachable (alerts links, print/export) but is
+                no longer in the nav — selections open in the map panel */}
             <Route path="/applications/:id" element={<DossierPage />} />
             <Route path="/runs" element={<RunsPage />} />
           </Routes>

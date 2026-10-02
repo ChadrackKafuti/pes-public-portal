@@ -14,8 +14,9 @@ import {
   govLayerLabel,
   zoneTypeLabel,
 } from "./governance";
-import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
+import { fmtNum, useI18n, useT, type Key } from "../i18n";
 import { GovInspector } from "./GovInspector";
+import { ParcelOverview } from "./ParcelOverview";
 
 /** Congo Basin extent used by portal-v1 (WGS84). */
 const CONGO_BASIN: [[number, number], [number, number]] = [
@@ -26,22 +27,9 @@ const CONGO_BASIN: [[number, number], [number, number]] = [
 const SRC = "parcels";
 const LAYERS = ["parcels-fill", "parcels-line", "parcels-point"] as const;
 
-/** Status palette (app.css tokens as literals — MapLibre can't read CSS vars);
- *  unprocessed parcels keep the series hue. Shown with text labels in the
- *  map legend, never color alone. */
-export const PARCEL_STATUS_COLORS: Record<string, string> = {
-  ok: "#0ca30c",
-  partial: "#fab219",
-  partial_final: "#d03b3b",
-};
-const PARCEL_DEFAULT_COLOR = "#3987e5";
-
-function statusColor(): unknown {
-  const expr: unknown[] = ["match", ["coalesce", ["get", "status"], ""]];
-  for (const [k, v] of Object.entries(PARCEL_STATUS_COLORS)) expr.push(k, v);
-  expr.push(PARCEL_DEFAULT_COLOR);
-  return expr;
-}
+/** The ArcGIS web map's applications/contracts symbol: transparent fill with
+ *  a yellow 2.25px outline (RGB 217,195,30), points in the same yellow. */
+export const APP_YELLOW = "#d9c31e";
 
 function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
   map.addSource(SRC, { type: "geojson", data });
@@ -50,14 +38,15 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     type: "fill",
     source: SRC,
     filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "fill-color": statusColor() as never, "fill-opacity": 0.3 },
+    // near-invisible fill keeps small polygons clickable on imagery
+    paint: { "fill-color": APP_YELLOW, "fill-opacity": 0.06 },
   });
   map.addLayer({
     id: "parcels-line",
     type: "line",
     source: SRC,
     filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "line-color": statusColor() as never, "line-width": 2 },
+    paint: { "line-color": APP_YELLOW, "line-width": 2.25 },
   });
   map.addLayer({
     id: "parcels-point",
@@ -65,11 +54,66 @@ function addParcelLayers(map: maplibregl.Map, data: FeatureCollection) {
     source: SRC,
     filter: ["==", ["geometry-type"], "Point"],
     paint: {
-      "circle-radius": 6,
-      "circle-color": statusColor() as never,
-      "circle-stroke-width": 2,
+      "circle-radius": 5.5,
+      "circle-color": APP_YELLOW,
+      "circle-stroke-width": 1.5,
       "circle-stroke-color": "#ffffff",
     },
+  });
+}
+
+/* Live reference layers from the public UNDP services the v1 web map used
+ * (plain HTTP — no ArcGIS SDK). Loaded on demand from the browser. */
+
+const GEOSMART = "https://geosmarthosting.undp.org/arcgis/rest/services";
+
+const ADMIN_LAYERS = {
+  admin0: `${GEOSMART}/Hosted/CAFI_admin_0/FeatureServer/0`,
+  admin1: `${GEOSMART}/Hosted/CAFI_admin_1/FeatureServer/0`,
+} as const;
+type AdminKey = keyof typeof ADMIN_LAYERS;
+
+export const SUITABILITY_LAYERS = [
+  ["agriculture", `${GEOSMART}/Agriculture_allowed/MapServer`],
+  ["conservation", `${GEOSMART}/Conservation_allowed/MapServer`],
+  ["agroforestry", `${GEOSMART}/agroforestry_allowed/MapServer`],
+  ["forestry", `${GEOSMART}/Forestry_allowed/MapServer`],
+  ["reforestation", `${GEOSMART}/Reforestation_allowed1/MapServer`],
+  ["regeneration", `${GEOSMART}/Regeneration_allowed/MapServer`],
+] as const;
+type SuitKey = (typeof SUITABILITY_LAYERS)[number][0];
+
+function addSuitabilityLayer(map: maplibregl.Map, key: SuitKey, base: string) {
+  if (map.getSource(`suit-${key}`)) return;
+  map.addSource(`suit-${key}`, {
+    type: "raster",
+    tiles: [
+      `${base}/export?dpi=96&transparent=true&format=png32&bbox={bbox-epsg-3857}` +
+        `&bboxSR=102100&imageSR=102100&size=256,256&f=image`,
+    ],
+    tileSize: 256,
+  });
+  // rasters sit at the very bottom of our overlays
+  const before = map
+    .getStyle()
+    .layers.find((l) => l.id.startsWith("gov-") || l.id.startsWith("parcels-"))?.id;
+  map.addLayer(
+    { id: `suit-${key}`, type: "raster", source: `suit-${key}`, paint: { "raster-opacity": 0.7 } },
+    before,
+  );
+}
+
+function addAdminLayer(map: maplibregl.Map, key: AdminKey, data: FeatureCollection) {
+  if (map.getSource(`admin-${key}`)) return;
+  map.addSource(`admin-${key}`, { type: "geojson", data });
+  map.addLayer({
+    id: `admin-${key}`,
+    type: "line",
+    source: `admin-${key}`,
+    paint:
+      key === "admin0"
+        ? { "line-color": "#ffffff", "line-width": 1.6 }
+        : { "line-color": "#ffffff", "line-width": 0.8, "line-dasharray": [2, 2] },
   });
 }
 
@@ -236,23 +280,41 @@ const MS_ICONS: Record<string, ReactNode> = {
   ),
 };
 
-/** Photo points (M7a): neutral violet, never a status hue. */
-const PHOTO_COLOR = "#7e57c2";
+/** Photo markers: the exact picture symbols of the ArcGIS web map
+ *  (orange GPS-camera icons), one layer per photo kind. */
+const PHOTO_LAYERS = [
+  ["photos-app", "application", "photo-app"],
+  ["photos-visit", "monitoring_visit", "photo-visit"],
+] as const;
+const PHOTO_LAYER_IDS = PHOTO_LAYERS.map(([id]) => id);
 
-function addPhotoLayer(map: maplibregl.Map, data: FeatureCollection) {
+async function addPhotoLayers(map: maplibregl.Map, data: FeatureCollection) {
   if (map.getSource("photos")) return;
+  for (const [, , icon] of PHOTO_LAYERS) {
+    if (!map.hasImage(icon)) {
+      try {
+        const img = await map.loadImage(`markers/${icon}.png`);
+        if (!map.hasImage(icon)) map.addImage(icon, img.data);
+      } catch {
+        /* marker asset missing: fall through, icon layers render nothing */
+      }
+    }
+  }
+  if (map.getSource("photos")) return; // a concurrent call won the race
   map.addSource("photos", { type: "geojson", data });
-  map.addLayer({
-    id: "photos-dots",
-    type: "circle",
-    source: "photos",
-    paint: {
-      "circle-radius": 5,
-      "circle-color": PHOTO_COLOR,
-      "circle-stroke-width": 1.5,
-      "circle-stroke-color": "#ffffff",
-    },
-  });
+  for (const [id, kind, icon] of PHOTO_LAYERS) {
+    map.addLayer({
+      id,
+      type: "symbol",
+      source: "photos",
+      filter: ["==", ["get", "kind"], kind],
+      layout: {
+        "icon-image": icon,
+        "icon-size": 19 / 128, // web map draws the 128px picture at ~19px
+        "icon-allow-overlap": true,
+      },
+    });
+  }
 }
 
 /** Popup body for one photo point: label + parent link + lazy signed image. */
@@ -334,7 +396,7 @@ export function MapStage({
   const locale = useI18n((s) => s.locale);
   const localeRef = useRef(locale);
   localeRef.current = locale;
-  const [basemap, setBasemap] = useState<BasemapId>("streets");
+  const [basemap, setBasemap] = useState<BasemapId>("imagery");
   const [query, setQuery] = useState("");
   const [miss, setMiss] = useState(false);
   const [sideOpen, setSideOpen] = useState(true);
@@ -354,6 +416,7 @@ export function MapStage({
   } | null>(null);
   const openInspectorRef = useRef((srcUid: string, layer: GovLayerKey, seed: Record<string, unknown>) => {
     setInspect({ srcUid, layer, seed });
+    setSelected(null);
     setSideOpen(true);
     setTab("overview"); // v1: selecting a feature jumps to Overview
   });
@@ -425,10 +488,43 @@ export function MapStage({
   };
   void dataVersion; // options recompute when the geojson arrives
 
-  const [photosOn, setPhotosOn] = useState(false);
+  const [photosOn, setPhotosOn] = useState({ app: false, visit: false });
   const photosDataRef = useRef<FeatureCollection | null>(null);
   const photosOnRef = useRef(photosOn);
   photosOnRef.current = photosOn;
+
+  /* v1 pattern: clicking an application shows its details in the Overview
+   * tab, never a separate page. */
+  const [selected, setSelected] = useState<{
+    id: string;
+    seed: Record<string, unknown>;
+  } | null>(null);
+  const openParcelRef = useRef((id: string, seed: Record<string, unknown>) => {
+    setSelected({ id, seed });
+    setInspect(null);
+    setSideOpen(true);
+    setTab("overview");
+  });
+
+  /* Reference layers from the UNDP services (admin boundaries, suitability). */
+  const [adminOn, setAdminOn] = useState<Record<AdminKey, boolean>>({
+    admin0: false,
+    admin1: false,
+  });
+  const adminDataRef = useRef<Partial<Record<AdminKey, FeatureCollection>>>({});
+  const adminOnRef = useRef(adminOn);
+  adminOnRef.current = adminOn;
+  const [suitOn, setSuitOn] = useState<Record<SuitKey, boolean>>({
+    agriculture: false, conservation: false, agroforestry: false,
+    forestry: false, reforestation: false, regeneration: false,
+  });
+  const suitOnRef = useRef(suitOn);
+  suitOnRef.current = suitOn;
+
+  /* Application sub-layers (web-map parity: points and polygons separately). */
+  const [appLayersOn, setAppLayersOn] = useState({ polygons: true, points: true });
+  const appLayersOnRef = useRef(appLayersOn);
+  appLayersOnRef.current = appLayersOn;
 
   const [aoiMode, setAoiMode] = useState(false);
   const aoiModeRef = useRef(aoiMode);
@@ -495,12 +591,14 @@ export function MapStage({
     if (!container.current) return;
     const map = new maplibregl.Map({
       container: container.current,
-      style: BASEMAPS.streets,
+      style: BASEMAPS.imagery,
       bounds: CONGO_BASIN,
       fitBoundsOptions: { padding: 24 },
       attributionControl: { compact: true },
     });
     mapRef.current = map;
+    // test hook: lets browser automation address the map deterministically
+    (window as unknown as Record<string, unknown>).__cafiMap = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.ScaleControl());
 
@@ -546,22 +644,25 @@ export function MapStage({
       const hits = map.queryRenderedFeatures(e.point, { layers: ids });
       if (hits.length) map.getCanvas().style.cursor = "pointer";
     });
-    // Photo points win over everything below them.
-    map.on("click", "photos-dots", (e) => {
-      if (aoiModeRef.current) return;
-      const f: MapGeoJSONFeature | undefined = e.features?.[0];
-      if (!f) return;
-      const el = photoPopupContent(f.properties ?? {}, t("photo_pending"), (id) =>
-        navigateRef.current(`/applications/${encodeURIComponent(id)}`),
-      );
-      new maplibregl.Popup({ closeButton: true, maxWidth: "300px" })
-        .setLngLat(e.lngLat)
-        .setDOMContent(el)
-        .addTo(map);
-    });
-    const photoHit = (e: maplibregl.MapMouseEvent) =>
-      !!map.getLayer("photos-dots") &&
-      map.queryRenderedFeatures(e.point, { layers: ["photos-dots"] }).length > 0;
+    // Photo markers win over everything below them.
+    for (const id of PHOTO_LAYER_IDS) {
+      map.on("click", id, (e) => {
+        if (aoiModeRef.current) return;
+        const f: MapGeoJSONFeature | undefined = e.features?.[0];
+        if (!f) return;
+        const el = photoPopupContent(f.properties ?? {}, t("photo_pending"), (appId) => {
+          openParcelRef.current(appId, {});
+        });
+        new maplibregl.Popup({ closeButton: true, maxWidth: "300px" })
+          .setLngLat(e.lngLat)
+          .setDOMContent(el)
+          .addTo(map);
+      });
+    }
+    const photoHit = (e: maplibregl.MapMouseEvent) => {
+      const ids = PHOTO_LAYER_IDS.filter((id) => map.getLayer(id));
+      return ids.length > 0 && map.queryRenderedFeatures(e.point, { layers: ids }).length > 0;
+    };
 
     map.on("click", (e) => {
       if (aoiModeRef.current || photoHit(e)) return;
@@ -585,48 +686,11 @@ export function MapStage({
       if (aoiModeRef.current || photoHit(e)) return;
       const f: MapGeoJSONFeature | undefined = e.features?.[0];
       if (!f) return;
-      const p = f.properties as Record<string, string | null>;
-      const el = document.createElement("div");
-      el.className = "map-popup";
-      el.innerHTML = `
-        <strong>${p.applicationCode ?? p.applicationId}</strong><br/>
-        ${p.contractCode ? `${p.contractCode}<br/>` : ""}
-        ${p.pesActivity ?? ""} · ${p.applicationDate ? fmtDate(p.applicationDate, localeRef.current) : ""}
-        ${p.status ? `<br/>status: ${p.status}` : ""}`;
-      // v1-depth mini-profile line (M7b): stage, overdue, fire, achieved %.
-      const prof = document.createElement("div");
-      prof.className = "muted small";
-      el.appendChild(prof);
-      api
-        .applicationProfile(p.applicationId as string)
-        .then((pr) => {
-          const bits: string[] = [];
-          if (pr.stage?.name) bits.push(`${t("pf_stage")}: ${pr.stage.name}`);
-          if (pr.visits?.overdue) bits.push(t("pf_visit_overdue"));
-          if (pr.fire?.category === "high" || pr.fire?.category === "very_high") {
-            bits.push(
-              `${t("pf_fire_risk")}: ${t(pr.fire.category === "high" ? "fire_high" : "fire_very_high")}`,
-            );
-          }
-          if (pr.performance?.achievedPct != null) {
-            bits.push(`${Math.round(pr.performance.achievedPct)}% ${t("perf_achieved")}`);
-          }
-          prof.textContent = bits.join(" · ");
-        })
-        .catch(() => {
-          prof.remove();
-        });
-      const btn = document.createElement("button");
-      btn.className = "map-popup-btn";
-      btn.textContent = t("open_dossier");
-      btn.onclick = () =>
-        navigateRef.current(`/applications/${encodeURIComponent(p.applicationId as string)}`);
-      el.appendChild(document.createElement("br"));
-      el.appendChild(btn);
-      new maplibregl.Popup({ closeButton: true, maxWidth: "260px" })
-        .setLngLat(e.lngLat)
-        .setDOMContent(el)
-        .addTo(map);
+      const p = (f.properties ?? {}) as Record<string, unknown>;
+      if (typeof p.applicationId === "string") {
+        // v1: the selection's details open in the panel's Overview tab.
+        openParcelRef.current(p.applicationId, p);
+      }
     });
 
     return () => {
@@ -651,40 +715,136 @@ export function MapStage({
           addGovLayers(map, key, data);
         }
       }
-      if (photosDataRef.current && photosOnRef.current && !map.getSource("photos")) {
-        addPhotoLayer(map, photosDataRef.current);
+      if (
+        photosDataRef.current &&
+        (photosOnRef.current.app || photosOnRef.current.visit) &&
+        !map.getSource("photos")
+      ) {
+        void addPhotoLayers(map, photosDataRef.current).then(() => applyPhotoVisRef.current());
       }
+      for (const key of Object.keys(ADMIN_LAYERS) as AdminKey[]) {
+        const data = adminDataRef.current[key];
+        if (data && adminOnRef.current[key] && !map.getSource(`admin-${key}`)) {
+          addAdminLayer(map, key, data);
+        }
+      }
+      for (const [key, base] of SUITABILITY_LAYERS) {
+        if (suitOnRef.current[key] && !map.getSource(`suit-${key}`)) {
+          addSuitabilityLayer(map, key, base);
+        }
+      }
+      applyAppVisRef.current();
       if (aoiVertsRef.current.length) {
         setAoiLayers(map, aoiCollection(aoiVertsRef.current, aoiClosedRef.current));
       }
     });
   }, [basemap]);
 
-  // Photo layer toggle: lazy-load once, then flip visibility.
+  // Application sub-layer toggles (points / polygons).
+  const applyAppVisRef = useRef(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const on = appLayersOnRef.current;
+    const set = (id: string, vis: boolean) => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis ? "visible" : "none");
+    };
+    set("parcels-fill", on.polygons);
+    set("parcels-line", on.polygons);
+    set("parcels-point", on.points);
+  });
+  useEffect(() => {
+    applyAppVisRef.current();
+  }, [appLayersOn]);
+
+  // Photo layer toggles: lazy-load the data once, then flip per-kind visibility.
+  const applyPhotoVisRef = useRef(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const on = photosOnRef.current;
+    for (const [id, kind] of PHOTO_LAYERS) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(
+          id,
+          "visibility",
+          (kind === "application" ? on.app : on.visit) ? "visible" : "none",
+        );
+      }
+    }
+  });
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     let cancelled = false;
-    if (photosOn && !photosDataRef.current) {
+    const any = photosOn.app || photosOn.visit;
+    if (any && !photosDataRef.current) {
       api
         .photosGeojson()
-        .then((data) => {
+        .then(async (data) => {
           photosDataRef.current = data as FeatureCollection;
           const m = mapRef.current;
-          if (!cancelled && m && photosOnRef.current) addPhotoLayer(m, data as FeatureCollection);
+          if (!cancelled && m) {
+            await addPhotoLayers(m, data as FeatureCollection);
+            applyPhotoVisRef.current();
+          }
         })
         .catch(() => {
-          /* photos not synced yet: leave the toggle inert */
+          /* photos not synced yet: leave the toggles inert */
         });
-    } else if (map.getLayer("photos-dots")) {
-      map.setLayoutProperty("photos-dots", "visibility", photosOn ? "visible" : "none");
-    } else if (photosOn && photosDataRef.current) {
-      addPhotoLayer(map, photosDataRef.current);
+    } else if (any && photosDataRef.current && !map.getSource("photos")) {
+      void addPhotoLayers(map, photosDataRef.current).then(() => applyPhotoVisRef.current());
+    } else {
+      applyPhotoVisRef.current();
     }
     return () => {
       cancelled = true;
     };
   }, [photosOn]);
+
+  // Admin boundary toggles: fetch the public GeoJSON once, then flip visibility.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    let cancelled = false;
+    for (const key of Object.keys(ADMIN_LAYERS) as AdminKey[]) {
+      const on = adminOn[key];
+      if (on && !adminDataRef.current[key]) {
+        fetch(
+          `${ADMIN_LAYERS[key]}/query?where=1%3D1&outFields=*&returnGeometry=true` +
+            `&geometryPrecision=4&f=geojson`,
+        )
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+          .then((data: FeatureCollection) => {
+            adminDataRef.current[key] = data;
+            const m = mapRef.current;
+            if (!cancelled && m && adminOnRef.current[key]) addAdminLayer(m, key, data);
+          })
+          .catch(() => {
+            /* UNDP service unreachable: leave the toggle inert */
+          });
+      } else if (map.getLayer(`admin-${key}`)) {
+        map.setLayoutProperty(`admin-${key}`, "visibility", on ? "visible" : "none");
+      } else if (on && adminDataRef.current[key]) {
+        addAdminLayer(map, key, adminDataRef.current[key]!);
+      }
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [adminOn]);
+
+  // Suitability raster toggles (live ArcGIS export tiles, no SDK).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const [key, base] of SUITABILITY_LAYERS) {
+      const on = suitOn[key];
+      if (on && !map.getSource(`suit-${key}`)) {
+        addSuitabilityLayer(map, key, base);
+      } else if (map.getLayer(`suit-${key}`)) {
+        map.setLayoutProperty(`suit-${key}`, "visibility", on ? "visible" : "none");
+      }
+    }
+  }, [suitOn]);
 
   // Crosshair while drawing an AOI.
   useEffect(() => {
@@ -839,7 +999,13 @@ export function MapStage({
           </div>
           <div className="panel-body scroll">
             <div role="tabpanel" hidden={tab !== "overview"} className="tabpanel">
-              {inspect ? (
+              {selected ? (
+                <ParcelOverview
+                  id={selected.id}
+                  seed={selected.seed}
+                  onClose={() => setSelected(null)}
+                />
+              ) : inspect ? (
                 <GovInspector
                   srcUid={inspect.srcUid}
                   layer={inspect.layer}
@@ -965,27 +1131,42 @@ export function MapStage({
 
             <div role="tabpanel" hidden={tab !== "layers"} className="tabpanel">
             <span className="muted small">{t("parcels_title")}</span>
-            <span className="gov-legend-row">
-              <i style={{ background: PARCEL_DEFAULT_COLOR }} /> {t("legend_not_processed")}
-            </span>
-            {Object.entries(PARCEL_STATUS_COLORS).map(([k, c]) => (
-              <span key={k} className="gov-legend-row">
-                <i style={{ background: c }} /> {k}
-              </span>
-            ))}
             <div className="gov-layers">
               <label>
                 <input
                   type="checkbox"
-                  checked={photosOn}
-                  onChange={(e) => setPhotosOn(e.target.checked)}
+                  checked={appLayersOn.polygons}
+                  onChange={(e) => setAppLayersOn({ ...appLayersOn, polygons: e.target.checked })}
                 />
-                <i
-                  className="legend-dot"
-                  style={{ background: PHOTO_COLOR }}
-                  aria-hidden
+                <i className="legend-line" style={{ borderColor: APP_YELLOW }} aria-hidden />
+                {t("lyr_app_polys")}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={appLayersOn.points}
+                  onChange={(e) => setAppLayersOn({ ...appLayersOn, points: e.target.checked })}
                 />
-                {t("photos_layer")}
+                <i className="legend-dot" style={{ background: APP_YELLOW }} aria-hidden />
+                {t("lyr_app_points")}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={photosOn.app}
+                  onChange={(e) => setPhotosOn({ ...photosOn, app: e.target.checked })}
+                />
+                <img className="legend-icon" src="markers/photo-app.png" alt="" aria-hidden />
+                {t("photos_app_layer")}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={photosOn.visit}
+                  onChange={(e) => setPhotosOn({ ...photosOn, visit: e.target.checked })}
+                />
+                <img className="legend-icon" src="markers/photo-visit.png" alt="" aria-hidden />
+                {t("photos_visit_layer")}
               </label>
             </div>
             <span className="muted small" style={{ marginTop: "0.5rem" }}>
@@ -1006,6 +1187,36 @@ export function MapStage({
                   </label>
                 );
               })}
+            </div>
+            <span className="muted small" style={{ marginTop: "0.5rem" }}>
+              {t("admin_title")}
+            </span>
+            <div className="gov-layers">
+              {(Object.keys(ADMIN_LAYERS) as AdminKey[]).map((key) => (
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    checked={adminOn[key]}
+                    onChange={(e) => setAdminOn({ ...adminOn, [key]: e.target.checked })}
+                  />
+                  {t(key === "admin0" ? "admin0_layer" : "admin1_layer")}
+                </label>
+              ))}
+            </div>
+            <span className="muted small" style={{ marginTop: "0.5rem" }}>
+              {t("suit_title")}
+            </span>
+            <div className="gov-layers">
+              {SUITABILITY_LAYERS.map(([key]) => (
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    checked={suitOn[key]}
+                    onChange={(e) => setSuitOn({ ...suitOn, [key]: e.target.checked })}
+                  />
+                  {t(`suit_${key}` as Key)}
+                </label>
+              ))}
             </div>
             <label className="gov-opacity">
               <span className="muted small">{t("gov_opacity")}</span>
