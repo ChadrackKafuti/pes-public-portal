@@ -191,6 +191,7 @@ class ProfileBaseline(ApiModel):
     landcover_current: str | None
     landcover_current_pct: float | None
     landcover_changed: bool | None
+    series: list["AnnualPoint"] = []  # M13: annual tree-cover chart data
 
 
 class ProfileOut(ApiModel):

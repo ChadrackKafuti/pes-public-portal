@@ -211,6 +211,13 @@ def run_once(
 
             objects, bad = normalize_all(applications, visits, cached_dates)
             result.exceptions.extend(bad)
+            # Every fetched application refreshes the parcel cache, selected
+            # for indicator work or not (M13): the API's points/filters read
+            # pes_parcels, so parse fixes (e.g. new Point formats) must reach
+            # already-processed records too. Cheap: hash-guarded upsert only.
+            all_applications = [
+                o for o in objects if o.object_type is ObjectType.APPLICATION
+            ]
 
             # Incremental selection (spec §3): keep only objects with work due.
             today = date.today()
@@ -238,10 +245,7 @@ def run_once(
                 deadline=deadline,
             )
 
-            store.upsert_parcels(
-                conn,
-                [o for o in objects if o.object_type is ObjectType.APPLICATION],
-            )
+            store.upsert_parcels(conn, all_applications)
             store.upsert_rows(
                 conn, result.rows, stored, max_partial_retries=config.max_partial_retries
             )

@@ -34,6 +34,35 @@ def _visit_date(payload: dict) -> date | None:
     return _date(_pick(payload, _VISIT_DATE_KEYS))
 
 
+def visit_contract_links(conn) -> dict[str, str]:
+    """application_id -> contract_code, derived from the raw visit mirror.
+
+    Production applications carry no ContractCode (confirmed against the live
+    payloads): the linkage arrives only on monitoring visits, which reference
+    their application by id or code. Everything that groups applications by
+    contract resolves the link here, with pes_parcels.contract_code (filled
+    where sources do carry it) as the caller-side first choice."""
+    index: dict[str, str] = {}  # application_id AND application_code -> id
+    for aid, acode in conn.execute(
+        "SELECT application_id, application_code FROM pes_parcels"
+    ).fetchall():
+        index[str(aid)] = str(aid)
+        if acode:
+            index.setdefault(str(acode), str(aid))
+    links: dict[str, str] = {}
+    for (payload,) in conn.execute(
+        "SELECT payload FROM pes_raw_records WHERE kind = 'monitoring_visit'"
+    ).fetchall():
+        code = _pick(payload, ["contractcode"])
+        ref = _pick(payload, _APP_REF_KEYS)
+        if code is None or ref is None:
+            continue
+        app_id = index.get(str(ref))
+        if app_id:
+            links[app_id] = str(code).strip()
+    return links
+
+
 def _visit_polygon(payload: dict) -> dict | None:
     raw = _pick(payload, _SHAPE_KEYS)
     if raw is None:

@@ -42,6 +42,10 @@ def test_profile_full_assembly(client):
     # fire card from RS rows (seed has no burned area → None figures, no category)
     assert p["fire"] is not None
     assert p["geometrySource"] in ("polygon", "polygon_inherited")
+    # M13: the baseline carries the annual tree-cover series for the chart
+    years = [s["year"] for s in p["baseline"]["series"]]
+    assert years == [2022, 2023, 2024, 2025]
+    assert p["baseline"]["series"][-1]["tcHa"] == 2.1
 
 
 def test_profile_parcel_only_fallback(client):
