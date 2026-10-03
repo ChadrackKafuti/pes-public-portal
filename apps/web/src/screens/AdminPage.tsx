@@ -14,6 +14,7 @@ const REASON_KEYS: Record<string, Key> = {
   own_failed: "adm_compute_failed",
   annual_failed: "adm_annual_failed",
   landcover_failed: "adm_landcover_failed",
+  nrt_failed: "adm_compute_failed",
   bad_record: "adm_bad_record",
   bad_object_date: "adm_bad_record",
   parent_failed: "adm_bad_record",

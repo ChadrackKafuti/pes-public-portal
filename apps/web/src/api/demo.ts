@@ -149,6 +149,33 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
       lastSync: "2026-10-01T12:30:00Z",
     } as T;
   }
+  if (path === "/incidents") {
+    const items = [
+      { incidentUid: "DEMO-A2:fire:2026-09-20", applicationId: "DEMO-A2",
+        kind: "fire", firstDetected: "2026-09-20", lastDetected: "2026-10-01",
+        magnitude: 4, status: "open", statusNote: null, statusBy: null,
+        statusUtc: null, updatedUtc: "2026-10-02T06:00:00Z",
+        applicationCode: "DEMO-CA1002-BE0002", implementingOrg: "Org Demo A",
+        projectName: "Project X", country: "DRC", province: "Mai-Ndombe",
+        pesActivity: "Reforestation" },
+      { incidentUid: "DEMO-A1:deforestation:2026-09-05", applicationId: "DEMO-A1",
+        kind: "deforestation", firstDetected: "2026-09-05", lastDetected: "2026-09-18",
+        magnitude: 37, status: "responded", statusNote: "field visit planned",
+        statusBy: "demo.monitor", statusUtc: "2026-09-19T09:00:00Z",
+        updatedUtc: "2026-09-19T09:00:00Z",
+        applicationCode: "DEMO-CA1001-BE0001", implementingOrg: "Org Demo A",
+        projectName: "Project X", country: "DRC", province: "Kongo-Central",
+        pesActivity: "Agroforestry" },
+    ];
+    const f = (params ?? {}) as { status?: string; kind?: string };
+    const shown = items.filter(
+      (i) => (!f.status || i.status === f.status) && (!f.kind || i.kind === f.kind),
+    );
+    return {
+      summary: { open: 1, responded: 1, verified: 0, dismissed: 0, resolved: 0 },
+      items: shown,
+    } as T;
+  }
   if (path === "/admin/exceptions") {
     return {
       summary: [

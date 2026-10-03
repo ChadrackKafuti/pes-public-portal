@@ -258,3 +258,76 @@ def test_annual_candidates_prioritise_contract_linked(store):
         ).fetchall()
         mine = [r[0] for r in rows if str(r[0]).startswith("AC-")]
     assert mine == ["AC-CTR", "AC-NEW", "AC-DONE"]
+
+
+def test_nrt_incident_lifecycle(store):
+    """M23: a detection opens an incident, a repeat extends it, a quiet
+    window auto-resolves an OPEN one, and freshly-checked parcels are not
+    re-checked until the recheck interval passes."""
+    from datetime import UTC, datetime, timedelta
+
+    from pes_rs_pipeline.indicators.nrt import process_nrt
+
+    class StubBackend:
+        def __init__(self):
+            self.defor = {}
+            self.fire = {}
+            self.current = None
+
+        def resolve_parcel(self, bearer, source):
+            self.current = bearer.application_id
+            return bearer.application_id
+
+        def radd_alerts(self, parcel, interval):
+            return self.defor.get(parcel, 0)
+
+        def fire_alerts(self, parcel, interval):
+            return self.fire.get(parcel, 0)
+
+    config = PipelineConfig(nrt_batch_limit=50, nrt_recheck_hours=12)
+    backend = StubBackend()
+    backend.defor["NRT-1"] = 7
+    today = date(2026, 10, 3)
+    deadline = datetime.now(UTC) + timedelta(minutes=5)
+
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "008_incidents.sql").read_text())
+        app = PesObject(
+            object_id="NRT-1", object_type=ObjectType.APPLICATION,
+            object_date=date(2025, 6, 1), application_date=date(2025, 6, 1),
+            application_id="NRT-1",
+            shape_wkt="POLYGON((0 0,1 0,1 1,0 0))",
+        )
+        store.upsert_parcels(conn, [app])
+        conn.commit()
+
+        stats = process_nrt(conn, backend, config, deadline, today)
+        assert stats["nrt_opened"] >= 1 and stats["nrt_failed"] == 0
+        uid, status = conn.execute(
+            "SELECT incident_uid, status FROM pes_incidents "
+            "WHERE application_id='NRT-1' AND kind='deforestation'"
+        ).fetchone()
+        assert status == "open"
+
+        # Freshly checked: nothing is stale, so the next pass does no work.
+        assert process_nrt(conn, backend, config, deadline, today)["nrt_checked"] == 0
+
+        # Make it stale with the signal persisting -> same incident extends.
+        conn.execute("UPDATE pes_nrt_state SET checked_utc = now() - interval '2 days'")
+        conn.commit()
+        stats = process_nrt(conn, backend, config, deadline, today)
+        assert stats["nrt_extended"] == 1 and stats["nrt_opened"] == 0
+
+        # Signal gone and the last detection predates the window -> resolved.
+        backend.defor["NRT-1"] = 0
+        conn.execute("UPDATE pes_nrt_state SET checked_utc = now() - interval '2 days'")
+        conn.execute(
+            "UPDATE pes_incidents SET last_detected = %s WHERE incident_uid = %s",
+            (today - timedelta(days=60), uid),
+        )
+        conn.commit()
+        stats = process_nrt(conn, backend, config, deadline, today)
+        assert stats["nrt_resolved"] == 1
+        assert conn.execute(
+            "SELECT status FROM pes_incidents WHERE incident_uid = %s", (uid,)
+        ).fetchone()[0] == "resolved"

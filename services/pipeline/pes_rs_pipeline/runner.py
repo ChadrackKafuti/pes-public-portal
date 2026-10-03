@@ -243,16 +243,18 @@ def run_once(
                 backend = GeeBackend(config)
 
             # The run's hard deadline; the main loop stops early by the
-            # annual reserve so the annual pass is never starved (M15).
+            # annual reserve (M15) and the NRT reserve (M23) so neither
+            # pass is ever starved by a large main backlog.
             deadline = result.start_utc + timedelta(minutes=config.max_run_minutes)
+            reserved = config.annual_reserve_minutes + config.nrt_reserve_minutes
             main_deadline = min(
                 deadline,
                 result.start_utc
-                + timedelta(
-                    minutes=max(
-                        1, config.max_run_minutes - config.annual_reserve_minutes
-                    )
-                ),
+                + timedelta(minutes=max(1, config.max_run_minutes - reserved)),
+            )
+            nrt_deadline = min(
+                deadline,
+                main_deadline + timedelta(minutes=config.nrt_reserve_minutes),
             )
             process_objects(
                 objects,
@@ -276,6 +278,18 @@ def run_once(
             )
             store.record_exceptions(conn, result.exceptions)
             conn.commit()
+
+            # M23: near-real-time incident checks in their reserved slice.
+            try:
+                from .indicators.nrt import process_nrt
+
+                nrt_stats = process_nrt(
+                    conn, backend, config, nrt_deadline, today, hidden_ids=hidden_ids
+                )
+                log.info("nrt: %s", nrt_stats)
+            except Exception:  # noqa: BLE001
+                conn.rollback()
+                log.exception("nrt incident pass failed; run continues")
 
             # M7d: annual tree-cover series + land-cover classes, in whatever
             # time the run has left. Failures never cost the run.
