@@ -1,9 +1,75 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AnalysesContract, ContractAnalysis } from "@cafi/shared";
+import type { AnalysesContract, ContractAnalysis, ScorecardEntry } from "@cafi/shared";
 import { api } from "../api/client";
-import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
+import { fmtDate, fmtNum, useI18n, useT, type Key } from "../i18n";
 import { SearchSelect } from "../map/SearchSelect";
 import { StatTile } from "./bits";
+
+/** M24 — the activity scorecard: per-activity KPIs with traffic-light
+ *  statuses (symbol + label, never color alone). */
+const SC_LABEL: Record<string, Key> = {
+  open_incidents: "sc_open_incidents",
+  achieved_pct: "sc_achieved_pct",
+  tc_trend: "sc_tc_trend",
+  fire_exclusion: "sc_fire_exclusion",
+  no_clearing: "sc_no_clearing",
+  disturbance_pct: "sc_disturbance_pct",
+  forest_share: "sc_forest_share",
+};
+const SC_STATUS: Record<string, { key: Key; sym: string }> = {
+  ok: { key: "sc_ok", sym: "✓" },
+  watch: { key: "sc_watch", sym: "●" },
+  action: { key: "sc_action", sym: "▲" },
+  none: { key: "sc_none", sym: "—" },
+};
+const GROUP_LABEL: Record<string, Key> = {
+  agroforestry: "sc_g_agroforestry",
+  reforestation: "sc_g_reforestation",
+  natural_regeneration: "sc_g_regeneration",
+  deforestation_free_agriculture: "sc_g_dfa",
+  forest_management: "sc_g_sfm",
+  conservation: "sc_g_conservation",
+  generic: "sc_g_generic",
+};
+
+function Scorecard({ analysis }: { analysis: ContractAnalysis }) {
+  const t = useT();
+  const locale = useI18n((s) => s.locale);
+  const entries = analysis.scorecard ?? [];
+  if (entries.length === 0) return null;
+  const overall = SC_STATUS[analysis.overallStatus ?? "none"] ?? SC_STATUS.none;
+  const groupKey = GROUP_LABEL[analysis.activityGroup ?? "generic"] ?? GROUP_LABEL.generic;
+  const cell = (e: ScorecardEntry) => {
+    const st = SC_STATUS[e.status] ?? SC_STATUS.none;
+    return (
+      <div key={e.key} className={`sc-tile sc-${e.status}`}>
+        <span className="sc-label">{SC_LABEL[e.key] ? t(SC_LABEL[e.key]) : e.key}</span>
+        <span className="sc-value">
+          {e.value == null ? "—" : fmtNum(e.value, locale, e.unit === "%" ? 1 : 2)}
+          {e.value != null && e.unit ? ` ${e.unit}` : ""}
+          {e.target != null && (
+            <span className="muted small"> / {fmtNum(e.target, locale, 0)}{e.unit}</span>
+          )}
+        </span>
+        <span className={`sc-status sc-${e.status}`}>
+          {st.sym} {t(st.key)}
+        </span>
+      </div>
+    );
+  };
+  return (
+    <section className="sc-card">
+      <div className="sc-head">
+        <strong>{t("sc_title")}</strong>
+        <span className="muted small"> · {t(groupKey)}</span>
+        <span className={`sc-status sc-overall sc-${analysis.overallStatus ?? "none"}`}>
+          {overall.sym} {t(overall.key)}
+        </span>
+      </div>
+      <div className="sc-grid">{entries.map(cell)}</div>
+    </section>
+  );
+}
 
 /** M7d — the v1 contract-analysis page: Org → Project → Contract pickers,
  *  the generated description sentence, three KPIs for the latest year, the
@@ -314,6 +380,8 @@ export function AnalysesPage() {
                 end: analysis.endDate ? fmtDate(analysis.endDate, locale) : "—",
               })}
             </p>
+
+          <Scorecard analysis={analysis} />
 
           {analysis.series.length === 0 ? (
             <p className="panel-hint">{t("an_none")}</p>

@@ -212,6 +212,15 @@ export interface AnalysesContract {
   hasSeries?: boolean;
 }
 
+/** M24 — one activity-scorecard KPI with its traffic-light status. */
+export interface ScorecardEntry {
+  key: string;
+  value: number | null;
+  unit: string | null;
+  status: "ok" | "watch" | "action" | "none" | string;
+  target: number | null;
+}
+
 export interface ContractAnalysis {
   contractCode: string;
   org: string | null;
@@ -226,6 +235,10 @@ export interface ContractAnalysis {
   startDate: string | null;
   endDate: string | null;
   series: { year: number; tcHa: number | null; lossHa: number | null }[];
+  /** M24 — activity scorecard */
+  activityGroup?: string;
+  scorecard?: ScorecardEntry[];
+  overallStatus?: string;
 }
 
 /** M7b — the application profile (v1 popup content, section by section). */
