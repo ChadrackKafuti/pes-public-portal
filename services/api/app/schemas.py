@@ -231,6 +231,9 @@ class AnalysesContract(ApiModel):
     applications: int
     estimated_area_ha: float | None
     first_date: date | None
+    # True when at least one application in the group already has its annual
+    # tree-cover series computed (M21 — "ready to review" picker badge).
+    has_series: bool = False
 
 
 class AdminExceptionItem(ApiModel):

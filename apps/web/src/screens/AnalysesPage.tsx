@@ -115,6 +115,16 @@ function contractDesc(c: AnalysesContract): string {
   return [c.org, c.village, c.country].filter(Boolean).join(" · ");
 }
 
+/** M21 — green dot on contracts whose annual series is already computed. */
+function ReadyDot({ c, label }: { c: AnalysesContract; label: string }) {
+  if (!c.hasSeries) return null;
+  return (
+    <span className="an-ready-dot" title={label} aria-label={label}>
+      ●
+    </span>
+  );
+}
+
 function ContractCombo({
   items,
   value,
@@ -150,7 +160,9 @@ function ContractCombo({
       >
         {current ? (
           <span className="an-combo-sel">
-            <strong>{contractDisplayCode(current)}</strong>
+            <strong>
+              {contractDisplayCode(current)} <ReadyDot c={current} label={t("an_ready")} />
+            </strong>
             <small>{contractDesc(current)}</small>
           </span>
         ) : (
@@ -185,7 +197,9 @@ function ContractCombo({
                       setOpen(false);
                     }}
                   >
-                    <strong>{contractDisplayCode(c)}</strong>
+                    <strong>
+                      {contractDisplayCode(c)} <ReadyDot c={c} label={t("an_ready")} />
+                    </strong>
                     <small>{contractDesc(c)}</small>
                   </button>
                 </li>
@@ -226,7 +240,11 @@ export function AnalysesPage() {
   );
   const inOrg = (contracts ?? []).filter((c) => !org || c.org === org);
   const projects = [...new Set(inOrg.map((c) => c.project).filter(Boolean))] as string[];
-  const inProject = inOrg.filter((c) => !project || c.project === project);
+  // Ready-to-review contracts first (stable, so alphabetical within groups).
+  const inProject = inOrg
+    .filter((c) => !project || c.project === project)
+    .sort((a, b) => Number(b.hasSeries ?? false) - Number(a.hasSeries ?? false));
+  const readyCount = inProject.filter((c) => c.hasSeries).length;
 
   const latest = analysis?.series.at(-1);
   const baseArea = analysis?.parcelAreaHa ?? analysis?.contractedAreaHa ?? null;
@@ -266,7 +284,17 @@ export function AnalysesPage() {
       </div>
 
       {contracts === null && <p className="panel-hint">{t("loading")}</p>}
-      {contracts !== null && !code && <p className="panel-hint">{t("an_select_hint")}</p>}
+      {contracts !== null && !code && (
+        <>
+          <p className="panel-hint">{t("an_select_hint")}</p>
+          {readyCount > 0 && (
+            <p className="panel-hint an-ready-hint">
+              <span className="an-ready-dot">●</span>{" "}
+              {t("an_ready_count", { n: fmtNum(readyCount, locale, 0) })}
+            </p>
+          )}
+        </>
+      )}
 
       {analysis && (
         <>

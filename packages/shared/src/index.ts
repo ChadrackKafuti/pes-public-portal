@@ -208,6 +208,8 @@ export interface AnalysesContract {
   applications: number;
   estimatedAreaHa: number | null;
   firstDate: string | null;
+  /** M21 — at least one application in the group has its annual series. */
+  hasSeries?: boolean;
 }
 
 export interface ContractAnalysis {

@@ -64,12 +64,14 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
         org: "Org Demo A", project: "Project X",
         country: "DRC", village: "Kiasi", activity: "Agroforestry",
         applications: 1, estimatedAreaHa: 3.5, firstDate: "2024-06-01",
+        hasSeries: true,
       },
       {
         contractCode: "DEMO-CT-0002", applicationCode: "DEMO-CA1002-BE0002",
         org: "Org Demo A", project: "Project X",
         country: "DRC", village: "Bokoro", activity: "Reforestation",
         applications: 1, estimatedAreaHa: 2.1, firstDate: "2024-05-14",
+        hasSeries: false,
       },
     ] as T;
   }
