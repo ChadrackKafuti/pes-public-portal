@@ -22,9 +22,12 @@ import { demoEnabled, demoGet } from "./demo";
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
   if (demoEnabled) return demoGet<T>(path, params);
-  const qs = params
-    ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== "")).toString()
-    : "";
+  // Drop unset params entirely: an `undefined` value would otherwise be
+  // stringified into a literal "undefined" the API rightly rejects (422).
+  const entries = params
+    ? Object.entries(params).filter(([, v]) => v != null && v !== "")
+    : [];
+  const qs = entries.length ? "?" + new URLSearchParams(entries).toString() : "";
   const r = await fetch(`/api${path}${qs}`, { headers: authHeaders() });
   if (r.status === 401 && authEnabled) {
     useAuth.getState().login(); // session expired: back through Keycloak
