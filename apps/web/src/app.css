@@ -2524,6 +2524,12 @@ table.data a {
   min-width: 0;
 }
 
+/* M29a — survival-curve threshold bands (very light; labels carry meaning) */
+.sv-band { opacity: 0.55; }
+.sv-low { fill: color-mix(in srgb, #b3261e 7%, transparent); }
+.sv-mid { fill: color-mix(in srgb, #9a6a00 6%, transparent); }
+.sv-high { fill: color-mix(in srgb, #006f3c 7%, transparent); }
+
 /* M27 — field task cards (mobile-first) */
 .tk-page {
   max-width: 720px;

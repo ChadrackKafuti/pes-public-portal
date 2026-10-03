@@ -209,6 +209,83 @@ function AnnualBars({ title, points }: { title: string; points: [number, number]
   );
 }
 
+/** M29a — survival curve: achieved tree cover as % of the contracted area,
+ *  year by year, against the 30/70 scorecard thresholds (shaded bands carry
+ *  axis labels, never color alone). Shown for planting activities. */
+function SurvivalCurve({
+  title,
+  points,
+  lo,
+  hi,
+}: {
+  title: string;
+  points: [number, number][]; // [year, achieved %]
+  lo: number;
+  hi: number;
+}) {
+  const locale = useI18n((s) => s.locale);
+  const [hover, setHover] = useState<number | null>(null);
+  if (points.length < 2) return null;
+  const yMax = 110;
+  const py = (v: number) => H - PAD.bottom - (Math.min(v, yMax) / yMax) * (H - PAD.top - PAD.bottom);
+  const xi = (i: number) => px(i, points.length);
+  const path = points.map(([, v], i) => `${i === 0 ? "M" : "L"}${xi(i)},${py(v)}`).join(" ");
+  const band = (y0: number, y1: number, cls: string) => (
+    <rect
+      x={PAD.left} y={py(y1)} width={W - PAD.left - PAD.right}
+      height={Math.max(0, py(y0) - py(y1))} className={cls}
+    />
+  );
+  return (
+    <figure className="chart">
+      <figcaption>{title}</figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
+        {band(0, lo, "sv-band sv-low")}
+        {band(lo, hi, "sv-band sv-mid")}
+        {band(hi, yMax, "sv-band sv-high")}
+        {[lo, hi, 100].map((v) => (
+          <g key={v}>
+            <line
+              x1={PAD.left} x2={W - PAD.right} y1={py(v)} y2={py(v)}
+              stroke="var(--grid)" strokeDasharray={v === 100 ? "2 3" : undefined}
+            />
+            <text x={PAD.left - 6} y={py(v) + 4} textAnchor="end" className="axis-text">
+              {v}%
+            </text>
+          </g>
+        ))}
+        <line x1={PAD.left} x2={W - PAD.right} y1={py(0)} y2={py(0)} stroke="var(--axis)" />
+        <path d={path} fill="none" stroke="var(--series-1)" strokeWidth="2" />
+        {points.map(([year, v], i) => (
+          <g key={year}>
+            <circle cx={xi(i)} cy={py(v)} r="6" fill="var(--bg)" />
+            <circle cx={xi(i)} cy={py(v)} r="4" fill="var(--series-1)" />
+            <circle
+              cx={xi(i)} cy={py(v)} r="12" fill="transparent"
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+            />
+            <text x={xi(i)} y={H - PAD.bottom + 14} textAnchor="middle" className="axis-text">
+              {year}
+            </text>
+          </g>
+        ))}
+        {hover !== null && (() => {
+          const [year, v] = points[hover];
+          const tip = `${year} · ${fmtNum(v, locale, 1)}%`;
+          const bw = tip.length * 6.6 + 16;
+          const bx = Math.min(Math.max(xi(hover) - bw / 2, PAD.left), W - PAD.right - bw);
+          return (
+            <g pointerEvents="none">
+              <rect x={bx} y={py(v) - 32} width={bw} height="22" rx="4" className="tooltip-box" />
+              <text x={bx + bw / 2} y={py(v) - 17} textAnchor="middle" className="tooltip-text">{tip}</text>
+            </g>
+          );
+        })()}
+      </svg>
+    </figure>
+  );
+}
+
 /** v1's contract combobox: options show the display code as the heading with
  *  an "org · village · country" description line (calcite-combobox parity).
  *  Until real contract codes ship, the application code is the display code. */
@@ -464,6 +541,25 @@ export function AnalysesPage() {
                 label={t("an_series_contract")}
                 label2={t("an_series_control")}
               />
+              {["reforestation", "agroforestry", "natural_regeneration"].includes(
+                analysis.activityGroup ?? "",
+              ) &&
+                (analysis.contractedAreaHa ?? analysis.parcelAreaHa) != null && (
+                  <SurvivalCurve
+                    title={t("an_chart_survival")}
+                    points={analysis.series
+                      .filter((p) => p.tcHa != null)
+                      .map((p) => [
+                        p.year,
+                        (p.tcHa! /
+                          (analysis.contractedAreaHa ?? analysis.parcelAreaHa)!) *
+                          100,
+                      ])}
+                    lo={analysis.activityGroup === "natural_regeneration" ? 40 : 30}
+                    hi={70}
+                  />
+                )}
+
               <AnnualBars
                 title={t("an_chart_loss")}
                 points={analysis.series.filter((p) => p.lossHa != null).map((p) => [p.year, p.lossHa!])}
