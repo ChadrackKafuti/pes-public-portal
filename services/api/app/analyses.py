@@ -182,6 +182,19 @@ def contract_analysis(
     )
     entries = build_scorecard(group, inputs)
 
+    # M28 — planting-event confirmation for the planting activities.
+    if group in ("reforestation", "agroforestry"):
+        from .scorecard import planting_event
+
+        start = _date(pick_any(["contractstartdate", "startdate"]))
+        entries.append(
+            planting_event(
+                [(r[0], r[1]) for r in series],
+                start.year if start else None,
+                contracted or meta[5],
+            )
+        )
+
     return ContractAnalysis(
         contract_code=contract_code,
         org=meta[0],

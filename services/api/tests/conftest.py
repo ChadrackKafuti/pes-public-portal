@@ -261,6 +261,7 @@ def client():
                     conn.execute((_INIT / "008_incidents.sql").read_text())
                     conn.execute((_INIT / "009_canopy_controls.sql").read_text())
                     conn.execute((_INIT / "010_photo_ai.sql").read_text())
+                    conn.execute((_INIT / "011_basemap_checks.sql").read_text())
                     conn.execute(INCIDENT_SEED)
                     conn.execute(ANNUAL_SEED)
                     conn.execute(PHOTO_SEED)

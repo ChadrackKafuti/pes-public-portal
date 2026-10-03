@@ -69,7 +69,12 @@ function TaskCard({
     <article className={`tk-card tk-${i.status}`}>
       <header className="tk-head">
         <span className={`alert-chip ${isFire ? "alert-critical" : "alert-warning"}`}>
-          {isFire ? "▲" : "●"} {isFire ? t("alert_fire") : t("alert_defor")}
+          {isFire ? "▲" : "●"}{" "}
+          {isFire
+            ? t("alert_fire")
+            : i.kind === "road"
+              ? t("inc_kind_road")
+              : t("alert_defor")}
         </span>
         <span className={`inc-status inc-${i.status}`}>
           {i.status === "open" ? t("inc_open") : t("inc_responded")}

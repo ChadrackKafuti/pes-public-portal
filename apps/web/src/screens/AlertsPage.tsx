@@ -99,7 +99,11 @@ function IncidentFeed({ country }: { country?: string }) {
                       }`}
                     >
                       {i.kind === "fire" ? "▲" : "●"}{" "}
-                      {i.kind === "fire" ? t("alert_fire") : t("alert_defor")}
+                      {i.kind === "fire"
+                        ? t("alert_fire")
+                        : i.kind === "road"
+                          ? t("inc_kind_road")
+                          : t("alert_defor")}
                     </span>
                   </td>
                   <td>

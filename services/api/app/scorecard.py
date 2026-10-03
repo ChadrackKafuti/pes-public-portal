@@ -92,6 +92,33 @@ def _forest_share(x: ScoreInputs) -> dict:
     return _entry("forest_share", min(100.0, pct), "%", "ok" if pct >= 70 else "watch")
 
 
+def planting_event(
+    series: list[tuple[int, float | None]],
+    start_year: int | None,
+    base_ha: float | None,
+) -> dict:
+    """M28 — did planting actually happen? A sustained tree-cover step-up
+    (≥10 % of the contracted/parcel area, min 0.05 ha) within two years of
+    the contract start confirms the planting event; a start long past with
+    no step-up is an action flag. value = the confirmed gain year."""
+    points = [(y, v) for y, v in series if v is not None]
+    if start_year is None or len(points) < 2:
+        return _entry("planting_event", None, None, "none")
+    threshold = max(0.05, 0.1 * (base_ha or 0))
+    best: tuple[int, float] | None = None
+    for (y0, v0), (y1, v1) in zip(points, points[1:]):
+        if y1 != y0 + 1:
+            continue
+        gain = v1 - v0
+        if gain >= threshold and (best is None or gain > best[1]):
+            best = (y1, gain)
+    if best is not None and start_year <= best[0] <= start_year + 2:
+        return _entry("planting_event", float(best[0]), None, "ok")
+    if points[-1][0] >= start_year + 2:
+        return _entry("planting_event", None, None, "action")
+    return _entry("planting_event", None, None, "watch")
+
+
 def _incidents(x: ScoreInputs) -> dict:
     status = "ok" if x.open_incidents == 0 else "action"
     return _entry("open_incidents", x.open_incidents, None, status)

@@ -75,6 +75,17 @@ class PipelineConfig(BaseSettings):
     photo_ai_budget_s: int = 180
     photo_ai_batch: int = 40
 
+    # NICFI basemap change checks (M28): before/after Claude vision pass on
+    # SFM/conservation parcels. Empty key disables the pass.
+    nicfi_key: str = ""
+    nicfi_mosaic_prefix: str = "planet_medres_visual_"
+    road_batch: int = 8
+    road_zoom: int = 15
+    road_recheck_days: int = 90
+    road_compare_months: int = 6
+    road_min_confidence: float = 0.55
+    road_budget_s: int = 150
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

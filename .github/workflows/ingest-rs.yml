@@ -45,6 +45,7 @@ jobs:
           # Photo mirror (M7a). The project URL is public; the service key
           # gates mirroring — absent, photo rows still sync without images.
           CAFI_RS_ANTHROPIC_API_KEY: ${{ secrets.CAFI_ANTHROPIC_API_KEY }}
+          CAFI_RS_NICFI_KEY: ${{ secrets.CAFI_NICFI_KEY }}
           CAFI_RS_SUPABASE_URL: https://hhdjylwogylmigxxubas.supabase.co
           CAFI_RS_SUPABASE_SERVICE_KEY: ${{ secrets.CAFI_SUPABASE_SERVICE_KEY }}
         run: python -m pes_rs_pipeline.runner

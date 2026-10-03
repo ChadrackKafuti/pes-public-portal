@@ -499,3 +499,87 @@ def test_photo_ai_country_priority(store):
         rows = conn.execute(_CANDIDATES_SQL, {"hidden": [], "limit": 50}).fetchall()
         mine = [r[0] for r in rows if str(r[0]).startswith("pc-PC-")]
     assert mine == ["pc-PC-roc", "pc-PC-drc", "pc-PC-cam"]
+
+
+def test_roads_pass_with_stub_everything(store):
+    """M28: a confident basemap change opens a 'road' incident; a quiet
+    re-check resolves it; freshly-checked parcels are skipped."""
+    import json
+    from types import SimpleNamespace
+
+    from pes_rs_pipeline.roads import pick_epochs, process_roads, tile_xyz
+
+    # Tile math sanity: lat 0 sits on the y boundary (northern edge of y=1);
+    # a northern-hemisphere point lands in y=0.
+    assert tile_xyz(0.0, 0.0, 1) == (1, 1)
+    assert tile_xyz(0.0, 40.0, 1) == (1, 0)
+
+    answers = [{
+        "new_road_or_trail": True, "new_clearing": False,
+        "confidence": 0.8, "summary": "A new straight track crosses the parcel.",
+    }]
+
+    class StubClient:
+        class messages:  # noqa: N801 — mirrors the SDK surface
+            @staticmethod
+            def create(**kwargs):
+                block = SimpleNamespace(type="text", text=json.dumps(answers[0]))
+                return SimpleNamespace(content=[block])
+
+    mosaics = [f"planet_medres_visual_2026-{m:02d}_mosaic" for m in range(1, 10)]
+    assert pick_epochs(mosaics, 6) == (mosaics[2], mosaics[-1])
+
+    config = PipelineConfig(
+        nicfi_key="k", anthropic_api_key="a", road_batch=5, road_recheck_days=90
+    )
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "008_incidents.sql").read_text())
+        conn.execute((SCHEMA.parent / "011_basemap_checks.sql").read_text())
+        app = PesObject(
+            object_id="RD-1", object_type=ObjectType.APPLICATION,
+            object_date=date(2025, 6, 1), application_date=date(2025, 6, 1),
+            application_id="RD-1", country="Republic of Congo",
+            pes_activity="Sustainable forest management",
+            point=(15.5, -1.5),
+        )
+        store.upsert_parcels(conn, [app])
+        conn.commit()
+
+        stats = process_roads(
+            conn, config, client=StubClient(),
+            fetch_tile=lambda *a: b"\x89PNGfake", mosaics=mosaics,
+        )
+        assert stats["roads_checked"] == 1 and stats["roads_detected"] == 1
+        inc = conn.execute(
+            "SELECT status, magnitude FROM pes_incidents "
+            "WHERE application_id='RD-1' AND kind='road'"
+        ).fetchone()
+        assert inc[0] == "open" and inc[1] == 80.0
+
+        # Fresh check: skipped until stale.
+        assert process_roads(
+            conn, config, client=StubClient(),
+            fetch_tile=lambda *a: b"png", mosaics=mosaics,
+        )["roads_checked"] == 0
+
+        # Stale again, quiet now -> the open incident auto-resolves.
+        answers[0] = {"new_road_or_trail": False, "new_clearing": False,
+                      "confidence": 0.9, "summary": "No structural change."}
+        conn.execute("UPDATE pes_basemap_checks SET checked_utc = now() - interval '120 days'")
+        conn.execute(
+            "UPDATE pes_incidents SET last_detected = %s WHERE application_id='RD-1'",
+            (date(2026, 1, 1),),
+        )
+        conn.commit()
+        stats = process_roads(
+            conn, config, client=StubClient(),
+            fetch_tile=lambda *a: b"png", mosaics=mosaics,
+        )
+        assert stats["roads_detected"] == 0
+        assert conn.execute(
+            "SELECT status FROM pes_incidents WHERE application_id='RD-1' AND kind='road'"
+        ).fetchone()[0] == "resolved"
+
+    # Missing keys: disabled, never an error.
+    with store.connection() as conn:
+        assert process_roads(conn, PipelineConfig()) == {"roads": "disabled"}

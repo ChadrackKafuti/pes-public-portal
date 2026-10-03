@@ -229,6 +229,17 @@ def run_once(
                 conn.rollback()
                 log.exception("photo-ai pass failed; run continues")
 
+            # M28: NICFI basemap change checks on SFM/conservation parcels.
+            try:
+                from .roads import process_roads
+
+                road_stats = process_roads(conn, config, hidden_ids=hidden_ids)
+                conn.commit()
+                log.info("roads: %s", road_stats)
+            except Exception:  # noqa: BLE001
+                conn.rollback()
+                log.exception("roads pass failed; run continues")
+
             objects, bad = normalize_all(applications, visits, cached_dates)
             result.exceptions.extend(bad)
             # Every fetched application refreshes the parcel cache, selected
