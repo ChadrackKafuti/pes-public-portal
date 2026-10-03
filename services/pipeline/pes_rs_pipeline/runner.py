@@ -281,9 +281,21 @@ def run_once(
             # time the run has left. Failures never cost the run.
             try:
                 from .indicators.annual import process_annual
+                from .pes_api import _pick as _api_pick
 
+                # M22: applications a monitoring visit links to a contract are
+                # the only ones the Analyses page can surface — their series
+                # jump the queue ahead of the contract-less backlog.
+                contract_linked = {
+                    str(_api_pick(v, "application_ref"))
+                    for v in visits
+                    if isinstance(v, dict)
+                    and _api_pick(v, "application_ref") is not None
+                    and str(_api_pick(v, "contract_code") or "").strip()
+                }
                 annual_stats = process_annual(
-                    conn, backend, config, deadline, today, hidden_ids=hidden_ids
+                    conn, backend, config, deadline, today,
+                    hidden_ids=hidden_ids, priority_ids=contract_linked,
                 )
                 log.info("annual: %s", annual_stats)
             except Exception:  # noqa: BLE001

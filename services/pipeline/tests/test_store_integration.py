@@ -224,3 +224,37 @@ def test_exceptions_and_run_row(store):
             "SELECT reason FROM pes_rs_exceptions WHERE object_id='X1'"
         ).fetchone()[0]
         assert reason == "no_usable_geometry"
+
+
+def test_annual_candidates_prioritise_contract_linked(store):
+    """M22: applications a visit links to a contract outrank the newest
+    contract-less backlog, and within each tier series-missing stays first."""
+    from pes_rs_pipeline.indicators.annual import _CANDIDATES_SQL
+
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "007_annual.sql").read_text())
+        for app_id, app_date in (
+            ("AC-NEW", date(2025, 9, 1)),   # newest, no contract link
+            ("AC-CTR", date(2023, 1, 1)),   # old, contract-linked via visit
+            ("AC-DONE", date(2025, 8, 1)),  # newest tier, series already there
+        ):
+            app = PesObject(
+                object_id=app_id, object_type=ObjectType.APPLICATION,
+                object_date=app_date, application_date=app_date,
+                application_id=app_id,
+                shape_wkt="POLYGON((0 0,1 0,1 1,0 0))",
+            )
+            store.upsert_parcels(conn, [app])
+            store.upsert_rows(
+                conn, [_row(app_id, object_date=app_date)], {}, max_partial_retries=4
+            )
+        conn.execute(
+            "INSERT INTO pes_annual_indicators (application_id, year, tc_ha) "
+            "VALUES ('AC-DONE', 2025, 1.0) ON CONFLICT DO NOTHING"
+        )
+        rows = conn.execute(
+            _CANDIDATES_SQL,
+            {"last_year": 2025, "limit": 100, "hidden": [], "priority": ["AC-CTR"]},
+        ).fetchall()
+        mine = [r[0] for r in rows if str(r[0]).startswith("AC-")]
+    assert mine == ["AC-CTR", "AC-NEW", "AC-DONE"]
