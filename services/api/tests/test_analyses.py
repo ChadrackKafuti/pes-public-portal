@@ -33,6 +33,11 @@ def test_contract_analysis_series_and_meta(client):
     assert a["series"][1]["lossHa"] == 0.2
     # parcel area from the RS application row
     assert a["parcelAreaHa"] == 3.4
+    # M24 — activity scorecard rides the same payload
+    assert a["activityGroup"] == "agroforestry"
+    keys = [e["key"] for e in a["scorecard"]]
+    assert "open_incidents" in keys and "achieved_pct" in keys
+    assert a["overallStatus"] in {"ok", "watch", "action"}
 
 
 def test_contract_analysis_unknown_404(client):

@@ -91,6 +91,14 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
         { year: 2024, tcHa: 2.0, lossHa: 0.2 },
         { year: 2025, tcHa: 2.1, lossHa: 0.0 },
       ],
+      activityGroup: "agroforestry",
+      overallStatus: "watch",
+      scorecard: [
+        { key: "open_incidents", value: 0, unit: null, status: "ok", target: null },
+        { key: "achieved_pct", value: 70.0, unit: "%", status: "ok", target: 70 },
+        { key: "tc_trend", value: 0.1, unit: "ha", status: "ok", target: null },
+        { key: "no_clearing", value: 0.05, unit: "ha", status: "watch", target: null },
+      ],
     } as T;
   }
   // Photos need live storage: harmless empty answers in demo mode.

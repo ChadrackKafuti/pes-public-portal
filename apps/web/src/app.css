@@ -2524,6 +2524,60 @@ table.data a {
   min-width: 0;
 }
 
+/* M24 — activity scorecard */
+.sc-card {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #cbd2dc);
+  border-radius: 10px;
+}
+
+.sc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sc-overall {
+  margin-left: auto;
+}
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.sc-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.sc-label {
+  font-size: 11px;
+  color: var(--map-text-muted, #667);
+}
+
+.sc-value {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.sc-status {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sc-status.sc-ok { color: #006f3c; }
+.sc-status.sc-watch { color: #9a6a00; }
+.sc-status.sc-action { color: #b3261e; }
+.sc-status.sc-none { color: var(--map-text-muted, #667); }
+
 /* M23 — incident feed */
 .inc-heading {
   margin: 18px 0 8px;

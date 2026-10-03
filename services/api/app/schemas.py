@@ -293,6 +293,16 @@ class AnnualPoint(ApiModel):
     loss_ha: float | None
 
 
+class ScorecardEntry(ApiModel):
+    """M24 — one activity-scorecard KPI with its traffic-light status."""
+
+    key: str
+    value: float | None
+    unit: str | None
+    status: str  # ok|watch|action|none
+    target: float | None = None
+
+
 class ContractAnalysis(ApiModel):
     """The contract-analysis payload: v1's sheet + description fields."""
 
@@ -309,6 +319,10 @@ class ContractAnalysis(ApiModel):
     start_date: date | None
     end_date: date | None
     series: list[AnnualPoint]
+    # M24 — activity scorecard
+    activity_group: str = "generic"
+    scorecard: list[ScorecardEntry] = []
+    overall_status: str = "none"
 
 
 class PhotoOut(ApiModel):

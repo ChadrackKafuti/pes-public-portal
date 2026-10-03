@@ -136,6 +136,46 @@ def contract_analysis(
                 return v
         return None
 
+    # M24 — activity scorecard inputs: contract-summed RS indicators,
+    # the annual series' last two points, and open incidents.
+    from .profile import _activity_group
+    from .scorecard import ScoreInputs, build_scorecard, overall_status
+
+    rs = conn.execute(
+        """
+        SELECT sum(defor_current_ha), sum(burned_area_current_ha),
+               sum(burned_area_5yr_ha), sum(fire_alerts_current),
+               sum(defor_alerts_current)
+        FROM pes_rs_objects
+        WHERE object_type = 'application' AND object_id = ANY(%s)
+        """,
+        (apps,),
+    ).fetchone()
+    open_inc = conn.execute(
+        """
+        SELECT count(*) FROM pes_incidents
+        WHERE application_id = ANY(%s) AND status IN ('open', 'responded')
+        """,
+        (apps,),
+    ).fetchone()[0]
+    contracted = _num(pick_any(["contractedpesarea", "contractedarea"]))
+    tc_points = [r for r in series if r[1] is not None]
+    group = _activity_group(meta[4])
+    inputs = ScoreInputs(
+        parcel_area_ha=meta[5],
+        contracted_area_ha=contracted,
+        tc_latest=tc_points[-1][1] if tc_points else None,
+        tc_prev=tc_points[-2][1] if len(tc_points) > 1 else None,
+        latest_year=tc_points[-1][0] if tc_points else None,
+        defor_current_ha=rs[0],
+        burned_current_ha=rs[1],
+        burned_5yr_ha=rs[2],
+        fire_alerts_current=rs[3],
+        defor_alerts_current=rs[4],
+        open_incidents=int(open_inc),
+    )
+    entries = build_scorecard(group, inputs)
+
     return ContractAnalysis(
         contract_code=contract_code,
         org=meta[0],
@@ -150,4 +190,7 @@ def contract_analysis(
         start_date=_date(pick_any(["contractstartdate", "startdate"])),
         end_date=_date(pick_any(["contractenddate", "enddate"])),
         series=[AnnualPoint(year=r[0], tc_ha=r[1], loss_ha=r[2]) for r in series],
+        activity_group=group,
+        scorecard=entries,
+        overall_status=overall_status(entries),
     )

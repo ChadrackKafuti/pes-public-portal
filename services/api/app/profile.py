@@ -71,13 +71,21 @@ def _date(v: Any) -> date | None:
 
 
 def _activity_group(activity: str | None) -> str:
+    """Map a PES activity label onto the six-activity spectrum (M24).
+    Keyword-based on purpose: source labels vary by country and language."""
     a = (activity or "").lower()
     if "agrofor" in a:
         return "agroforestry"
-    if "refor" in a or "planta" in a:
+    if "refor" in a or "planta" in a or "plant" in a:
         return "reforestation"
-    if "regen" in a or "savan" in a:
+    if "regen" in a or "savan" in a or "mise en d" in a:
         return "natural_regeneration"
+    if "conserv" in a or "protect" in a:
+        return "conservation"
+    if "management" in a or "gestion" in a or "amenag" in a or "aménag" in a:
+        return "forest_management"
+    if "agric" in a or "culture" in a or "crop" in a or "vivri" in a:
+        return "deforestation_free_agriculture"
     return "generic"
 
 
