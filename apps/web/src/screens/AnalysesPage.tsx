@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AnalysesContract, ContractAnalysis, ScorecardEntry } from "@cafi/shared";
+import type {
+  AnalysesContract,
+  ContractAnalysis,
+  NdviPoint,
+  ScorecardEntry,
+} from "@cafi/shared";
 import { api } from "../api/client";
 import { fmtDate, fmtNum, useI18n, useT, type Key } from "../i18n";
 import { SearchSelect } from "../map/SearchSelect";
@@ -176,11 +181,23 @@ function AnnualLine({
   );
 }
 
-function AnnualBars({ title, points }: { title: string; points: [number, number][] }) {
+function AnnualBars({
+  title,
+  points,
+  refValue,
+  refLabel,
+}: {
+  title: string;
+  points: [number, number][];
+  /** M29b — optional dashed reference line (e.g. pre-contract average). */
+  refValue?: number | null;
+  refLabel?: string;
+}) {
   const locale = useI18n((s) => s.locale);
   const [hover, setHover] = useState<number | null>(null);
   if (!points.length) return null;
-  const yMax = Math.max(...points.map(([, v]) => v)) * 1.2 || 1;
+  const yMax =
+    Math.max(...points.map(([, v]) => v), refValue ?? 0) * 1.2 || 1;
   const py = (v: number) => H - PAD.bottom - (v / yMax) * (H - PAD.top - PAD.bottom);
   const bw = Math.min(34, ((W - PAD.left - PAD.right) / points.length) * 0.6);
   return (
@@ -188,6 +205,19 @@ function AnnualBars({ title, points }: { title: string; points: [number, number]
       <figcaption>{title}</figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
         <line x1={PAD.left} x2={W - PAD.right} y1={py(0)} y2={py(0)} stroke="var(--axis)" />
+        {refValue != null && refValue > 0 && (
+          <g>
+            <line
+              x1={PAD.left} x2={W - PAD.right} y1={py(refValue)} y2={py(refValue)}
+              stroke="var(--map-text-muted, #8a93a3)" strokeDasharray="5 4"
+            />
+            {refLabel && (
+              <text x={W - PAD.right} y={py(refValue) - 5} textAnchor="end" className="axis-text">
+                {refLabel}
+              </text>
+            )}
+          </g>
+        )}
         {points.map(([year, v], i) => (
           <g key={year} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
             <rect
@@ -278,6 +308,95 @@ function SurvivalCurve({
             <g pointerEvents="none">
               <rect x={bx} y={py(v) - 32} width={bw} height="22" rx="4" className="tooltip-box" />
               <text x={bx + bw / 2} y={py(v) - 17} textAnchor="middle" className="tooltip-text">{tip}</text>
+            </g>
+          );
+        })()}
+      </svg>
+    </figure>
+  );
+}
+
+/** M29b — monthly NDVI phenology: parcel line + dashed control. The curve's
+ *  shape shows cropping intensity for agriculture and fine-grained greening
+ *  for planting activities. y clamped to [0, 1]. */
+function NdviChart({
+  title,
+  points,
+  label,
+  label2,
+}: {
+  title: string;
+  points: NdviPoint[];
+  label: string;
+  label2: string;
+}) {
+  const locale = useI18n((s) => s.locale);
+  const [hover, setHover] = useState<number | null>(null);
+  const usable = points.filter((p) => p.ndvi != null || p.controlNdvi != null);
+  if (usable.length < 6) return null;
+  const months = usable.map((p) => p.month);
+  const xi = (i: number) => px(i, months.length);
+  const py = (v: number) =>
+    H - PAD.bottom - Math.min(Math.max(v, 0), 1) * (H - PAD.top - PAD.bottom);
+  const toPath = (get: (p: NdviPoint) => number | null | undefined) => {
+    let d = "";
+    usable.forEach((p, i) => {
+      const v = get(p);
+      if (v == null) return;
+      d += `${d === "" ? "M" : "L"}${xi(i)},${py(v)}`;
+    });
+    return d;
+  };
+  const mLabel = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(2)}`;
+  };
+  return (
+    <figure className="chart">
+      <figcaption>
+        {title}
+        <span className="chart-legend">
+          <span className="lg-swatch lg-main" /> {label}
+          <span className="lg-swatch lg-ctl" /> {label2}
+        </span>
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
+        {[0.25, 0.5, 0.75].map((v) => (
+          <g key={v}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={py(v)} y2={py(v)} stroke="var(--grid)" />
+            <text x={PAD.left - 6} y={py(v) + 4} textAnchor="end" className="axis-text">
+              {v}
+            </text>
+          </g>
+        ))}
+        <line x1={PAD.left} x2={W - PAD.right} y1={py(0)} y2={py(0)} stroke="var(--axis)" />
+        <path
+          d={toPath((p) => p.controlNdvi)} fill="none"
+          stroke="var(--map-text-muted, #8a93a3)" strokeWidth="1.75" strokeDasharray="5 4"
+        />
+        <path d={toPath((p) => p.ndvi)} fill="none" stroke="var(--series-1)" strokeWidth="2" />
+        {usable.map((p, i) => (
+          <g key={p.month}>
+            {i % 3 === 0 && (
+              <text x={xi(i)} y={H - PAD.bottom + 14} textAnchor="middle" className="axis-text">
+                {mLabel(p.month)}
+              </text>
+            )}
+            <circle
+              cx={xi(i)} cy={p.ndvi != null ? py(p.ndvi) : py(0)} r="10" fill="transparent"
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+            />
+          </g>
+        ))}
+        {hover !== null && usable[hover].ndvi != null && (() => {
+          const p = usable[hover];
+          const tip = `${mLabel(p.month)} · ${fmtNum(p.ndvi, locale, 2)}`;
+          const bw = tip.length * 6.6 + 16;
+          const bx = Math.min(Math.max(xi(hover) - bw / 2, PAD.left), W - PAD.right - bw);
+          return (
+            <g pointerEvents="none">
+              <rect x={bx} y={py(p.ndvi!) - 32} width={bw} height="22" rx="4" className="tooltip-box" />
+              <text x={bx + bw / 2} y={py(p.ndvi!) - 17} textAnchor="middle" className="tooltip-text">{tip}</text>
             </g>
           );
         })()}
@@ -402,6 +521,7 @@ export function AnalysesPage() {
   const [project, setProject] = useState("");
   const [code, setCode] = useState("");
   const [analysis, setAnalysis] = useState<ContractAnalysis | null>(null);
+  const [ndvi, setNdvi] = useState<NdviPoint[]>([]);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -414,6 +534,8 @@ export function AnalysesPage() {
       return;
     }
     api.contractAnalysis(code).then(setAnalysis).catch(() => setError(true));
+    setNdvi([]);
+    api.contractNdvi(code).then(setNdvi).catch(() => setNdvi([]));
   }, [code]);
 
   const orgs = useMemo(
@@ -564,6 +686,52 @@ export function AnalysesPage() {
                 title={t("an_chart_loss")}
                 points={analysis.series.filter((p) => p.lossHa != null).map((p) => [p.year, p.lossHa!])}
               />
+
+              {(() => {
+                const burned = analysis.series.filter((p) => p.burnedHa != null);
+                if (burned.length === 0) return null;
+                const startY = analysis.startDate
+                  ? new Date(analysis.startDate).getFullYear()
+                  : null;
+                const pre = startY ? burned.filter((p) => p.year < startY) : [];
+                const base = pre.length
+                  ? pre.reduce((s, p) => s + p.burnedHa!, 0) / pre.length
+                  : burned.reduce((s, p) => s + p.burnedHa!, 0) / burned.length;
+                return (
+                  <AnnualBars
+                    title={t("an_chart_fire")}
+                    points={burned.map((p) => [p.year, p.burnedHa!])}
+                    refValue={base}
+                    refLabel={t("an_fire_baseline")}
+                  />
+                );
+              })()}
+
+              <NdviChart
+                title={t("an_chart_ndvi")}
+                points={ndvi}
+                label={t("an_series_contract")}
+                label2={t("an_series_control")}
+              />
+
+              {["forest_management", "conservation"].includes(
+                analysis.activityGroup ?? "",
+              ) && (
+                <>
+                  <AnnualLine
+                    title={t("an_chart_frag_patches")}
+                    points={analysis.series
+                      .filter((p) => p.patchCount != null)
+                      .map((p) => [p.year, p.patchCount!])}
+                  />
+                  <AnnualLine
+                    title={t("an_chart_frag_edge")}
+                    points={analysis.series
+                      .filter((p) => p.edgeMPerHa != null)
+                      .map((p) => [p.year, p.edgeMPerHa!])}
+                  />
+                </>
+              )}
 
               <details className="an-table">
                 <summary>{t("an_table")}</summary>

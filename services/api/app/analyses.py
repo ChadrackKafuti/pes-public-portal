@@ -11,7 +11,7 @@ from .auth import CurrentUser, Principal
 from .contracts import contract_code_visibility, visit_contract_links
 from .db import get_conn
 from .profile import _date, _num, _pick
-from .schemas import AnalysesContract, AnnualPoint, ContractAnalysis
+from .schemas import AnalysesContract, AnnualPoint, ContractAnalysis, NdviPoint
 
 router = APIRouter()
 
@@ -76,6 +76,35 @@ def analyses_contracts(
     return out
 
 
+@router.get(
+    "/api/analyses/contracts/{contract_code}/ndvi", response_model=list[NdviPoint]
+)
+def contract_ndvi(
+    contract_code: str, conn=Depends(get_conn), user: Principal = CurrentUser
+) -> list[NdviPoint]:
+    """M29b — the contract's monthly NDVI phenology with its control."""
+    apps = [str(r[0]) for r in _parcels_by_contract(conn).get(contract_code, [])]
+    if not apps:
+        raise HTTPException(status_code=404, detail="unknown contract")
+    rows = conn.execute(
+        """
+        SELECT month, avg(ndvi), avg(control_ndvi)
+        FROM pes_ndvi_monthly
+        WHERE application_id = ANY(%s)
+        GROUP BY month ORDER BY month
+        """,
+        (apps,),
+    ).fetchall()
+    return [
+        NdviPoint(
+            month=r[0],
+            ndvi=round(r[1], 4) if r[1] is not None else None,
+            control_ndvi=round(r[2], 4) if r[2] is not None else None,
+        )
+        for r in rows
+    ]
+
+
 @router.get("/api/analyses/contracts/{contract_code}", response_model=ContractAnalysis)
 def contract_analysis(
     contract_code: str, conn=Depends(get_conn), user: Principal = CurrentUser
@@ -86,7 +115,8 @@ def contract_analysis(
 
     series = conn.execute(
         """
-        SELECT year, sum(tc_ha), sum(loss_ha), sum(control_tc_ha)
+        SELECT year, sum(tc_ha), sum(loss_ha), sum(control_tc_ha),
+               sum(burned_ha), sum(patch_count), avg(edge_m_per_ha)
         FROM pes_annual_indicators
         WHERE application_id = ANY(%s)
         GROUP BY year ORDER BY year
@@ -209,7 +239,11 @@ def contract_analysis(
         start_date=_date(pick_any(["contractstartdate", "startdate"])),
         end_date=_date(pick_any(["contractenddate", "enddate"])),
         series=[
-            AnnualPoint(year=r[0], tc_ha=r[1], loss_ha=r[2], control_tc_ha=r[3])
+            AnnualPoint(
+                year=r[0], tc_ha=r[1], loss_ha=r[2], control_tc_ha=r[3],
+                burned_ha=r[4], patch_count=r[5],
+                edge_m_per_ha=round(r[6], 1) if r[6] is not None else None,
+            )
             for r in series
         ],
         canopy_pct_gt3m=round(meta[6], 1) if meta[6] is not None else None,

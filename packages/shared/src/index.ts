@@ -221,6 +221,13 @@ export interface ScorecardEntry {
   target: number | null;
 }
 
+/** M29b — one month of the NDVI phenology curve. */
+export interface NdviPoint {
+  month: string;
+  ndvi: number | null;
+  controlNdvi: number | null;
+}
+
 export interface ContractAnalysis {
   contractCode: string;
   org: string | null;
@@ -240,6 +247,10 @@ export interface ContractAnalysis {
     lossHa: number | null;
     /** M25 — surrounding-landscape control, scaled to the parcel area. */
     controlTcHa?: number | null;
+    /** M29b — fire-exclusion timeline + fragmentation. */
+    burnedHa?: number | null;
+    patchCount?: number | null;
+    edgeMPerHa?: number | null;
   }[];
   /** M25 — 1 m canopy model, area-weighted over the contract's parcels. */
   canopyPctGt3m?: number | null;

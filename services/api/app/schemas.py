@@ -295,6 +295,18 @@ class AnnualPoint(ApiModel):
     loss_ha: float | None
     # M25 — surrounding-landscape control, scaled to the parcel area
     control_tc_ha: float | None = None
+    # M29b — fire-exclusion timeline + fragmentation (conservation/SFM)
+    burned_ha: float | None = None
+    patch_count: int | None = None
+    edge_m_per_ha: float | None = None
+
+
+class NdviPoint(ApiModel):
+    """M29b — one month of the NDVI phenology curve."""
+
+    month: date
+    ndvi: float | None
+    control_ndvi: float | None
 
 
 class ScorecardEntry(ApiModel):

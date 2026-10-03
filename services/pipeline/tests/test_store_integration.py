@@ -234,6 +234,7 @@ def test_annual_candidates_prioritise_contract_linked(store):
     with store.connection() as conn:
         conn.execute((SCHEMA.parent / "007_annual.sql").read_text())
         conn.execute((SCHEMA.parent / "009_canopy_controls.sql").read_text())
+        conn.execute((SCHEMA.parent / "012_phenology_frag.sql").read_text())
         for app_id, app_date in (
             ("AC-NEW", date(2025, 9, 1)),   # newest, no contract link
             ("AC-CTR", date(2023, 1, 1)),   # old, contract-linked via visit
@@ -357,6 +358,12 @@ def test_annual_backfills_canopy_and_controls(store):
         def control_tree_cover(self, parcel, at):
             return 0.5
 
+        def burned_area_ha(self, parcel, interval):
+            return 0.25
+
+        def fragmentation(self, parcel, at):
+            return 3, 120.0
+
     config = PipelineConfig(annual_start_year=2024)
     today = date(2026, 1, 2)
     deadline = datetime.now(UTC) + timedelta(minutes=5)
@@ -364,6 +371,7 @@ def test_annual_backfills_canopy_and_controls(store):
     with store.connection() as conn:
         conn.execute((SCHEMA.parent / "007_annual.sql").read_text())
         conn.execute((SCHEMA.parent / "009_canopy_controls.sql").read_text())
+        conn.execute((SCHEMA.parent / "012_phenology_frag.sql").read_text())
         app = PesObject(
             object_id="AN-1", object_type=ObjectType.APPLICATION,
             object_date=date(2024, 6, 1), application_date=date(2024, 6, 1),
@@ -396,6 +404,14 @@ def test_annual_backfills_canopy_and_controls(store):
             "WHERE object_id = 'AN-1'"
         ).fetchone()
         assert canopy[0] == 5.0 and canopy[1] == 40.0 and canopy[2] is not None
+        # M29b — burned backfill for every series year; fragmentation only
+        # when the activity is SFM/conservation (the _row helper default
+        # activity is Agroforestry, so no fragmentation here).
+        extra = conn.execute(
+            "SELECT burned_ha, patch_count FROM pes_annual_indicators "
+            "WHERE application_id = 'AN-1' AND year = 2024"
+        ).fetchone()
+        assert extra == (0.25, None)
 
 
 def test_photo_ai_pass_with_stub_client(store):
@@ -583,3 +599,51 @@ def test_roads_pass_with_stub_everything(store):
     # Missing keys: disabled, never an error.
     with store.connection() as conn:
         assert process_roads(conn, PipelineConfig()) == {"roads": "disabled"}
+
+
+def test_ndvi_pass_with_stub_backend(store):
+    """M29b: missing months fill for parcel + annulus; complete parcels are
+    skipped next pass."""
+    from pes_rs_pipeline.indicators.ndvi import month_window, process_ndvi
+
+    today = date(2026, 10, 3)
+    window = month_window(today, 24)
+    assert len(window) == 24
+    assert window[-1] == date(2026, 9, 1) and window[0] == date(2024, 10, 1)
+
+    class StubBackend:
+        def resolve_parcel(self, bearer, source):
+            return "parcel"
+
+        def annulus(self, parcel):
+            return "ring"
+
+        def ndvi_series(self, geom, months):
+            base = 0.6 if geom == "parcel" else 0.5
+            return {m.isoformat(): base for m in months}
+
+    config = PipelineConfig(ndvi_batch=5, ndvi_months=24)
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "012_phenology_frag.sql").read_text())
+        app = PesObject(
+            object_id="NV-1", object_type=ObjectType.APPLICATION,
+            object_date=date(2025, 6, 1), application_date=date(2025, 6, 1),
+            application_id="NV-1", country="Republic of Congo",
+            shape_wkt="POLYGON((0 0,1 0,1 1,0 0))",
+        )
+        store.upsert_parcels(conn, [app])
+        conn.commit()
+
+        # The shared test DB holds parcels from earlier tests; drain the
+        # whole queue, then verify NV-1's window and that nothing remains.
+        for _ in range(10):
+            stats = process_ndvi(conn, StubBackend(), config, today)
+            assert stats["ndvi_failed"] == 0
+            if stats["ndvi_done"] == 0:
+                break
+        rows = conn.execute(
+            "SELECT count(*), min(ndvi), max(control_ndvi) FROM pes_ndvi_monthly "
+            "WHERE application_id = 'NV-1'"
+        ).fetchone()
+        assert rows == (24, 0.6, 0.5)
+        assert process_ndvi(conn, StubBackend(), config, today)["ndvi_done"] == 0

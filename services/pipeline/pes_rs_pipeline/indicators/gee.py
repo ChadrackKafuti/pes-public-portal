@@ -247,6 +247,84 @@ class GeeBackend:
         area_ha = self.parcel_area_ha(annulus)
         return round(tc_ha / area_ha, 4) if area_ha else None
 
+    # -- Sentinel-2 monthly NDVI (M29b) -----------------------------------
+
+    def annulus(self, parcel):
+        """The 'surrounding landscape' control ring used across M25/M29b."""
+        return parcel.buffer(self._config.control_outer_m).difference(
+            parcel.buffer(self._config.control_inner_m)
+        )
+
+    @staticmethod
+    def _s2_clear(img):
+        """Mask clouds/shadows/snow via the scene classification band."""
+        scl = img.select("SCL")
+        bad = (
+            scl.eq(3).Or(scl.eq(8)).Or(scl.eq(9)).Or(scl.eq(10)).Or(scl.eq(11))
+        )
+        return img.updateMask(bad.Not())
+
+    def ndvi_series(self, geom, months: list) -> dict:
+        """{month iso: mean NDVI or None} for the given month starts — one
+        getInfo round trip for the whole list (server-side mapping)."""
+        ee = self._ee
+
+        def monthly(m):
+            s = ee.Date(m)
+            col = (
+                ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                .filterBounds(geom)
+                .filterDate(s, s.advance(1, "month"))
+                .map(self._s2_clear)
+            )
+            ndvi = ee.Image(
+                ee.Algorithms.If(
+                    col.size().gt(0),
+                    col.median().normalizedDifference(["B8", "B4"]).rename("ndvi"),
+                    ee.Image.constant(-9999).rename("ndvi"),
+                )
+            )
+            val = ndvi.reduceRegion(
+                reducer=ee.Reducer.mean(), geometry=geom, scale=20, maxPixels=1e10
+            ).get("ndvi")
+            return ee.Feature(None, {"m": s.format("YYYY-MM-dd"), "v": val})
+
+        fc = ee.FeatureCollection(
+            ee.List([m.isoformat() for m in months]).map(monthly)
+        )
+        out: dict = {}
+        for f in fc.getInfo().get("features", []):
+            p = f.get("properties", {})
+            v = p.get("v")
+            out[p.get("m")] = (
+                round(float(v), 4) if v is not None and float(v) > -1 else None
+            )
+        return out
+
+    # -- fragmentation (M29b) ---------------------------------------------
+
+    def fragmentation(self, parcel, at: date) -> tuple[int, float] | None:
+        """(patch count, edge metres per ha) of the tree mask near a date.
+        Edge length is approximated as boundary-pixel count × pixel size."""
+        ee = self._ee
+        best = self._tree_mask_adaptive(parcel, at)
+        if best is None:
+            return None
+        mask, _cov, _win = best
+        mask = mask.selfMask()
+        labels = mask.connectedComponents(ee.Kernel.plus(1), 1024).select("labels")
+        patches = labels.reduceRegion(
+            reducer=ee.Reducer.countDistinct(), geometry=parcel, scale=10,
+            maxPixels=1e10,
+        )
+        n = int(list(patches.getInfo().values())[0] or 0)
+        interior = mask.unmask(0).focalMin(1, "plus")
+        edge = mask.unmask(0).And(interior.Not())
+        edge_px = self._pixel_count(edge.selfMask(), parcel, scale=10)
+        area_ha = self.parcel_area_ha(parcel)
+        per_ha = round(edge_px * 10.0 / area_ha, 1) if area_ha else 0.0
+        return n, per_ha
+
     # -- RADD alerts (spec §11.4) -----------------------------------------
 
     def radd_alerts(self, parcel, interval: Interval) -> int:

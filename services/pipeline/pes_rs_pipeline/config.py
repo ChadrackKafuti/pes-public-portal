@@ -86,6 +86,11 @@ class PipelineConfig(BaseSettings):
     road_min_confidence: float = 0.55
     road_budget_s: int = 150
 
+    # Monthly NDVI phenology (M29b): parcel + control annulus, rolling window.
+    ndvi_months: int = 24
+    ndvi_batch: int = 5
+    ndvi_budget_s: int = 150
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

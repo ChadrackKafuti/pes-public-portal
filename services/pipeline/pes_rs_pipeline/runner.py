@@ -314,6 +314,19 @@ def run_once(
                 conn.rollback()
                 log.exception("nrt incident pass failed; run continues")
 
+            # M29b: monthly NDVI phenology in its own small budget (needs
+            # the GEE backend, hence after backend init).
+            try:
+                from .indicators.ndvi import process_ndvi
+
+                ndvi_stats = process_ndvi(
+                    conn, backend, config, today, hidden_ids=hidden_ids
+                )
+                log.info("ndvi: %s", ndvi_stats)
+            except Exception:  # noqa: BLE001
+                conn.rollback()
+                log.exception("ndvi pass failed; run continues")
+
             # M7d: annual tree-cover series + land-cover classes, in whatever
             # time the run has left. Failures never cost the run.
             try:
