@@ -190,7 +190,7 @@ class PesApiClient:
     def __init__(self, config: PipelineConfig, transport: httpx.BaseTransport | None = None):
         self._config = config
         self._http = httpx.Client(
-            base_url=config.pes_api_base, timeout=30, transport=transport
+            base_url=config.pes_api_base, timeout=60, transport=transport
         )
         self._token: str | None = None
         self._token_expiry: float = 0.0
@@ -234,6 +234,31 @@ class PesApiClient:
             self._token_expiry = time.monotonic() + float(payload.get("expires_in", 300))
         return self._token
 
+    def _get_page(self, path: str, page: int) -> httpx.Response:
+        """One page, with retry/backoff on transient failures (M20: a single
+        slow upstream page killed a whole run on ReadTimeout)."""
+        last: Exception | None = None
+        for attempt in range(3):
+            if attempt:
+                time.sleep(2**attempt)
+            try:
+                resp = self._http.get(
+                    path,
+                    params={"PageNumber": page, "PageSize": PAGE_SIZE},
+                    headers={"Authorization": f"Bearer {self._access_token()}"},
+                )
+                if resp.status_code >= 500:
+                    last = httpx.HTTPStatusError(
+                        f"server error {resp.status_code}",
+                        request=resp.request,
+                        response=resp,
+                    )
+                    continue
+                return resp
+            except (httpx.TimeoutException, httpx.TransportError) as exc:
+                last = exc
+        raise last  # type: ignore[misc]
+
     def _paged(self, path: str) -> Iterator[dict[str, Any]]:
         """Fetch every page, de-duplicating by record id across pages.
 
@@ -244,11 +269,7 @@ class PesApiClient:
         seen: set[str] = set()
         page = 1
         while True:
-            resp = self._http.get(
-                path,
-                params={"PageNumber": page, "PageSize": PAGE_SIZE},
-                headers={"Authorization": f"Bearer {self._access_token()}"},
-            )
+            resp = self._get_page(path, page)
             resp.raise_for_status()
             body = resp.json()
             total_pages = None

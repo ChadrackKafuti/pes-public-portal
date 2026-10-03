@@ -233,6 +233,25 @@ class AnalysesContract(ApiModel):
     first_date: date | None
 
 
+class AdminExceptionItem(ApiModel):
+    """M20 — one skipped/failed parcel for the admin follow-up page."""
+
+    object_id: str
+    object_type: str | None
+    reason: str
+    area_gis: float | None
+    occurrences: int
+    last_seen: datetime | None
+    application_code: str | None
+    implementing_org: str | None
+    country: str | None
+
+
+class AdminExceptionsOut(ApiModel):
+    summary: list[dict]
+    items: list[AdminExceptionItem]
+
+
 class AnnualPoint(ApiModel):
     year: int
     tc_ha: float | None

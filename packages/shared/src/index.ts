@@ -135,6 +135,24 @@ export type GovLayerKey =
   | "local_territory_zoning"
   | "local_governance";
 
+/** M20 — one skipped/failed parcel on the admin follow-up page. */
+export interface AdminExceptionItem {
+  objectId: string;
+  objectType: string | null;
+  reason: string;
+  areaGis: number | null;
+  occurrences: number;
+  lastSeen: string | null;
+  applicationCode: string | null;
+  implementingOrg: string | null;
+  country: string | null;
+}
+
+export interface AdminExceptions {
+  summary: { reason: string; objects: number }[];
+  items: AdminExceptionItem[];
+}
+
 /** One gov_documents row (public link). */
 export interface GovDocument {
   docUid: string;
