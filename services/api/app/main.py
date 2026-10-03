@@ -168,13 +168,18 @@ def filter_options(
     user: Principal = CurrentUser,
 ) -> FilterOptions:
     """Distinct values feeding the filter selects. Provinces narrow to the
-    chosen country when one is passed (portal-v1 behaviour)."""
+    chosen country when one is passed (portal-v1 behaviour). Hidden records
+    (archived/deleted, QA organisations — M14/M18) contribute no values."""
+    from .visibility import hidden_application_ids
+
+    hidden = sorted(hidden_application_ids(conn))
 
     def distinct(column: str, where: str = "", params: tuple = ()) -> list[str]:
         rows = conn.execute(
             f"SELECT DISTINCT {column} FROM pes_parcels "
-            f"WHERE {column} IS NOT NULL {where} ORDER BY {column}",
-            params,
+            f"WHERE {column} IS NOT NULL "
+            f"AND NOT (application_id = ANY(%s)) {where} ORDER BY {column}",
+            (hidden, *params),
         ).fetchall()
         return [r[0] for r in rows]
 
@@ -267,9 +272,12 @@ def applications_geojson(conn=Depends(get_conn), user: Principal = CurrentUser) 
             """
         ).fetchall()
     }
+    from .visibility import org_hidden
+
     features = []
     for r in rows:
-        if application_hidden(r[14]):  # archived/deleted (M14)
+        # archived/deleted (M14) or QA organisation (M18)
+        if application_hidden(r[14]) or org_hidden(r[12], r[13]):
             continue
         geometries: list[dict] = []
         polygon = shape_to_geometry(r[5], None, None)

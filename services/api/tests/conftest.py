@@ -139,7 +139,9 @@ VALUES
   ('A4', 'APP-004', NULL, '2024-08-01', NULL, NULL, NULL, 1.0, 'Regeneration',
    'ROC', 'Sangha', 'Org A', 'Project Y', 'h4'),
   ('A5', 'APP-005', NULL, '2024-09-01', 'POLYGON((15 -1,15.01 -1,15.01 -0.99,15 -1))',
-   NULL, NULL, 2.0, 'Agroforestry', 'DRC', 'Kinshasa', 'Org A', 'Project X', 'h5');
+   NULL, NULL, 2.0, 'Agroforestry', 'DRC', 'Kinshasa', 'Org A', 'Project X', 'h5'),
+  ('A6', 'APP-006', NULL, '2024-10-01', NULL, 16.5, -3.25, 1.5, 'Agroforestry',
+   'DRC', 'Equateur', 'XeptagonQATestProject', 'QA Project', 'h6');
 
 INSERT INTO pes_rs_objects
   (object_id, object_type, object_date, application_id, application_code,

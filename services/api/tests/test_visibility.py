@@ -44,6 +44,21 @@ def test_archived_contract_filtered(client):
     assert "CTR-003" not in codes and "CTR-001" in codes and "CTR-002" in codes
 
 
+def test_qa_organisation_filtered(client):
+    """M18: the QA tenant's records (A6, no raw payload — the parcel columns
+    carry the org) never reach the frontend."""
+    body = client.get("/api/applications").json()
+    assert body["total"] == 3
+    assert all(i["applicationId"] != "A6" for i in body["items"])
+    gj = client.get("/api/applications.geojson").json()
+    assert all(f["properties"]["applicationId"] != "A6" for f in gj["features"])
+    opts = client.get("/api/filters").json()
+    assert "XeptagonQATestProject" not in opts["organisations"]
+    assert "Equateur" not in opts["provinces"]  # only the QA record had it
+    d = client.get("/api/dashboard").json()["pes"]
+    assert d["applications"] == 3
+
+
 def test_helpers():
     from app.visibility import application_hidden, contract_hidden, visit_hidden
 
@@ -56,3 +71,6 @@ def test_helpers():
     assert not visit_hidden({"MonitoringVisitStatus": "Completed"})
     assert contract_hidden({"ContractStatus": "Archived"})
     assert not contract_hidden({"ContractStatus": "Cancelled"})
+    assert application_hidden({"ImplementingOrgName": "XeptagonQATestProject"})
+    assert application_hidden({"ProjectName": " xeptagonqatestproject "})
+    assert not application_hidden({"ImplementingOrgName": "Org A"})
