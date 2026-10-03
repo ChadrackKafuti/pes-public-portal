@@ -48,7 +48,16 @@ WHERE o.status IN ('ok', 'partial', 'partial_final')
       WHERE a.application_id = p.application_id AND a.year = %(last_year)s
     )
   )
-ORDER BY p.application_date DESC
+ORDER BY
+  -- Applications still missing the series come first (M19): records whose
+  -- land cover keeps failing (e.g. GEE projection-validity errors on odd
+  -- geometries) otherwise sit at the head of the queue and are retried
+  -- every run before any new series gets computed.
+  EXISTS (
+    SELECT 1 FROM pes_annual_indicators a
+    WHERE a.application_id = p.application_id AND a.year = %(last_year)s
+  ) ASC,
+  p.application_date DESC
 LIMIT %(limit)s
 """
 
