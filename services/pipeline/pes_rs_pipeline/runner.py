@@ -209,6 +209,14 @@ def run_once(
                 pid: parent.application_date for pid, parent in cached_parents.items()
             }
 
+            # M20: archived/deleted/rejected records and QA tenants never
+            # enter computation; the raw mirror above keeps their payloads
+            # so the API's own visibility filter stays authoritative.
+            from .visibility import split_visible
+
+            applications, visits, hidden_ids = split_visible(applications, visits)
+            log.info("visibility: hidden=%d", len(hidden_ids))
+
             objects, bad = normalize_all(applications, visits, cached_dates)
             result.exceptions.extend(bad)
             # Every fetched application refreshes the parcel cache, selected
@@ -274,7 +282,9 @@ def run_once(
             try:
                 from .indicators.annual import process_annual
 
-                annual_stats = process_annual(conn, backend, config, deadline, today)
+                annual_stats = process_annual(
+                    conn, backend, config, deadline, today, hidden_ids=hidden_ids
+                )
                 log.info("annual: %s", annual_stats)
             except Exception:  # noqa: BLE001
                 conn.rollback()

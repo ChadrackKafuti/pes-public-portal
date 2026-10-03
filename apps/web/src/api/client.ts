@@ -1,4 +1,5 @@
 import type {
+  AdminExceptions,
   AlertRow,
   AnalysesContract,
   ContractAnalysis,
@@ -97,4 +98,5 @@ export const api = {
     get<Photo[]>(`/applications/${encodeURIComponent(id)}/photos`),
   photoImageUrl: (uid: string) =>
     get<{ url: string }>(`/photos/${encodeURIComponent(uid)}/image-url`),
+  adminExceptions: () => get<AdminExceptions>("/admin/exceptions"),
 };

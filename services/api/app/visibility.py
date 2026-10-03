@@ -22,6 +22,10 @@ _VISIT_TEXT_KEYS = ["monitoringvisitstatus", "visitstatus", "stagecategory",
 _CONTRACT_TEXT_KEYS = ["contractstatus"]
 
 _HIDDEN_WORDS = ("archiv", "delet", "supprim")
+# Applications additionally hide on rejection (M20): "Rejected",
+# "Not Validated"/"Not Recommended" (stage category "Rejected"), negative
+# stage orders.
+_APP_HIDDEN_WORDS = _HIDDEN_WORDS + ("reject",)
 
 # QA/test tenants (M18): their records never reach the frontend, whatever
 # their stage. Matched case-insensitively against the implementing
@@ -43,12 +47,22 @@ def _flagged(payload: dict) -> bool:
     return False
 
 
-def _text_hidden(payload: dict, keys: list[str]) -> bool:
+def _text_hidden(
+    payload: dict, keys: list[str], words: tuple[str, ...] = _HIDDEN_WORDS
+) -> bool:
     for key in keys:
         v = _pick(payload, [key])
-        if v is not None and any(w in str(v).lower() for w in _HIDDEN_WORDS):
+        if v is not None and any(w in str(v).lower() for w in words):
             return True
     return False
+
+
+def _stage_order_negative(payload: dict) -> bool:
+    v = _pick(payload, ["stageorder", "stageno", "stagenumber"])
+    try:
+        return v is not None and float(v) < 0
+    except (TypeError, ValueError):
+        return False
 
 
 def application_hidden(payload: Any) -> bool:
@@ -56,7 +70,8 @@ def application_hidden(payload: Any) -> bool:
         return False
     return (
         _flagged(payload)
-        or _text_hidden(payload, _APP_TEXT_KEYS)
+        or _text_hidden(payload, _APP_TEXT_KEYS, _APP_HIDDEN_WORDS)
+        or _stage_order_negative(payload)
         or org_hidden(
             _pick(payload, ["implementingorgname"]),
             _pick(payload, ["projectname"]),

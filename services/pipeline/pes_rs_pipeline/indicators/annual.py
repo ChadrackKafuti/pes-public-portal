@@ -41,6 +41,7 @@ FROM pes_parcels p
 JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
 WHERE o.status IN ('ok', 'partial', 'partial_final')
+  AND NOT (p.application_id = ANY(%(hidden)s))
   AND (
     o.landcover_at_app IS NULL
     OR NOT EXISTS (
@@ -62,10 +63,22 @@ LIMIT %(limit)s
 """
 
 
-def process_annual(conn, backend, config: PipelineConfig, deadline, today: date) -> dict:
+def process_annual(
+    conn,
+    backend,
+    config: PipelineConfig,
+    deadline,
+    today: date,
+    hidden_ids: set[str] | None = None,
+) -> dict:
     last_year = today.year - 1
     rows = conn.execute(
-        _CANDIDATES_SQL, {"last_year": last_year, "limit": config.annual_backlog_limit}
+        _CANDIDATES_SQL,
+        {
+            "last_year": last_year,
+            "limit": config.annual_backlog_limit,
+            "hidden": sorted(hidden_ids or ()),  # M20: no GEE for hidden records
+        },
     ).fetchall()
     done = failed = 0
     for row in rows:
@@ -135,11 +148,31 @@ def process_annual(conn, backend, config: PipelineConfig, deadline, today: date)
                         (at_cls, at_pct, cur_cls, cur_pct, today, app_id),
                     )
                 except Exception:  # noqa: BLE001 — land cover stays blank
-                    log.exception("landcover failed for %s", app_id)
+                    # Record for the admin page; keep record ids out of the
+                    # public workflow logs (M20).
+                    log.exception("landcover classification failed")
+                    conn.execute(
+                        """
+                        INSERT INTO pes_rs_exceptions (object_id, object_type, reason)
+                        VALUES (%s, 'application', 'landcover_failed')
+                        """,
+                        (app_id,),
+                    )
             conn.commit()
             done += 1
         except Exception:  # noqa: BLE001 — one application never sinks the pass
             conn.rollback()
             failed += 1
-            log.exception("annual indicators failed for %s", app_id)
+            log.exception("annual indicators failed")
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO pes_rs_exceptions (object_id, object_type, reason)
+                    VALUES (%s, 'application', 'annual_failed')
+                    """,
+                    (app_id,),
+                )
+                conn.commit()
+            except Exception:  # noqa: BLE001 — recording must never sink it
+                conn.rollback()
     return {"annual_done": done, "annual_failed": failed, "annual_candidates": len(rows)}

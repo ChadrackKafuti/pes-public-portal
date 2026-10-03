@@ -5,6 +5,7 @@ import { AlertsPage } from "./screens/AlertsPage";
 import { AnalysesPage } from "./screens/AnalysesPage";
 import { DossierPage } from "./screens/DossierPage";
 import { LandingPage } from "./screens/LandingPage";
+import { AdminPage } from "./screens/AdminPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
 import { authEnabled, authMode, useAuth } from "./auth";
@@ -50,6 +51,12 @@ const I = {
   runs: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M2 12h4l3-7 4 14 3-7h6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  admin: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1Z" strokeLinejoin="round" />
     </svg>
   ),
 };
@@ -202,6 +209,7 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
     { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
     { to: "/alerts", icon: "alerts", label: t("nav_alerts") },
     { to: "/runs", icon: "runs", label: t("nav_runs") },
+    { to: "/admin", icon: "admin", label: t("nav_admin") },
   ];
 
   return (
@@ -247,6 +255,7 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
                 no longer in the nav — selections open in the map panel */}
             <Route path="/applications/:id" element={<DossierPage />} />
             <Route path="/runs" element={<RunsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </div>
       </main>

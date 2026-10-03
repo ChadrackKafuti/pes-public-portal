@@ -27,6 +27,7 @@ WHERE o.object_type = 'monitoring_visit'
        OR coalesce(o.defor_current_ha, 0) > 0
        OR coalesce(o.burned_area_current_ha, 0) > 0)
   AND (%(country)s::text IS NULL OR p.country = %(country)s)
+  AND NOT (o.application_id = ANY(%(hidden)s))
 ORDER BY o.object_date DESC, o.object_id
 LIMIT %(limit)s
 """
@@ -46,5 +47,14 @@ def alerts(
     conn=Depends(get_conn),
     user: Principal = CurrentUser,
 ) -> list[AlertRow]:
-    rows = conn.execute(_ALERTS_SQL, {"country": country, "limit": limit}).fetchall()
+    from .visibility import hidden_application_ids
+
+    rows = conn.execute(
+        _ALERTS_SQL,
+        {
+            "country": country,
+            "limit": limit,
+            "hidden": sorted(hidden_application_ids(conn)),  # M20
+        },
+    ).fetchall()
     return [AlertRow(**dict(zip(_FIELDS, r, strict=True))) for r in rows]

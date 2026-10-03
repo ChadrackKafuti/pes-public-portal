@@ -2643,3 +2643,28 @@ table.data a {
   display: block;
   cursor: zoom-in;
 }
+
+/* M20 — admin follow-up page */
+.adm-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.adm-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.adm-chip-on {
+  border-color: var(--accent, #1b365d);
+  background: color-mix(in srgb, var(--accent, #1b365d) 12%, transparent);
+  font-weight: 600;
+}

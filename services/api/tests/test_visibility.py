@@ -65,8 +65,10 @@ def test_helpers():
     assert application_hidden({"Stage": "Archived"})
     assert application_hidden({"IsDeleted": "true"})
     assert application_hidden({"ApplicationStatus": "Supprimé"})
-    assert not application_hidden({"Stage": "Rejected"})  # rejected stays visible
-    assert not application_hidden({"Stage": "Validated"})
+    assert application_hidden({"Stage": "Rejected"})  # M20: rejected hidden too
+    assert application_hidden({"Stage": "Not Validated", "StageOrder": -5})
+    assert application_hidden({"StageOrder": -7})
+    assert not application_hidden({"Stage": "Validated", "StageOrder": 5})
     assert visit_hidden({"IsDeleted": True})
     assert not visit_hidden({"MonitoringVisitStatus": "Completed"})
     assert contract_hidden({"ContractStatus": "Archived"})

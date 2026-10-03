@@ -147,6 +147,26 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
       lastSync: "2026-10-01T12:30:00Z",
     } as T;
   }
+  if (path === "/admin/exceptions") {
+    return {
+      summary: [
+        { reason: "oversize_gt_5000ha", objects: 1 },
+        { reason: "no_usable_geometry", objects: 1 },
+        { reason: "landcover_failed", objects: 1 },
+      ],
+      items: [
+        { objectId: "DEMO-A9", objectType: "application", reason: "oversize_gt_5000ha",
+          areaGis: 6200, occurrences: 4, lastSeen: "2026-10-03T06:00:00Z",
+          applicationCode: "DEMO-CA1009-BE0009", implementingOrg: "Org Demo B", country: "DRC" },
+        { objectId: "DEMO-A10", objectType: "application", reason: "no_usable_geometry",
+          areaGis: null, occurrences: 4, lastSeen: "2026-10-03T06:00:00Z",
+          applicationCode: "DEMO-CA1010-BE0010", implementingOrg: "Org Demo C", country: "DRC" },
+        { objectId: "DEMO-A1", objectType: "application", reason: "landcover_failed",
+          areaGis: null, occurrences: 1, lastSeen: "2026-10-02T20:00:00Z",
+          applicationCode: "DEMO-CA1001-BE0001", implementingOrg: "Org Demo A", country: "DRC" },
+      ],
+    } as T;
+  }
   if (path === "/applications.geojson") return load("applications.geojson.json");
   // Contracts derive from visits in production; the demo derives them from
   // the application snapshot (one contract per app carrying a contract code).

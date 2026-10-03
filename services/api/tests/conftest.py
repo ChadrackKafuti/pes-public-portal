@@ -154,6 +154,12 @@ VALUES
   ('M1', 'monitoring_visit', '2025-03-15', 'A1', 'APP-001', 'CTR-001', 'Agroforestry', 3.4,
    2.0, 0.05, 'polygon_inherited', 5, 'partial', '{fire_alerts}', 'h1');
 
+INSERT INTO pes_rs_exceptions (object_id, object_type, reason, area_gis) VALUES
+  ('A2', 'application', 'oversize_gt_5000ha', 6200),
+  ('A2', 'application', 'oversize_gt_5000ha', 6200),
+  ('A4', 'application', 'no_usable_geometry', NULL),
+  ('A6', 'application', 'no_usable_geometry', NULL);
+
 INSERT INTO pes_rs_runs
   (start_utc, end_utc, duration_s, fetched_app, fetched_mon, selected, ok, partial,
    skipped, queued, stopped_reason)
