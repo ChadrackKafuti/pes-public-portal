@@ -275,6 +275,8 @@ class IncidentItem(ApiModel):
     country: str | None
     province: str | None
     pes_activity: str | None
+    # M27 — photos of the application that arrived after first detection
+    evidence_count: int = 0
 
 
 class IncidentsOut(ApiModel):

@@ -399,6 +399,8 @@ export interface IncidentItem {
   country: string | null;
   province: string | null;
   pesActivity: string | null;
+  /** M27 — photos of the application that arrived after first detection. */
+  evidenceCount?: number;
 }
 
 export interface Incidents {

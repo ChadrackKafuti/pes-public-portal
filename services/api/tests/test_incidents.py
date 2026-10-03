@@ -41,3 +41,17 @@ def test_incident_status_workflow(client):
     assert client.patch(f"/api/incidents/{uid}", json={"status": "open"}).status_code == 200
     # unknown incident
     assert client.patch("/api/incidents/NOPE", json={"status": "responded"}).status_code == 404
+
+
+def test_incident_evidence(client):
+    """M27: photos synced after first detection count as response evidence."""
+    rows = client.get("/api/incidents").json()["items"]
+    fire = next(i for i in rows if i["incidentUid"].startswith("A1:fire"))
+    # A1's three seeded photos all synced after 2026-09-20
+    assert fire["evidenceCount"] == 3
+    ev = client.get(f"/api/incidents/{fire['incidentUid']}/evidence").json()
+    assert {p["photoUid"] for p in ev} == {"aaaa1111", "bbbb2222", "dddd4444"}
+    # the AI reading rides along for the verifying monitor
+    seen = next(p for p in ev if p["photoUid"] == "aaaa1111")
+    assert seen["aiScene"] == "saplings_plantation"
+    assert client.get("/api/incidents/NOPE/evidence").status_code == 404
