@@ -50,6 +50,10 @@ WHERE o.status IN ('ok', 'partial', 'partial_final')
     )
   )
 ORDER BY
+  -- Contract-linked applications first (M22): the Analyses page can only
+  -- show contracts, so parcels reachable through a monitoring visit's
+  -- contract code must get their series before the contract-less backlog.
+  (p.application_id = ANY(%(priority)s)) DESC,
   -- Applications still missing the series come first (M19): records whose
   -- land cover keeps failing (e.g. GEE projection-validity errors on odd
   -- geometries) otherwise sit at the head of the queue and are retried
@@ -70,6 +74,7 @@ def process_annual(
     deadline,
     today: date,
     hidden_ids: set[str] | None = None,
+    priority_ids: set[str] | None = None,
 ) -> dict:
     last_year = today.year - 1
     rows = conn.execute(
@@ -78,6 +83,7 @@ def process_annual(
             "last_year": last_year,
             "limit": config.annual_backlog_limit,
             "hidden": sorted(hidden_ids or ()),  # M20: no GEE for hidden records
+            "priority": sorted(priority_ids or ()),  # M22: contract-linked first
         },
     ).fetchall()
     done = failed = 0
