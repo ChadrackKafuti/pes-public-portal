@@ -217,6 +217,18 @@ def run_once(
             applications, visits, hidden_ids = split_visible(applications, visits)
             log.info("visibility: hidden=%d", len(hidden_ids))
 
+            # M26: Claude vision pass over newly mirrored photos, in its own
+            # small budget. Disabled until the API key secret is configured.
+            try:
+                from .photos_ai import process_photo_ai
+
+                ai_stats = process_photo_ai(conn, config, hidden_ids=hidden_ids)
+                conn.commit()
+                log.info("photo-ai: %s", ai_stats)
+            except Exception:  # noqa: BLE001
+                conn.rollback()
+                log.exception("photo-ai pass failed; run continues")
+
             objects, bad = normalize_all(applications, visits, cached_dates)
             result.exceptions.extend(bad)
             # Every fetched application refreshes the parcel cache, selected

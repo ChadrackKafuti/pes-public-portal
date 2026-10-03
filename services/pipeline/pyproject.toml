@@ -12,7 +12,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Earth Engine is heavy; kept optional so the rest is testable anywhere.
-compute = ["earthengine-api>=1.1", "shapely>=2.0"]
+compute = ["earthengine-api>=1.1", "shapely>=2.0", "anthropic>=1.0"]
 dev = ["pytest>=8"]
 
 [tool.pytest.ini_options]

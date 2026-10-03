@@ -49,6 +49,16 @@ VALUES
    'agol_attachment', 0, now());
 """
 
+M26_SEED = """
+UPDATE pes_photos SET
+  ai_scene = 'saplings_plantation', ai_scene_confidence = 0.92,
+  ai_activity_consistent = true, ai_tree_count = 24, ai_health = 'healthy',
+  ai_species = 'Acacia auriculiformis', ai_flags = NULL,
+  ai_summary = 'Rows of young acacia saplings on cleared cropland.',
+  ai_model = 'claude-opus-5-5', ai_status = 'ok', ai_processed_utc = now()
+WHERE photo_uid = 'aaaa1111';
+"""
+
 M25_SEED = """
 UPDATE pes_rs_objects
 SET canopy_mean_m = 4.5, canopy_pct_gt3m = 62.0, canopy_utc = now()
@@ -250,6 +260,7 @@ def client():
                     conn.execute((_INIT / "007_annual.sql").read_text())
                     conn.execute((_INIT / "008_incidents.sql").read_text())
                     conn.execute((_INIT / "009_canopy_controls.sql").read_text())
+                    conn.execute((_INIT / "010_photo_ai.sql").read_text())
                     conn.execute(INCIDENT_SEED)
                     conn.execute(ANNUAL_SEED)
                     conn.execute(PHOTO_SEED)
@@ -264,6 +275,7 @@ def client():
                         conn.rollback()  # no PostGIS binaries: AOI tests skip
                     conn.execute(SEED)
                     conn.execute(M25_SEED)
+                    conn.execute(M26_SEED)
                     conn.execute(GOV_SEED)
                     conn.commit()
                 break

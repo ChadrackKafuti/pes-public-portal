@@ -18,7 +18,8 @@ router = APIRouter()
 _LIST_SQL = """
 SELECT photo_uid, kind, parent_id, application_id, application_code,
        contract_code, photo_index, label, lon, lat,
-       COALESCE(mirror_status = 'done', false) AS mirrored
+       COALESCE(mirror_status = 'done', false) AS mirrored,
+       ai_scene, ai_activity_consistent, ai_tree_count, ai_flags, ai_summary
 FROM pes_photos
 WHERE (%(application)s::text IS NULL
        OR application_id = %(application)s OR parent_id = %(application)s)
@@ -131,6 +132,11 @@ def photos_geojson(
                     "label": r[7],
                     "mirrored": r[10],
                     "date": date.isoformat() if date else None,  # type: ignore[union-attr]
+                    # M26 — photo intelligence
+                    "aiScene": r[11],
+                    "aiConsistent": r[12],
+                    "aiFlags": r[14],
+                    "aiSummary": r[15],
                 },
             }
         )
@@ -149,6 +155,8 @@ def application_photos(
             photo_uid=r[0], kind=r[1], parent_id=r[2], application_id=r[3],
             application_code=r[4], contract_code=r[5], photo_index=r[6],
             label=r[7], lon=r[8], lat=r[9], mirrored=r[10],
+            ai_scene=r[11], ai_consistent=r[12], ai_tree_count=r[13],
+            ai_flags=r[14], ai_summary=r[15],
         )
         for r in rows
     ]
