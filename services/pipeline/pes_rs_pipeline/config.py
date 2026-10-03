@@ -45,7 +45,9 @@ class PipelineConfig(BaseSettings):
     # Annual indicators (M7d): Dynamic World tree-cover series + land-cover
     # classes; the backlog drains in each run's leftover time budget.
     annual_start_year: int = 2016
-    annual_backlog_limit: int = 150
+    # High enough that an idle-main run drains as much as its time allows
+    # (the cap, not the clock, bounded earlier runs at ~150/run — M19).
+    annual_backlog_limit: int = 600
     # Minutes of each run held back from the main indicator loop so the
     # annual pass always makes progress — without it, a large main backlog
     # (e.g. after a geometry-hash change) starves the series for days (M15).
