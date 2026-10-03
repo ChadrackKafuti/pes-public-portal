@@ -49,6 +49,14 @@ VALUES
    'agol_attachment', 0, now());
 """
 
+M25_SEED = """
+UPDATE pes_rs_objects
+SET canopy_mean_m = 4.5, canopy_pct_gt3m = 62.0, canopy_utc = now()
+WHERE object_id = 'A1' AND object_type = 'application';
+UPDATE pes_annual_indicators SET control_tc_ha = 2.5
+WHERE application_id = 'A1' AND year = 2025;
+"""
+
 INCIDENT_SEED = """
 INSERT INTO pes_incidents
   (incident_uid, application_id, kind, first_detected, last_detected, magnitude, status)
@@ -241,6 +249,7 @@ def client():
                     conn.execute((_INIT / "006_photos_raw.sql").read_text())
                     conn.execute((_INIT / "007_annual.sql").read_text())
                     conn.execute((_INIT / "008_incidents.sql").read_text())
+                    conn.execute((_INIT / "009_canopy_controls.sql").read_text())
                     conn.execute(INCIDENT_SEED)
                     conn.execute(ANNUAL_SEED)
                     conn.execute(PHOTO_SEED)
@@ -254,6 +263,7 @@ def client():
                     except psycopg.Error:
                         conn.rollback()  # no PostGIS binaries: AOI tests skip
                     conn.execute(SEED)
+                    conn.execute(M25_SEED)
                     conn.execute(GOV_SEED)
                     conn.commit()
                 break

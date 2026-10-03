@@ -234,7 +234,16 @@ export interface ContractAnalysis {
   beneficiaryType: string | null;
   startDate: string | null;
   endDate: string | null;
-  series: { year: number; tcHa: number | null; lossHa: number | null }[];
+  series: {
+    year: number;
+    tcHa: number | null;
+    lossHa: number | null;
+    /** M25 — surrounding-landscape control, scaled to the parcel area. */
+    controlTcHa?: number | null;
+  }[];
+  /** M25 — 1 m canopy model, area-weighted over the contract's parcels. */
+  canopyPctGt3m?: number | null;
+  canopyMeanM?: number | null;
   /** M24 — activity scorecard */
   activityGroup?: string;
   scorecard?: ScorecardEntry[];

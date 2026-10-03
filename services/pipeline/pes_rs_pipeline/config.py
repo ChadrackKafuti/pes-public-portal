@@ -61,6 +61,13 @@ class PipelineConfig(BaseSettings):
     nrt_batch_limit: int = 400
     nrt_reserve_minutes: int = 4
 
+    # Canopy height + counterfactual controls (M25). The canopy model is a
+    # static ~2020 snapshot: computed once per parcel. Controls compare the
+    # parcel's annual tree-cover trend against the surrounding annulus.
+    canopy_asset: str = "projects/meta-forest-monitoring-okw37/assets/CanopyHeight"
+    control_inner_m: int = 100
+    control_outer_m: int = 1500
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

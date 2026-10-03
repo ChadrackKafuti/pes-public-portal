@@ -2524,6 +2524,29 @@ table.data a {
   min-width: 0;
 }
 
+/* M25 — chart legend for the control overlay */
+.chart-legend {
+  float: right;
+  font-size: 11px;
+  color: var(--map-text-muted, #667);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lg-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  border-top: 2.5px solid var(--series-1);
+  margin-left: 8px;
+}
+
+.lg-swatch.lg-ctl {
+  border-top-style: dashed;
+  border-top-color: var(--map-text-muted, #8a93a3);
+}
+
 /* M24 — activity scorecard */
 .sc-card {
   margin: 10px 0 14px;
