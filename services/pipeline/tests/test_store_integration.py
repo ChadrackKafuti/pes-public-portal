@@ -396,3 +396,72 @@ def test_annual_backfills_canopy_and_controls(store):
             "WHERE object_id = 'AN-1'"
         ).fetchone()
         assert canopy[0] == 5.0 and canopy[1] == 40.0 and canopy[2] is not None
+
+
+def test_photo_ai_pass_with_stub_client(store):
+    """M26: the photo-AI pass analyses pending mirrored photos, stores the
+    structured reading, stamps failures, and reports aggregates."""
+    import json
+    from types import SimpleNamespace
+
+    from pes_rs_pipeline.photos_ai import process_photo_ai
+
+    answer = {
+        "scene": "saplings_plantation", "scene_confidence": 0.9,
+        "activity_consistent": True, "tree_count": 12, "health": "healthy",
+        "species_guess": "Acacia", "flags": ["poor_quality_image"],
+        "summary": "Young saplings in rows.",
+    }
+
+    class StubClient:
+        class messages:  # noqa: N801 — mirrors the SDK surface
+            @staticmethod
+            def create(**kwargs):
+                block = SimpleNamespace(type="text", text=json.dumps(answer))
+                return SimpleNamespace(content=[block])
+
+    config = PipelineConfig(anthropic_api_key="test", photo_ai_batch=10)
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "006_photos_raw.sql").read_text())
+        conn.execute((SCHEMA.parent / "010_photo_ai.sql").read_text())
+        conn.execute(
+            """
+            INSERT INTO pes_photos (photo_uid, kind, application_id, lon, lat,
+                                    mirrored_path, mirror_status)
+            VALUES ('ph-ok', 'application', 'PA-1', 15.0, -1.0, 'a/ph-ok.jpg', 'done'),
+                   ('ph-bad', 'monitoring_visit', 'PA-1', 15.0, -1.0, 'a/ph-bad.jpg', 'done'),
+                   ('ph-unmirrored', 'application', 'PA-1', 15.0, -1.0, NULL, NULL)
+            ON CONFLICT (photo_uid) DO NOTHING
+            """
+        )
+        conn.commit()
+
+        def fetch_image(path):
+            if "bad" in path:
+                raise ValueError("download failed")
+            return b"\xff\xd8fake", "image/jpeg"
+
+        stats = process_photo_ai(
+            conn, config, client=StubClient(), fetch_image=fetch_image
+        )
+        assert stats["photo_ai_done"] == 1 and stats["photo_ai_failed"] == 1
+
+        ok = conn.execute(
+            "SELECT ai_scene, ai_tree_count, ai_flags, ai_status FROM pes_photos "
+            "WHERE photo_uid = 'ph-ok'"
+        ).fetchone()
+        assert ok == ("saplings_plantation", 12, "poor_quality_image", "ok")
+        bad = conn.execute(
+            "SELECT ai_status, ai_processed_utc FROM pes_photos WHERE photo_uid = 'ph-bad'"
+        ).fetchone()
+        assert bad[0] == "failed" and bad[1] is not None
+
+        # Everything stamped: a second pass finds nothing to do.
+        again = process_photo_ai(
+            conn, config, client=StubClient(), fetch_image=fetch_image
+        )
+        assert again["photo_ai_pending"] == 0
+
+    # No key and no injected client: the pass is disabled, not an error.
+    with store.connection() as conn:
+        assert process_photo_ai(conn, PipelineConfig()) == {"photo_ai": "disabled"}

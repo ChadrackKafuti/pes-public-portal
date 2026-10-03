@@ -214,3 +214,17 @@ Configuration:
 
 The API validates tokens locally against the realm's JWKS (issuer, expiry,
 signature, azp/aud client binding); `/api/health` stays unauthenticated.
+
+## Anthropic API key (photo intelligence, M26)
+
+The photo-AI pass sends each mirrored geotagged photo to the Claude API
+(vision) for a structured reading. It stays disabled until the key exists.
+
+- Create a key at console.anthropic.com → API keys.
+- GitHub repository secret: `CAFI_ANTHROPIC_API_KEY` (read by ingest-rs as
+  `CAFI_RS_ANTHROPIC_API_KEY`).
+- Cost guide: roughly $10–15 per 1,000 photos analysed with the default
+  model (`claude-opus-5-5`); the per-run batch is capped
+  (`CAFI_RS_PHOTO_AI_BATCH`, default 40) so spend ramps predictably.
+- The key is spend-bearing: scope it to this use, set a monthly budget cap
+  in the Anthropic console, and rotate it if it ever appears in logs.

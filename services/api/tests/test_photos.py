@@ -45,3 +45,22 @@ def test_image_url_unconfigured_storage(client):
     assert r.status_code == 503
     r = client.get("/api/photos/bbbb2222/image-url")
     assert r.status_code == 404
+
+
+def test_photo_ai_fields_surface(client):
+    """M26: the AI reading rides the photo endpoints once computed."""
+    rows = client.get("/api/applications/A1/photos").json()
+    seen = next(p for p in rows if p["photoUid"] == "aaaa1111")
+    assert seen["aiScene"] == "saplings_plantation"
+    assert seen["aiConsistent"] is True and seen["aiTreeCount"] == 24
+    assert "acacia" in seen["aiSummary"].lower()
+    unseen = next(p for p in rows if p["photoUid"] == "bbbb2222")
+    assert unseen["aiScene"] is None and unseen["aiSummary"] is None
+
+    gj = client.get("/api/photos.geojson", params={"application": "A1"}).json()
+    props = next(
+        f["properties"] for f in gj["features"]
+        if f["properties"]["photoUid"] == "aaaa1111"
+    )
+    assert props["aiScene"] == "saplings_plantation"
+    assert props["aiSummary"].startswith("Rows of young")

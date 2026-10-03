@@ -460,6 +460,23 @@ function photoPopupContent(
     meta.appendChild(c);
   }
   if (meta.childNodes.length) el.appendChild(meta);
+  // M26 — the AI reading of the photo, when the pass has seen it.
+  if (typeof p.aiSummary === "string" && p.aiSummary) {
+    const ai = document.createElement("div");
+    ai.className = "map-popup-ai";
+    const warn = typeof p.aiFlags === "string" && p.aiFlags.length > 0;
+    const inconsistent = p.aiConsistent === false;
+    if (warn || inconsistent) {
+      const flag = document.createElement("span");
+      flag.className = "map-popup-ai-flag";
+      flag.textContent = `▲ ${String(p.aiFlags ?? "").split(",").filter(Boolean).join(" · ") || "inconsistent"}`;
+      ai.appendChild(flag);
+    }
+    const txt = document.createElement("span");
+    txt.textContent = p.aiSummary;
+    ai.appendChild(txt);
+    el.appendChild(ai);
+  }
   if (typeof p.applicationId === "string" && p.applicationId) {
     const btn = document.createElement("button");
     btn.className = "map-popup-btn";

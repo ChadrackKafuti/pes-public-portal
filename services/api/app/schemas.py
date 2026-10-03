@@ -344,6 +344,12 @@ class PhotoOut(ApiModel):
     lon: float
     lat: float
     mirrored: bool
+    # M26 — photo intelligence (null until the AI pass has seen the photo)
+    ai_scene: str | None = None
+    ai_consistent: bool | None = None
+    ai_tree_count: int | None = None
+    ai_flags: str | None = None
+    ai_summary: str | None = None
 
 
 class AoiOverlap(ApiModel):

@@ -68,6 +68,13 @@ class PipelineConfig(BaseSettings):
     control_inner_m: int = 100
     control_outer_m: int = 1500
 
+    # Photo intelligence (M26): one Claude vision pass over each mirrored
+    # geotagged photo. Empty API key disables the pass entirely.
+    anthropic_api_key: str = ""
+    photo_ai_model: str = "claude-opus-5-5"
+    photo_ai_budget_s: int = 180
+    photo_ai_batch: int = 40
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

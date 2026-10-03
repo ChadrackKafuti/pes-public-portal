@@ -2524,6 +2524,20 @@ table.data a {
   min-width: 0;
 }
 
+/* M26 — AI reading in the photo popup */
+.map-popup-ai {
+  margin: 4px 0 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--map-text-muted, #556);
+}
+
+.map-popup-ai-flag {
+  display: block;
+  color: #b3261e;
+  font-weight: 650;
+}
+
 /* M25 — chart legend for the control overlay */
 .chart-legend {
   float: right;

@@ -353,6 +353,12 @@ export interface Photo {
   lon: number;
   lat: number;
   mirrored: boolean;
+  /** M26 — photo intelligence (null until the AI pass has seen the photo). */
+  aiScene?: string | null;
+  aiConsistent?: boolean | null;
+  aiTreeCount?: number | null;
+  aiFlags?: string | null;
+  aiSummary?: string | null;
 }
 
 /** One governance feature intersecting a drawn AOI (M3). */
