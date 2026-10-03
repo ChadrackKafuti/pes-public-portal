@@ -228,3 +228,17 @@ The photo-AI pass sends each mirrored geotagged photo to the Claude API
   (`CAFI_RS_PHOTO_AI_BATCH`, default 40) so spend ramps predictably.
 - The key is spend-bearing: scope it to this use, set a monthly budget cap
   in the Anthropic console, and rotate it if it ever appears in logs.
+
+## Planet NICFI API key (basemap change checks, M28)
+
+The roads pass compares NICFI monthly visual basemaps around SFM and
+conservation parcels (Claude vision before/after) and opens 'road'
+incidents on confident change. Disabled until the key exists.
+
+- Register at planet.com/nicfi, then copy the API key from
+  planet.com/account → My Settings.
+- GitHub repository secret: `CAFI_NICFI_KEY` (read by ingest-rs as
+  `CAFI_RS_NICFI_KEY`).
+- NICFI Level 1 terms apply (non-commercial tropical-forest use). The
+  program is mid-transition (2025); if mosaic listing fails the pass logs
+  `mosaics_unavailable` and skips harmlessly.

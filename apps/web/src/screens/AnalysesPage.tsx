@@ -15,6 +15,7 @@ const SC_LABEL: Record<string, Key> = {
   no_clearing: "sc_no_clearing",
   disturbance_pct: "sc_disturbance_pct",
   forest_share: "sc_forest_share",
+  planting_event: "sc_planting_event",
 };
 const SC_STATUS: Record<string, { key: Key; sym: string }> = {
   ok: { key: "sc_ok", sym: "✓" },
@@ -45,7 +46,11 @@ function Scorecard({ analysis }: { analysis: ContractAnalysis }) {
       <div key={e.key} className={`sc-tile sc-${e.status}`}>
         <span className="sc-label">{SC_LABEL[e.key] ? t(SC_LABEL[e.key]) : e.key}</span>
         <span className="sc-value">
-          {e.value == null ? "—" : fmtNum(e.value, locale, e.unit === "%" ? 1 : 2)}
+          {e.value == null
+            ? "—"
+            : e.key === "planting_event"
+              ? String(Math.round(e.value))
+              : fmtNum(e.value, locale, e.unit === "%" ? 1 : 2)}
           {e.value != null && e.unit ? ` ${e.unit}` : ""}
           {e.target != null && (
             <span className="muted small"> / {fmtNum(e.target, locale, 0)}{e.unit}</span>

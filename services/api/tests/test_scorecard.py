@@ -60,3 +60,20 @@ def test_unmeasured_is_none_and_overall_worst_wins():
         ScoreInputs(defor_current_ha=0.5, open_incidents=0),
     )
     assert overall_status(entries) == "action"
+
+
+def test_planting_event_detection():
+    from app.scorecard import planting_event
+
+    # Step-up the year after the start -> confirmed, value = gain year.
+    series = [(2021, 0.2), (2022, 0.25), (2023, 1.4), (2024, 1.6)]
+    e = planting_event(series, 2022, 10.0)
+    assert e["status"] == "ok" and e["value"] == 2023.0
+
+    # Start long past, no step-up -> action.
+    flat = [(2021, 0.2), (2022, 0.22), (2023, 0.21), (2024, 0.23)]
+    assert planting_event(flat, 2021, 10.0)["status"] == "action"
+
+    # Too early to judge -> watch; unknown start -> none.
+    assert planting_event([(2025, 0.2), (2026, 0.3)], 2025, 1.0)["status"] == "watch"
+    assert planting_event(series, None, 10.0)["status"] == "none"
