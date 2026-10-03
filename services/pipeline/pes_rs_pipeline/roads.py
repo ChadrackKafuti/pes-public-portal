@@ -27,13 +27,15 @@ log = logging.getLogger(__name__)
 _MOSAICS_URL = "https://api.planet.com/basemaps/v1/mosaics"
 _TILE_URL = "https://tiles.planet.com/basemaps/v1/planet-tiles/{name}/gmap/{z}/{x}/{y}.png"
 
+# Structured-outputs subset: no numeric/string constraints — ranges go in
+# the description (type arrays would 400 too; none are needed here).
 _SCHEMA = {
     "type": "object",
     "properties": {
         "new_road_or_trail": {"type": "boolean"},
         "new_clearing": {"type": "boolean"},
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-        "summary": {"type": "string", "maxLength": 300},
+        "confidence": {"type": "number", "description": "0 to 1"},
+        "summary": {"type": "string", "description": "one sentence, max 300 chars"},
     },
     "required": ["new_road_or_trail", "new_clearing", "confidence", "summary"],
     "additionalProperties": False,
@@ -272,6 +274,8 @@ def process_roads(
                 conn.rollback()
                 failed += 1
                 log.warning("basemap check failed: %s", type(exc).__name__)
+                if type(exc).__name__ == "BadRequestError":
+                    log.warning("request rejected: %s", str(exc)[:300])
                 if type(exc).__name__ in ("RateLimitError", "AuthenticationError"):
                     break
     return {"roads_checked": checked, "roads_detected": detected,

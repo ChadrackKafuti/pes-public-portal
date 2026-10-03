@@ -33,17 +33,27 @@ HEALTH = ["healthy", "stressed", "dead_or_dying", "not_applicable"]
 FLAGS = ["clearing", "fire_damage", "charcoal", "logging", "erosion",
          "off_parcel_doubt", "poor_quality_image"]
 
+# NOTE: the structured-outputs schema subset rejects type arrays
+# (["x","null"]) and numeric/string constraints (minimum, maxLength...) —
+# nullable fields use anyOf, and ranges live in descriptions.
+def _nullable(t: str) -> dict:
+    return {"anyOf": [{"type": t}, {"type": "null"}]}
+
+
 _SCHEMA = {
     "type": "object",
     "properties": {
         "scene": {"type": "string", "enum": SCENES},
-        "scene_confidence": {"type": "number", "minimum": 0, "maximum": 1},
-        "activity_consistent": {"type": ["boolean", "null"]},
-        "tree_count": {"type": ["integer", "null"], "minimum": 0},
+        "scene_confidence": {"type": "number", "description": "0 to 1"},
+        "activity_consistent": _nullable("boolean"),
+        "tree_count": {
+            **_nullable("integer"),
+            "description": "non-negative; null when not countable",
+        },
         "health": {"type": "string", "enum": HEALTH},
-        "species_guess": {"type": ["string", "null"]},
+        "species_guess": _nullable("string"),
         "flags": {"type": "array", "items": {"type": "string", "enum": FLAGS}},
-        "summary": {"type": "string", "maxLength": 300},
+        "summary": {"type": "string", "description": "one sentence, max 300 chars"},
     },
     "required": [
         "scene", "scene_confidence", "activity_consistent", "tree_count",
@@ -212,6 +222,8 @@ def process_photo_ai(
                 conn.rollback()
                 failed += 1
                 log.warning("photo analysis failed: %s", type(exc).__name__)
+                if type(exc).__name__ == "BadRequestError":
+                    log.warning("request rejected: %s", str(exc)[:300])
                 try:
                     conn.execute(
                         "UPDATE pes_photos SET ai_status = 'failed', "
