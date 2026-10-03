@@ -112,7 +112,18 @@ LEFT JOIN pes_parcels p ON p.application_id = ph.application_id
 WHERE ph.mirror_status = 'done' AND ph.mirrored_path IS NOT NULL
   AND ph.ai_processed_utc IS NULL
   AND NOT (coalesce(ph.application_id, '') = ANY(%(hidden)s))
-ORDER BY ph.synced_utc DESC
+ORDER BY
+  -- Country priority (requested): Republic of Congo, then DRC, then
+  -- Cameroon, then anything else. Matched loosely because source labels
+  -- vary ("DRC", "Democratic Republic of the Congo", "ROC", FR spellings).
+  CASE
+    WHEN p.country ILIKE '%%cameroon%%' OR p.country ILIKE '%%cameroun%%' THEN 2
+    WHEN p.country ILIKE '%%democratic%%' OR p.country ILIKE '%%démocratique%%'
+         OR p.country ILIKE 'DRC%%' OR p.country ILIKE 'RDC%%' THEN 1
+    WHEN p.country ILIKE '%%congo%%' OR p.country ILIKE 'ROC%%' THEN 0
+    ELSE 3
+  END,
+  ph.synced_utc DESC
 LIMIT %(limit)s
 """
 
