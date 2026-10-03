@@ -465,3 +465,37 @@ def test_photo_ai_pass_with_stub_client(store):
     # No key and no injected client: the pass is disabled, not an error.
     with store.connection() as conn:
         assert process_photo_ai(conn, PipelineConfig()) == {"photo_ai": "disabled"}
+
+
+def test_photo_ai_country_priority(store):
+    """Photo-AI queue order: Republic of Congo, then DRC, then Cameroon."""
+    from pes_rs_pipeline.photos_ai import _CANDIDATES_SQL
+
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "006_photos_raw.sql").read_text())
+        conn.execute((SCHEMA.parent / "010_photo_ai.sql").read_text())
+        for app_id, country in (
+            ("PC-roc", "Republic of Congo"),
+            ("PC-drc", "Democratic Republic of the Congo"),
+            ("PC-cam", "Cameroon"),
+        ):
+            app = PesObject(
+                object_id=app_id, object_type=ObjectType.APPLICATION,
+                object_date=date(2025, 6, 1), application_date=date(2025, 6, 1),
+                application_id=app_id, country=country,
+                shape_wkt="POLYGON((0 0,1 0,1 1,0 0))",
+            )
+            store.upsert_parcels(conn, [app])
+            conn.execute(
+                """
+                INSERT INTO pes_photos (photo_uid, kind, application_id, lon, lat,
+                                        mirrored_path, mirror_status)
+                VALUES (%s, 'application', %s, 15.0, -1.0, %s, 'done')
+                ON CONFLICT (photo_uid) DO NOTHING
+                """,
+                (f"pc-{app_id}", app_id, f"a/{app_id}.jpg"),
+            )
+        conn.commit()
+        rows = conn.execute(_CANDIDATES_SQL, {"hidden": [], "limit": 50}).fetchall()
+        mine = [r[0] for r in rows if str(r[0]).startswith("pc-PC-")]
+    assert mine == ["pc-PC-roc", "pc-PC-drc", "pc-PC-cam"]
