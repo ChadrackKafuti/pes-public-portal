@@ -2524,6 +2524,17 @@ table.data a {
   min-width: 0;
 }
 
+/* M21 — "analyses ready" marker in the contract picker */
+.an-ready-dot {
+  color: #008300;
+  font-size: 9px;
+  vertical-align: 1px;
+}
+
+.an-ready-hint {
+  margin-top: -4px;
+}
+
 .an-combo-sel strong,
 .an-combo-list strong {
   font-size: 12.5px;

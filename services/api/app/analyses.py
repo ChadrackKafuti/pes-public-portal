@@ -49,6 +49,14 @@ def _parcels_by_contract(conn) -> dict[str, list[tuple]]:
 def analyses_contracts(
     conn=Depends(get_conn), user: Principal = CurrentUser
 ) -> list[AnalysesContract]:
+    # Which applications already carry an annual series — the picker flags
+    # those contracts as ready to review while the backlog drains (M21).
+    ready = {
+        str(r[0])
+        for r in conn.execute(
+            "SELECT DISTINCT application_id FROM pes_annual_indicators"
+        ).fetchall()
+    }
     out = []
     for code, g in sorted(_parcels_by_contract(conn).items()):
         def mx(i: int):
@@ -62,6 +70,7 @@ def analyses_contracts(
                 village=mx(5), activity=mx(6), applications=len(g),
                 estimated_area_ha=sum(areas) if areas else None,
                 first_date=min((r[8] for r in g if r[8] is not None), default=None),
+                has_series=any(str(r[0]) in ready for r in g),
             )
         )
     return out

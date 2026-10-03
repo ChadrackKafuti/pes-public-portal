@@ -10,6 +10,10 @@ def test_contract_picker_list(client):
     c = next(x for x in rows if x["contractCode"] == "CTR-001")
     assert c["org"] == "Org A" and c["project"] == "Project X"
     assert c["applications"] == 1
+    # M21 — A1 carries annual rows, so its contract is flagged ready
+    assert c["hasSeries"] is True
+    c2 = next(x for x in rows if x["contractCode"] == "CTR-002")
+    assert c2["hasSeries"] is False
 
 
 def test_contract_analysis_series_and_meta(client):

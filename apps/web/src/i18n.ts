@@ -196,6 +196,9 @@ const en = {
   desc_analyses: "Annual tree-cover evolution per PES contract (Dynamic World).",
   an_pick_contract: "Select a contract…",
   an_select_hint: "Select a contract to start.",
+  an_ready: "Analyses ready",
+  an_ready_count:
+    "{n} contracts already have annual analyses — marked with a green dot and listed first.",
   an_desc:
     "Contract {code}, signed with a {beneficiary} in {village} ({country}), covers {area} ha of {activity}, implemented by {org} from {start} to {end}.",
   an_kpi_tc: "Tree cover",
@@ -553,6 +556,9 @@ const fr: Record<Key, string> = {
   desc_analyses: "Évolution annuelle du couvert arboré par contrat PSE (Dynamic World).",
   an_pick_contract: "Sélectionnez un contrat…",
   an_select_hint: "Sélectionnez un contrat pour commencer.",
+  an_ready: "Analyses disponibles",
+  an_ready_count:
+    "{n} contrats disposent déjà d'analyses annuelles — marqués d'un point vert et affichés en premier.",
   an_desc:
     "Le contrat {code}, signé avec un {beneficiary} à {village} ({country}), couvre {area} ha de {activity}, mis en œuvre par {org} du {start} au {end}.",
   an_kpi_tc: "Couvert arboré",
