@@ -130,4 +130,6 @@ export const api = {
     get<Incidents>("/incidents", params as Record<string, string>),
   incidentUpdate: (uid: string, status: string, note?: string) =>
     patch<IncidentItem>(`/incidents/${encodeURIComponent(uid)}`, { status, note }),
+  incidentEvidence: (uid: string) =>
+    get<Photo[]>(`/incidents/${encodeURIComponent(uid)}/evidence`),
 };

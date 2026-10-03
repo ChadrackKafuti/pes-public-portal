@@ -6,6 +6,7 @@ import { AnalysesPage } from "./screens/AnalysesPage";
 import { DossierPage } from "./screens/DossierPage";
 import { LandingPage } from "./screens/LandingPage";
 import { AdminPage } from "./screens/AdminPage";
+import { TasksPage } from "./screens/TasksPage";
 import { RunsPage } from "./screens/RunsPage";
 import { useI18n, useT } from "./i18n";
 import { authEnabled, authMode, useAuth } from "./auth";
@@ -46,6 +47,12 @@ const I = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M12 3 2.5 20h19L12 3Z" strokeLinejoin="round" />
       <path d="M12 10v5M12 17.5v.5" strokeLinecap="round" />
+    </svg>
+  ),
+  tasks: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="m8 12 3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   runs: (
@@ -208,6 +215,7 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
     { to: "/map", icon: "map", label: t("nav_map") },
     { to: "/analyses", icon: "analyses", label: t("nav_analyses") },
     { to: "/alerts", icon: "alerts", label: t("nav_alerts") },
+    { to: "/tasks", icon: "tasks", label: t("nav_tasks") },
     { to: "/runs", icon: "runs", label: t("nav_runs") },
     { to: "/admin", icon: "admin", label: t("nav_admin") },
   ];
@@ -251,6 +259,7 @@ function Shell({ apiHealth }: { apiHealth: ApiHealth }) {
             <Route path="/map" element={null} />
             <Route path="/analyses" element={<AnalysesPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
             {/* the dossier stays reachable (alerts links, print/export) but is
                 no longer in the nav — selections open in the map panel */}
             <Route path="/applications/:id" element={<DossierPage />} />

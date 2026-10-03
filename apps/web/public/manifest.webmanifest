@@ -1,0 +1,18 @@
+{
+  "name": "CAFI Monitor",
+  "short_name": "CAFI",
+  "description": "Earth observation and land-use intelligence for the CAFI PES programme",
+  "start_url": "./#/tasks",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b2239",
+  "theme_color": "#0b2239",
+  "icons": [
+    {
+      "src": "branding/cafi-monitor-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

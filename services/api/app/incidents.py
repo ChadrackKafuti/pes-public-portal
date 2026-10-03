@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .auth import CurrentUser, Principal
 from .db import get_conn
-from .schemas import IncidentItem, IncidentsOut, IncidentUpdate
+from .schemas import IncidentItem, IncidentsOut, IncidentUpdate, PhotoOut
 
 router = APIRouter()
 
@@ -29,7 +29,10 @@ SELECT i.incident_uid, i.application_id, i.kind, i.first_detected,
        i.last_detected, i.magnitude, i.status, i.status_note, i.status_by,
        i.status_utc, i.updated_utc,
        p.application_code, p.implementing_org, p.project_name,
-       p.country, p.province, p.pes_activity
+       p.country, p.province, p.pes_activity,
+       (SELECT count(*) FROM pes_photos ph
+        WHERE ph.application_id = i.application_id
+          AND ph.synced_utc >= i.first_detected) AS evidence_count
 FROM pes_incidents i
 JOIN pes_parcels p ON p.application_id = i.application_id
 WHERE NOT (i.application_id = ANY(%(hidden)s))
@@ -45,8 +48,23 @@ _FIELDS = [
     "last_detected", "magnitude", "status", "status_note", "status_by",
     "status_utc", "updated_utc",
     "application_code", "implementing_org", "project_name",
-    "country", "province", "pes_activity",
+    "country", "province", "pes_activity", "evidence_count",
 ]
+
+# M27 — response evidence: geotagged photos of the incident's application
+# that arrived AFTER the first detection (the field monitor's answer).
+_EVIDENCE_SQL = """
+SELECT ph.photo_uid, ph.kind, ph.parent_id, ph.application_id,
+       ph.application_code, ph.contract_code, ph.photo_index, ph.label,
+       ph.lon, ph.lat, COALESCE(ph.mirror_status = 'done', false),
+       ph.ai_scene, ph.ai_activity_consistent, ph.ai_tree_count,
+       ph.ai_flags, ph.ai_summary
+FROM pes_incidents i
+JOIN pes_photos ph ON ph.application_id = i.application_id
+WHERE i.incident_uid = %(uid)s AND ph.synced_utc >= i.first_detected
+ORDER BY ph.synced_utc DESC
+LIMIT 50
+"""
 
 _SUMMARY_SQL = """
 SELECT i.status, count(*)
@@ -82,6 +100,30 @@ def incidents(
         summary={s: int(counts.get(s, 0)) for s in _STATUSES},
         items=[IncidentItem(**dict(zip(_FIELDS, r, strict=True))) for r in rows],
     )
+
+
+@router.get("/api/incidents/{incident_uid}/evidence", response_model=list[PhotoOut])
+def incident_evidence(
+    incident_uid: str,
+    conn=Depends(get_conn),
+    user: Principal = CurrentUser,
+) -> list[PhotoOut]:
+    exists = conn.execute(
+        "SELECT 1 FROM pes_incidents WHERE incident_uid = %s", (incident_uid,)
+    ).fetchone()
+    if exists is None:
+        raise HTTPException(status_code=404, detail="unknown incident")
+    rows = conn.execute(_EVIDENCE_SQL, {"uid": incident_uid}).fetchall()
+    return [
+        PhotoOut(
+            photo_uid=r[0], kind=r[1], parent_id=r[2], application_id=r[3],
+            application_code=r[4], contract_code=r[5], photo_index=r[6],
+            label=r[7], lon=r[8], lat=r[9], mirrored=r[10],
+            ai_scene=r[11], ai_consistent=r[12], ai_tree_count=r[13],
+            ai_flags=r[14], ai_summary=r[15],
+        )
+        for r in rows
+    ]
 
 
 @router.patch("/api/incidents/{incident_uid}", response_model=IncidentItem)

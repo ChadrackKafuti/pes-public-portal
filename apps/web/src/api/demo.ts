@@ -161,7 +161,7 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
     const items = [
       { incidentUid: "DEMO-A2:fire:2026-09-20", applicationId: "DEMO-A2",
         kind: "fire", firstDetected: "2026-09-20", lastDetected: "2026-10-01",
-        magnitude: 4, status: "open", statusNote: null, statusBy: null,
+        magnitude: 4, status: "open", evidenceCount: 1, statusNote: null, statusBy: null,
         statusUtc: null, updatedUtc: "2026-10-02T06:00:00Z",
         applicationCode: "DEMO-CA1002-BE0002", implementingOrg: "Org Demo A",
         projectName: "Project X", country: "DRC", province: "Mai-Ndombe",
@@ -183,6 +183,16 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
       summary: { open: 1, responded: 1, verified: 0, dismissed: 0, resolved: 0 },
       items: shown,
     } as T;
+  }
+  if (/^\/incidents\/[^/]+\/evidence$/.test(path)) {
+    return [
+      { photoUid: "demo-ph-1", kind: "monitoring_visit", parentId: "DEMO-V1",
+        applicationId: "DEMO-A2", applicationCode: "DEMO-CA1002-BE0002",
+        contractCode: null, photoIndex: 1, label: "Burned patch", lon: 18.1,
+        lat: -2.4, mirrored: false, aiScene: "fire_damage", aiConsistent: null,
+        aiTreeCount: null, aiFlags: "fire_damage",
+        aiSummary: "Recently burned grass with scorched saplings." },
+    ] as T;
   }
   if (path === "/admin/exceptions") {
     return {
