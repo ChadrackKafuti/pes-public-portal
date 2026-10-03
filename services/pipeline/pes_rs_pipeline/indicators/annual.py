@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime
 from ..config import PipelineConfig
 from ..geometry import resolve_geom_source
 from ..models import ObjectType, PesObject
+from ..windows import Interval
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def _bearer(row) -> PesObject:
 _CANDIDATES_SQL = """
 SELECT p.application_id, p.shape_raw, p.point_lon, p.point_lat,
        p.estimated_area_ha, p.application_date, o.landcover_at_app,
-       o.canopy_utc, o.parcel_area_ha
+       o.canopy_utc, o.parcel_area_ha, p.pes_activity
 FROM pes_parcels p
 JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
@@ -53,7 +54,8 @@ WHERE o.status IN ('ok', 'partial', 'partial_final')
     OR EXISTS (
       SELECT 1 FROM pes_annual_indicators a
       WHERE a.application_id = p.application_id
-        AND a.tc_ha IS NOT NULL AND a.control_tc_ha IS NULL
+        AND a.tc_ha IS NOT NULL
+        AND (a.control_tc_ha IS NULL OR a.burned_ha IS NULL)
     )
   )
 ORDER BY
@@ -174,6 +176,59 @@ def process_annual(
                         "UPDATE pes_annual_indicators SET control_tc_ha = %s "
                         "WHERE application_id = %s AND year = %s",
                         (round(frac * parcel_area, 4), app_id, year),
+                    )
+
+            # M29b — fire-exclusion timeline: burned area per series year.
+            for year in [
+                r[0]
+                for r in conn.execute(
+                    "SELECT year FROM pes_annual_indicators "
+                    "WHERE application_id = %s AND tc_ha IS NOT NULL "
+                    "  AND burned_ha IS NULL ORDER BY year",
+                    (app_id,),
+                ).fetchall()
+            ]:
+                if datetime.now(UTC) >= deadline:
+                    break
+                try:
+                    burned = backend.burned_area_ha(
+                        parcel, Interval(date(year, 1, 1), date(year, 12, 31))
+                    )
+                except Exception:  # noqa: BLE001 — year stays blank
+                    continue
+                conn.execute(
+                    "UPDATE pes_annual_indicators SET burned_ha = %s "
+                    "WHERE application_id = %s AND year = %s",
+                    (round(burned, 4), app_id, year),
+                )
+
+            # M29b — fragmentation (conservation/SFM parcels): yearly patch
+            # count + edge density of the tree mask.
+            act = str(row[9] or "").lower()
+            if any(k in act for k in
+                   ("manage", "gestion", "aménag", "amenag", "conserv", "protect")):
+                for year in [
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT year FROM pes_annual_indicators "
+                        "WHERE application_id = %s AND tc_ha IS NOT NULL "
+                        "  AND patch_count IS NULL ORDER BY year",
+                        (app_id,),
+                    ).fetchall()
+                ]:
+                    if datetime.now(UTC) >= deadline:
+                        break
+                    try:
+                        frag = backend.fragmentation(parcel, date(year, 6, 30))
+                    except Exception:  # noqa: BLE001 — year stays blank
+                        continue
+                    if frag is None:
+                        continue
+                    conn.execute(
+                        "UPDATE pes_annual_indicators "
+                        "SET patch_count = %s, edge_m_per_ha = %s "
+                        "WHERE application_id = %s AND year = %s",
+                        (frag[0], frag[1], app_id, year),
                     )
 
             # M25 — canopy metrics (static 1 m model): once per parcel.

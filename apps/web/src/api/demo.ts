@@ -75,6 +75,19 @@ export async function demoGet<T>(path: string, params?: Record<string, string>):
       },
     ] as T;
   }
+  if (/^\/analyses\/contracts\/[^/]+\/ndvi$/.test(path)) {
+    const months: { month: string; ndvi: number; controlNdvi: number }[] = [];
+    for (let i = 23; i >= 0; i--) {
+      const d = new Date(2026, 9 - i, 1);
+      const season = 0.55 + 0.18 * Math.sin((d.getMonth() / 12) * 2 * Math.PI);
+      months.push({
+        month: d.toISOString().slice(0, 10),
+        ndvi: Math.round((season + 0.08) * 100) / 100,
+        controlNdvi: Math.round(season * 100) / 100,
+      });
+    }
+    return months as T;
+  }
   if (/^\/analyses\/contracts\//.test(path)) {
     return {
       contractCode: "DEMO-CT-0001", org: "Org Demo A", project: "Project X",

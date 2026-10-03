@@ -62,3 +62,21 @@ def test_visit_derived_contract_linkage(client):
     assert a["applications"] == 1
     assert a["contractedAreaHa"] == 2.0
     assert a["startDate"] == "2024-09-01"
+
+
+def test_ndvi_endpoint_and_series_extras(client):
+    """M29b: the NDVI phenology endpoint and the burned/fragmentation
+    columns on the annual series."""
+    r = client.get("/api/analyses/contracts/CTR-001/ndvi")
+    assert r.status_code == 200
+    months = r.json()
+    assert [m["month"] for m in months] == ["2026-07-01", "2026-08-01", "2026-09-01"]
+    assert months[0]["ndvi"] == 0.71 and months[0]["controlNdvi"] == 0.58
+    assert months[2]["ndvi"] is None  # cloudy month stays blank, never zero
+    assert client.get("/api/analyses/contracts/NOPE/ndvi").status_code == 404
+
+    a = client.get("/api/analyses/contracts/CTR-001").json()
+    by_year = {p["year"]: p for p in a["series"]}
+    assert by_year[2022]["burnedHa"] == 0.4
+    assert by_year[2025]["burnedHa"] == 0.0
+    assert by_year[2023]["burnedHa"] is None

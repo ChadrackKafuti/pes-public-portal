@@ -59,6 +59,15 @@ UPDATE pes_photos SET
 WHERE photo_uid = 'aaaa1111';
 """
 
+M29_SEED = """
+UPDATE pes_annual_indicators SET burned_ha = 0.4 WHERE application_id = 'A1' AND year = 2022;
+UPDATE pes_annual_indicators SET burned_ha = 0.0 WHERE application_id = 'A1' AND year = 2025;
+INSERT INTO pes_ndvi_monthly (application_id, month, ndvi, control_ndvi) VALUES
+  ('A1', '2026-07-01', 0.71, 0.58),
+  ('A1', '2026-08-01', 0.68, 0.55),
+  ('A1', '2026-09-01', NULL, 0.52);
+"""
+
 M25_SEED = """
 UPDATE pes_rs_objects
 SET canopy_mean_m = 4.5, canopy_pct_gt3m = 62.0, canopy_utc = now()
@@ -262,6 +271,7 @@ def client():
                     conn.execute((_INIT / "009_canopy_controls.sql").read_text())
                     conn.execute((_INIT / "010_photo_ai.sql").read_text())
                     conn.execute((_INIT / "011_basemap_checks.sql").read_text())
+                    conn.execute((_INIT / "012_phenology_frag.sql").read_text())
                     conn.execute(INCIDENT_SEED)
                     conn.execute(ANNUAL_SEED)
                     conn.execute(PHOTO_SEED)
@@ -277,6 +287,7 @@ def client():
                     conn.execute(SEED)
                     conn.execute(M25_SEED)
                     conn.execute(M26_SEED)
+                    conn.execute(M29_SEED)
                     conn.execute(GOV_SEED)
                     conn.commit()
                 break

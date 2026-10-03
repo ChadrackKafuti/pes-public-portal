@@ -12,6 +12,7 @@ import type {
   GovLayerKey,
   IncidentItem,
   Incidents,
+  NdviPoint,
   PesRsObject,
   Photo,
   Profile,
@@ -117,6 +118,8 @@ export const api = {
   analysesContracts: () => get<AnalysesContract[]>("/analyses/contracts"),
   contractAnalysis: (code: string) =>
     get<ContractAnalysis>(`/analyses/contracts/${encodeURIComponent(code)}`),
+  contractNdvi: (code: string) =>
+    get<NdviPoint[]>(`/analyses/contracts/${encodeURIComponent(code)}/ndvi`),
   photosGeojson: (application?: string) =>
     get<GeoJSON.FeatureCollection>("/photos.geojson", application ? { application } : undefined),
   applicationProfile: (id: string) =>
