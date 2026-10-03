@@ -233,6 +233,7 @@ def test_annual_candidates_prioritise_contract_linked(store):
 
     with store.connection() as conn:
         conn.execute((SCHEMA.parent / "007_annual.sql").read_text())
+        conn.execute((SCHEMA.parent / "009_canopy_controls.sql").read_text())
         for app_id, app_date in (
             ("AC-NEW", date(2025, 9, 1)),   # newest, no contract link
             ("AC-CTR", date(2023, 1, 1)),   # old, contract-linked via visit
@@ -331,3 +332,67 @@ def test_nrt_incident_lifecycle(store):
         assert conn.execute(
             "SELECT status FROM pes_incidents WHERE incident_uid = %s", (uid,)
         ).fetchone()[0] == "resolved"
+
+
+def test_annual_backfills_canopy_and_controls(store):
+    """M25: a candidate with its series already computed still gets the
+    canopy metrics (once) and the missing control years filled in."""
+    from datetime import UTC, datetime, timedelta
+
+    from pes_rs_pipeline.indicators.annual import process_annual
+
+    class StubBackend:
+        def resolve_parcel(self, bearer, source):
+            return "parcel"
+
+        def tree_cover(self, parcel, at):
+            return 1.0, 7, 1.0
+
+        def dominant_landcover(self, parcel, at):
+            return "Trees", 80.0
+
+        def canopy_metrics(self, parcel):
+            return 5.0, 40.0
+
+        def control_tree_cover(self, parcel, at):
+            return 0.5
+
+    config = PipelineConfig(annual_start_year=2024)
+    today = date(2026, 1, 2)
+    deadline = datetime.now(UTC) + timedelta(minutes=5)
+
+    with store.connection() as conn:
+        conn.execute((SCHEMA.parent / "007_annual.sql").read_text())
+        conn.execute((SCHEMA.parent / "009_canopy_controls.sql").read_text())
+        app = PesObject(
+            object_id="AN-1", object_type=ObjectType.APPLICATION,
+            object_date=date(2024, 6, 1), application_date=date(2024, 6, 1),
+            application_id="AN-1",
+            shape_wkt="POLYGON((0 0,1 0,1 1,0 0))",
+        )
+        store.upsert_parcels(conn, [app])
+        store.upsert_rows(
+            conn, [_row("AN-1", object_date=date(2024, 6, 1))], {},
+            max_partial_retries=4,
+        )
+        conn.execute(
+            "INSERT INTO pes_annual_indicators (application_id, year, tc_ha) "
+            "VALUES ('AN-1', 2024, 3.0), ('AN-1', 2025, 2.8) "
+            "ON CONFLICT DO NOTHING"
+        )
+        conn.commit()
+
+        stats = process_annual(conn, StubBackend(), config, deadline, today)
+        assert stats["annual_failed"] == 0 and stats["annual_done"] >= 1
+
+        # parcel_area_ha on the RS row is 12.5 -> control 0.5 * 12.5 = 6.25
+        ctl = dict(conn.execute(
+            "SELECT year, control_tc_ha FROM pes_annual_indicators "
+            "WHERE application_id = 'AN-1' ORDER BY year"
+        ).fetchall())
+        assert ctl[2024] == 6.25 and ctl[2025] == 6.25
+        canopy = conn.execute(
+            "SELECT canopy_mean_m, canopy_pct_gt3m, canopy_utc FROM pes_rs_objects "
+            "WHERE object_id = 'AN-1'"
+        ).fetchone()
+        assert canopy[0] == 5.0 and canopy[1] == 40.0 and canopy[2] is not None

@@ -291,6 +291,8 @@ class AnnualPoint(ApiModel):
     year: int
     tc_ha: float | None
     loss_ha: float | None
+    # M25 — surrounding-landscape control, scaled to the parcel area
+    control_tc_ha: float | None = None
 
 
 class ScorecardEntry(ApiModel):
@@ -319,6 +321,9 @@ class ContractAnalysis(ApiModel):
     start_date: date | None
     end_date: date | None
     series: list[AnnualPoint]
+    # M25 — 1 m canopy model, area-weighted over the contract's parcels
+    canopy_pct_gt3m: float | None = None
+    canopy_mean_m: float | None = None
     # M24 — activity scorecard
     activity_group: str = "generic"
     scorecard: list[ScorecardEntry] = []

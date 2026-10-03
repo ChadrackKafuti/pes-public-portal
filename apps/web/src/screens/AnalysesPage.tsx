@@ -84,18 +84,44 @@ function px(i: number, n: number) {
   return PAD.left + (n > 1 ? (i / (n - 1)) * (W - PAD.left - PAD.right) : 0);
 }
 
-function AnnualLine({ title, points }: { title: string; points: [number, number][] }) {
+function AnnualLine({
+  title,
+  points,
+  points2,
+  label,
+  label2,
+}: {
+  title: string;
+  points: [number, number][];
+  /** M25 — optional control series (e.g. surrounding landscape), dashed. */
+  points2?: [number, number][];
+  label?: string;
+  label2?: string;
+}) {
   const locale = useI18n((s) => s.locale);
   const [hover, setHover] = useState<number | null>(null);
   if (points.length < 2) return null;
-  const yMax = Math.max(...points.map(([, v]) => v)) * 1.2 || 1;
+  // One x-scale for both series: the union of years, in order.
+  const years = [...new Set([...points, ...(points2 ?? [])].map(([y]) => y))].sort();
+  const xi = (year: number) => px(years.indexOf(year), years.length);
+  const all = [...points, ...(points2 ?? [])];
+  const yMax = Math.max(...all.map(([, v]) => v)) * 1.2 || 1;
   const py = (v: number) => H - PAD.bottom - (v / yMax) * (H - PAD.top - PAD.bottom);
-  const path = points
-    .map(([, v], i) => `${i === 0 ? "M" : "L"}${px(i, points.length)},${py(v)}`)
-    .join(" ");
+  const toPath = (pts: [number, number][]) =>
+    pts.map(([y, v], i) => `${i === 0 ? "M" : "L"}${xi(y)},${py(v)}`).join(" ");
+  const path = toPath(points);
+  const hasControl = (points2?.length ?? 0) > 1;
   return (
     <figure className="chart">
-      <figcaption>{title}</figcaption>
+      <figcaption>
+        {title}
+        {hasControl && (
+          <span className="chart-legend">
+            <span className="lg-swatch lg-main" /> {label}
+            <span className="lg-swatch lg-ctl" /> {label2}
+          </span>
+        )}
+      </figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
         {[0.5, 1].map((f) => (
           <g key={f}>
@@ -106,29 +132,37 @@ function AnnualLine({ title, points }: { title: string; points: [number, number]
           </g>
         ))}
         <line x1={PAD.left} x2={W - PAD.right} y1={py(0)} y2={py(0)} stroke="var(--axis)" />
+        {hasControl && (
+          <path
+            d={toPath(points2!)} fill="none" stroke="var(--map-text-muted, #8a93a3)"
+            strokeWidth="1.75" strokeDasharray="5 4"
+          />
+        )}
         <path d={path} fill="none" stroke="var(--series-1)" strokeWidth="2" />
+        {years.map((year) => (
+          <text key={year} x={xi(year)} y={H - PAD.bottom + 14} textAnchor="middle" className="axis-text">
+            {year}
+          </text>
+        ))}
         {points.map(([year, v], i) => (
           <g key={year}>
-            <circle cx={px(i, points.length)} cy={py(v)} r="6" fill="var(--bg)" />
-            <circle cx={px(i, points.length)} cy={py(v)} r="4" fill="var(--series-1)" />
+            <circle cx={xi(year)} cy={py(v)} r="6" fill="var(--bg)" />
+            <circle cx={xi(year)} cy={py(v)} r="4" fill="var(--series-1)" />
             <circle
-              cx={px(i, points.length)} cy={py(v)} r="12" fill="transparent"
+              cx={xi(year)} cy={py(v)} r="12" fill="transparent"
               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
             />
-            <text x={px(i, points.length)} y={H - PAD.bottom + 14} textAnchor="middle" className="axis-text">
-              {year}
-            </text>
           </g>
         ))}
         {hover !== null && (() => {
           const [year, v] = points[hover];
-          const label = `${year} · ${fmtNum(v, locale, 2)} ha`;
-          const bw = label.length * 6.6 + 16;
-          const bx = Math.min(Math.max(px(hover, points.length) - bw / 2, PAD.left), W - PAD.right - bw);
+          const tip = `${year} · ${fmtNum(v, locale, 2)} ha`;
+          const bw = tip.length * 6.6 + 16;
+          const bx = Math.min(Math.max(xi(year) - bw / 2, PAD.left), W - PAD.right - bw);
           return (
             <g pointerEvents="none">
               <rect x={bx} y={py(v) - 32} width={bw} height="22" rx="4" className="tooltip-box" />
-              <text x={bx + bw / 2} y={py(v) - 17} textAnchor="middle" className="tooltip-text">{label}</text>
+              <text x={bx + bw / 2} y={py(v) - 17} textAnchor="middle" className="tooltip-text">{tip}</text>
             </g>
           );
         })()}
@@ -406,11 +440,24 @@ export function AnalysesPage() {
                   unit="ha"
                   hint={latest ? t("an_in_year", { year: latest.year }) : undefined}
                 />
+                {analysis.canopyPctGt3m != null && (
+                  <StatTile
+                    label={t("an_kpi_canopy")}
+                    value={fmtNum(analysis.canopyPctGt3m, locale, 1)}
+                    unit="%"
+                    hint={t("an_canopy_hint")}
+                  />
+                )}
               </div>
 
               <AnnualLine
                 title={t("an_chart_tc")}
                 points={analysis.series.filter((p) => p.tcHa != null).map((p) => [p.year, p.tcHa!])}
+                points2={analysis.series
+                  .filter((p) => p.controlTcHa != null)
+                  .map((p) => [p.year, p.controlTcHa!])}
+                label={t("an_series_contract")}
+                label2={t("an_series_control")}
               />
               <AnnualBars
                 title={t("an_chart_loss")}

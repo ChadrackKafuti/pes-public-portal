@@ -210,6 +210,43 @@ class GeeBackend:
             return name, round(top_n / total * 100, 1)
         raise RuntimeError(f"no Dynamic World imagery near {at}")
 
+    # -- 1 m canopy height (M25) ------------------------------------------
+
+    def canopy_metrics(self, parcel) -> tuple[float, float]:
+        """(mean canopy height m, % of parcel with canopy > 3 m) from the
+        Meta/WRI 1 m global canopy height model — sees the scattered or
+        young trees that 10 m Dynamic World misses on small parcels.
+        Sampled at 10 m: the point is parcel-level shares, not single trees."""
+        ee = self._ee
+        img = ee.ImageCollection(self._config.canopy_asset).mosaic()
+        band = img.bandNames().get(0)
+        height = img.select([band])
+        mean = height.reduceRegion(
+            reducer=ee.Reducer.mean(), geometry=parcel, scale=10, maxPixels=1e10
+        )
+        mean_m = float(list(mean.getInfo().values())[0] or 0.0)
+        over3_ha = self._mask_area_ha(height.gt(3).selfMask(), parcel, scale=10)
+        area_ha = self.parcel_area_ha(parcel)
+        pct = round(min(100.0, over3_ha / area_ha * 100), 1) if area_ha else 0.0
+        return round(mean_m, 2), pct
+
+    # -- counterfactual control (M25) -------------------------------------
+
+    def control_tree_cover(self, parcel, at: date) -> float | None:
+        """Tree-cover FRACTION (0..1) of the annulus around the parcel — the
+        matched 'surrounding landscape' control the additionality story
+        compares against. None when no imagery reaches the annulus."""
+        annulus = parcel.buffer(self._config.control_outer_m).difference(
+            parcel.buffer(self._config.control_inner_m)
+        )
+        best = self._tree_mask_adaptive(annulus, at)
+        if best is None:
+            return None
+        mask, _coverage, _window = best
+        tc_ha = self._mask_area_ha(mask.selfMask(), annulus, scale=10)
+        area_ha = self.parcel_area_ha(annulus)
+        return round(tc_ha / area_ha, 4) if area_ha else None
+
     # -- RADD alerts (spec §11.4) -----------------------------------------
 
     def radd_alerts(self, parcel, interval: Interval) -> int:

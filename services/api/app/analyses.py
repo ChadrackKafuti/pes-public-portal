@@ -86,7 +86,7 @@ def contract_analysis(
 
     series = conn.execute(
         """
-        SELECT year, sum(tc_ha), sum(loss_ha)
+        SELECT year, sum(tc_ha), sum(loss_ha), sum(control_tc_ha)
         FROM pes_annual_indicators
         WHERE application_id = ANY(%s)
         GROUP BY year ORDER BY year
@@ -97,7 +97,13 @@ def contract_analysis(
     meta = conn.execute(
         """
         SELECT max(p.implementing_org), max(p.project_name), max(p.country),
-               max(p.village), max(p.pes_activity), sum(o.parcel_area_ha)
+               max(p.village), max(p.pes_activity), sum(o.parcel_area_ha),
+               sum(o.parcel_area_ha * o.canopy_pct_gt3m)
+                 / nullif(sum(o.parcel_area_ha)
+                          FILTER (WHERE o.canopy_pct_gt3m IS NOT NULL), 0),
+               sum(o.parcel_area_ha * o.canopy_mean_m)
+                 / nullif(sum(o.parcel_area_ha)
+                          FILTER (WHERE o.canopy_mean_m IS NOT NULL), 0)
         FROM pes_parcels p
         LEFT JOIN pes_rs_objects o
           ON o.object_id = p.application_id AND o.object_type = 'application'
@@ -189,7 +195,12 @@ def contract_analysis(
         beneficiary_type=pick_any(["beneficiarytype"]),
         start_date=_date(pick_any(["contractstartdate", "startdate"])),
         end_date=_date(pick_any(["contractenddate", "enddate"])),
-        series=[AnnualPoint(year=r[0], tc_ha=r[1], loss_ha=r[2]) for r in series],
+        series=[
+            AnnualPoint(year=r[0], tc_ha=r[1], loss_ha=r[2], control_tc_ha=r[3])
+            for r in series
+        ],
+        canopy_pct_gt3m=round(meta[6], 1) if meta[6] is not None else None,
+        canopy_mean_m=round(meta[7], 2) if meta[7] is not None else None,
         activity_group=group,
         scorecard=entries,
         overall_status=overall_status(entries),

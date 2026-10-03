@@ -36,7 +36,8 @@ def _bearer(row) -> PesObject:
 
 _CANDIDATES_SQL = """
 SELECT p.application_id, p.shape_raw, p.point_lon, p.point_lat,
-       p.estimated_area_ha, p.application_date, o.landcover_at_app
+       p.estimated_area_ha, p.application_date, o.landcover_at_app,
+       o.canopy_utc, o.parcel_area_ha
 FROM pes_parcels p
 JOIN pes_rs_objects o
   ON o.object_id = p.application_id AND o.object_type = 'application'
@@ -44,9 +45,15 @@ WHERE o.status IN ('ok', 'partial', 'partial_final')
   AND NOT (p.application_id = ANY(%(hidden)s))
   AND (
     o.landcover_at_app IS NULL
+    OR o.canopy_utc IS NULL
     OR NOT EXISTS (
       SELECT 1 FROM pes_annual_indicators a
       WHERE a.application_id = p.application_id AND a.year = %(last_year)s
+    )
+    OR EXISTS (
+      SELECT 1 FROM pes_annual_indicators a
+      WHERE a.application_id = p.application_id
+        AND a.tc_ha IS NOT NULL AND a.control_tc_ha IS NULL
     )
   )
 ORDER BY
@@ -137,6 +144,59 @@ def process_annual(
                         "UPDATE pes_annual_indicators SET loss_ha = %s "
                         "WHERE application_id = %s AND year = %s",
                         (max(0.0, round(tc0 - tc1, 4)), app_id, y1),
+                    )
+
+            # M25 — counterfactual control: the surrounding annulus' tree
+            # cover per year, scaled to the parcel's area so it overlays
+            # the contract series. Backfilled for years whose own tc_ha
+            # exists; a year without imagery stays blank.
+            parcel_area = row[8]
+            if parcel_area:
+                missing_ctl = [
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT year FROM pes_annual_indicators "
+                        "WHERE application_id = %s AND tc_ha IS NOT NULL "
+                        "  AND control_tc_ha IS NULL ORDER BY year",
+                        (app_id,),
+                    ).fetchall()
+                ]
+                for year in missing_ctl:
+                    if datetime.now(UTC) >= deadline:
+                        break
+                    try:
+                        frac = backend.control_tree_cover(parcel, date(year, 6, 30))
+                    except Exception:  # noqa: BLE001 — control stays blank
+                        continue
+                    if frac is None:
+                        continue
+                    conn.execute(
+                        "UPDATE pes_annual_indicators SET control_tc_ha = %s "
+                        "WHERE application_id = %s AND year = %s",
+                        (round(frac * parcel_area, 4), app_id, year),
+                    )
+
+            # M25 — canopy metrics (static 1 m model): once per parcel.
+            if row[7] is None:
+                try:
+                    mean_m, pct3 = backend.canopy_metrics(parcel)
+                    conn.execute(
+                        """
+                        UPDATE pes_rs_objects
+                        SET canopy_mean_m = %s, canopy_pct_gt3m = %s,
+                            canopy_utc = now()
+                        WHERE object_id = %s AND object_type = 'application'
+                        """,
+                        (mean_m, pct3, app_id),
+                    )
+                except Exception:  # noqa: BLE001 — canopy stays blank, but
+                    # the attempt is stamped so the backlog never thrashes
+                    # on a parcel the model cannot answer.
+                    log.exception("canopy metrics failed")
+                    conn.execute(
+                        "UPDATE pes_rs_objects SET canopy_utc = now() "
+                        "WHERE object_id = %s AND object_type = 'application'",
+                        (app_id,),
                     )
 
             if row[6] is None and row[5] is not None:  # landcover_at_app missing

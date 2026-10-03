@@ -33,6 +33,10 @@ def test_contract_analysis_series_and_meta(client):
     assert a["series"][1]["lossHa"] == 0.2
     # parcel area from the RS application row
     assert a["parcelAreaHa"] == 3.4
+    # M25 — canopy metrics and the surrounding-landscape control series
+    assert a["canopyPctGt3m"] == 62.0
+    assert a["series"][-1]["controlTcHa"] == 2.5
+    assert a["series"][0]["controlTcHa"] is None
     # M24 — activity scorecard rides the same payload
     assert a["activityGroup"] == "agroforestry"
     keys = [e["key"] for e in a["scorecard"]]
