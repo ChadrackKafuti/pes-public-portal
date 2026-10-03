@@ -49,6 +49,16 @@ VALUES
    'agol_attachment', 0, now());
 """
 
+INCIDENT_SEED = """
+INSERT INTO pes_incidents
+  (incident_uid, application_id, kind, first_detected, last_detected, magnitude, status)
+VALUES
+  ('A1:fire:2026-09-20', 'A1', 'fire', '2026-09-20', '2026-10-01', 3, 'open'),
+  ('A2:deforestation:2026-09-01', 'A2', 'deforestation', '2026-09-01', '2026-09-15', 42, 'responded'),
+  ('A1:deforestation:2026-07-01', 'A1', 'deforestation', '2026-07-01', '2026-07-10', 5, 'resolved'),
+  ('A6:fire:2026-09-25', 'A6', 'fire', '2026-09-25', '2026-10-01', 9, 'open');
+"""
+
 ANNUAL_SEED = """
 INSERT INTO pes_annual_indicators (application_id, year, tc_ha, loss_ha) VALUES
   ('A1', 2022, 2.4, NULL),
@@ -230,6 +240,8 @@ def client():
                     conn.execute((_INIT / "004_display_geom.sql").read_text())
                     conn.execute((_INIT / "006_photos_raw.sql").read_text())
                     conn.execute((_INIT / "007_annual.sql").read_text())
+                    conn.execute((_INIT / "008_incidents.sql").read_text())
+                    conn.execute(INCIDENT_SEED)
                     conn.execute(ANNUAL_SEED)
                     conn.execute(PHOTO_SEED)
                     conn.execute(RAW_SEED)

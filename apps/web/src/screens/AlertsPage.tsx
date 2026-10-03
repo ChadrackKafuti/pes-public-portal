@@ -1,9 +1,147 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import type { AlertRow, FilterOptions } from "@cafi/shared";
+import type { AlertRow, FilterOptions, IncidentItem, Incidents } from "@cafi/shared";
 import { api } from "../api/client";
-import { fmtDate, fmtNum, useI18n, useT } from "../i18n";
+import { fmtDate, fmtNum, useI18n, useT, type Key } from "../i18n";
 import { Card, PageHeader } from "./bits";
+
+/** M23 — incident statuses, their labels and the actions each allows. */
+const INC_STATUS_KEY: Record<string, Key> = {
+  open: "inc_open",
+  responded: "inc_responded",
+  verified: "inc_verified",
+  dismissed: "inc_dismissed",
+  resolved: "inc_resolved",
+};
+const INC_ACTIONS: Record<string, string[]> = {
+  open: ["responded", "verified", "dismissed"],
+  responded: ["verified", "dismissed", "open"],
+  verified: ["open"],
+  dismissed: ["open"],
+  resolved: ["open"],
+};
+const INC_STATUS_ORDER = ["open", "responded", "verified", "dismissed", "resolved"];
+
+function IncidentFeed({ country }: { country?: string }) {
+  const t = useT();
+  const locale = useI18n((s) => s.locale);
+  const [data, setData] = useState<Incidents | null>(null);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const reload = useCallback(() => {
+    api
+      .incidents({ status: status || undefined, country })
+      .then((d) => {
+        setData(d);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true));
+  }, [status, country]);
+  useEffect(reload, [reload]);
+
+  const act = (i: IncidentItem, target: string) => {
+    setBusy(i.incidentUid);
+    api
+      .incidentUpdate(i.incidentUid, target)
+      .then(reload)
+      .catch(() => setFailed(true))
+      .finally(() => setBusy(null));
+  };
+
+  if (failed) return <p className="notice">{t("error_load")}</p>;
+  if (data === null) return <p className="notice">{t("loading")}</p>;
+
+  return (
+    <>
+      <div className="adm-summary">
+        <button
+          className={`adm-chip${status === "" ? " adm-chip-on" : ""}`}
+          onClick={() => setStatus("")}
+        >
+          {t("inc_all")} ·{" "}
+          {fmtNum(Object.values(data.summary).reduce((s, n) => s + n, 0), locale, 0)}
+        </button>
+        {INC_STATUS_ORDER.map((s) => (
+          <button
+            key={s}
+            className={`adm-chip${status === s ? " adm-chip-on" : ""}`}
+            onClick={() => setStatus(status === s ? "" : s)}
+          >
+            {t(INC_STATUS_KEY[s])} · {fmtNum(data.summary[s] ?? 0, locale, 0)}
+          </button>
+        ))}
+      </div>
+      {data.items.length === 0 ? (
+        <p className="notice">{t("inc_none")}</p>
+      ) : (
+        <Card table>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>{t("inc_th_kind")}</th>
+                <th>{t("th_application")}</th>
+                <th>{t("th_location")}</th>
+                <th>{t("inc_th_window")}</th>
+                <th className="num">{t("inc_th_magnitude")}</th>
+                <th>{t("inc_th_status")}</th>
+                <th>{t("inc_th_actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((i) => (
+                <tr key={i.incidentUid}>
+                  <td>
+                    <span
+                      className={`alert-chip ${
+                        i.kind === "fire" ? "alert-critical" : "alert-warning"
+                      }`}
+                    >
+                      {i.kind === "fire" ? "▲" : "●"}{" "}
+                      {i.kind === "fire" ? t("alert_fire") : t("alert_defor")}
+                    </span>
+                  </td>
+                  <td>
+                    <Link to={`/applications/${encodeURIComponent(i.applicationId)}`}>
+                      {i.applicationCode ?? i.applicationId}
+                    </Link>
+                    {i.implementingOrg && (
+                      <span className="muted small"> · {i.implementingOrg}</span>
+                    )}
+                  </td>
+                  <td>{[i.province, i.country].filter(Boolean).join(", ") || "—"}</td>
+                  <td>
+                    {fmtDate(i.firstDetected, locale)} → {fmtDate(i.lastDetected, locale)}
+                  </td>
+                  <td className="num">{fmtNum(i.magnitude, locale, 0)}</td>
+                  <td>
+                    <span className={`inc-status inc-${i.status}`}>
+                      {INC_STATUS_KEY[i.status] ? t(INC_STATUS_KEY[i.status]) : i.status}
+                    </span>
+                    {i.statusBy && <span className="muted small"> · {i.statusBy}</span>}
+                  </td>
+                  <td className="inc-actions">
+                    {(INC_ACTIONS[i.status] ?? []).map((target) => (
+                      <button
+                        key={target}
+                        disabled={busy === i.incidentUid}
+                        onClick={() => act(i, target)}
+                      >
+                        {t(INC_STATUS_KEY[target])}
+                      </button>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+      <p className="muted small">{t("inc_hint")}</p>
+    </>
+  );
+}
 
 /** M4 — the alert feed: monitoring visits with an active disturbance
  *  signal, newest first. Signal chips use the reserved status hues with
@@ -65,6 +203,10 @@ export function AlertsPage() {
         </select>
       </div>
 
+      <h3 className="inc-heading">{t("inc_title")}</h3>
+      <IncidentFeed country={country} />
+
+      <h3 className="inc-heading">{t("inc_visit_signals")}</h3>
       {rows.length === 0 ? (
         <p className="notice">{t("alerts_none")}</p>
       ) : (

@@ -10,6 +10,8 @@ import type {
   GovDocument,
   GovLayerInfo,
   GovLayerKey,
+  IncidentItem,
+  Incidents,
   PesRsObject,
   Photo,
   Profile,
@@ -35,6 +37,28 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   if (demoEnabled) throw new Error("not available in demo mode");
   const r = await fetch(`/api${path}`, {
     method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401 && authEnabled) {
+    useAuth.getState().login();
+  }
+  if (!r.ok) {
+    let detail = "";
+    try {
+      detail = ((await r.json()) as { detail?: string }).detail ?? "";
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail || `${r.status} ${path}`);
+  }
+  return r.json() as Promise<T>;
+}
+
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  if (demoEnabled) throw new Error("not available in demo mode");
+  const r = await fetch(`/api${path}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
@@ -99,4 +123,8 @@ export const api = {
   photoImageUrl: (uid: string) =>
     get<{ url: string }>(`/photos/${encodeURIComponent(uid)}/image-url`),
   adminExceptions: () => get<AdminExceptions>("/admin/exceptions"),
+  incidents: (params: { status?: string; kind?: string; country?: string } = {}) =>
+    get<Incidents>("/incidents", params as Record<string, string>),
+  incidentUpdate: (uid: string, status: string, note?: string) =>
+    patch<IncidentItem>(`/incidents/${encodeURIComponent(uid)}`, { status, note }),
 };

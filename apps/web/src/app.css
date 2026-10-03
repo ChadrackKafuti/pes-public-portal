@@ -2524,6 +2524,42 @@ table.data a {
   min-width: 0;
 }
 
+/* M23 — incident feed */
+.inc-heading {
+  margin: 18px 0 8px;
+  font-size: 15px;
+}
+
+.inc-status {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.inc-open { color: #b3261e; }
+.inc-responded { color: #9a6a00; }
+.inc-verified { color: #006f3c; }
+.inc-dismissed { color: var(--muted, #667); }
+.inc-resolved { color: #006f3c; }
+
+.inc-actions {
+  white-space: nowrap;
+}
+
+.inc-actions button {
+  margin-right: 6px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #cbd2dc);
+  background: transparent;
+  cursor: pointer;
+}
+
+.inc-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* M21 — "analyses ready" marker in the contract picker */
 .an-ready-dot {
   color: #008300;

@@ -352,6 +352,32 @@ export interface AoiResult {
   byLayer: Partial<Record<GovLayerKey, number>>;
 }
 
+/** M23 — one stateful near-real-time disturbance incident. */
+export interface IncidentItem {
+  incidentUid: string;
+  applicationId: string;
+  kind: "deforestation" | "fire" | string;
+  firstDetected: string;
+  lastDetected: string;
+  magnitude: number | null;
+  status: "open" | "responded" | "verified" | "dismissed" | "resolved" | string;
+  statusNote: string | null;
+  statusBy: string | null;
+  statusUtc: string | null;
+  updatedUtc: string | null;
+  applicationCode: string | null;
+  implementingOrg: string | null;
+  projectName: string | null;
+  country: string | null;
+  province: string | null;
+  pesActivity: string | null;
+}
+
+export interface Incidents {
+  summary: Record<string, number>;
+  items: IncidentItem[];
+}
+
 /** One monitoring visit with an active disturbance signal (M4 alert feed). */
 export interface AlertRow {
   objectId: string;

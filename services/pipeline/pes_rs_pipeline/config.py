@@ -53,6 +53,14 @@ class PipelineConfig(BaseSettings):
     # (e.g. after a geometry-hash change) starves the series for days (M15).
     annual_reserve_minutes: int = 5
 
+    # Near-real-time incidents (M23): recent-window RADD + VIIRS checks on a
+    # rotating, stalest-first slice of the portfolio each run.
+    nrt_defor_days: int = 30
+    nrt_fire_days: int = 14
+    nrt_recheck_hours: int = 12
+    nrt_batch_limit: int = 400
+    nrt_reserve_minutes: int = 4
+
 
 # Spec §11.7 — dataset floors.
 DATASET_FLOORS: dict[str, date] = {

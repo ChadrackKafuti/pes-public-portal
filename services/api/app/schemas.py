@@ -255,6 +255,38 @@ class AdminExceptionsOut(ApiModel):
     items: list[AdminExceptionItem]
 
 
+class IncidentItem(ApiModel):
+    """M23 — one near-real-time disturbance incident."""
+
+    incident_uid: str
+    application_id: str
+    kind: str  # 'deforestation' | 'fire'
+    first_detected: date
+    last_detected: date
+    magnitude: float | None
+    status: str  # open|responded|verified|dismissed|resolved
+    status_note: str | None
+    status_by: str | None
+    status_utc: datetime | None
+    updated_utc: datetime | None
+    application_code: str | None
+    implementing_org: str | None
+    project_name: str | None
+    country: str | None
+    province: str | None
+    pes_activity: str | None
+
+
+class IncidentsOut(ApiModel):
+    summary: dict[str, int]
+    items: list[IncidentItem]
+
+
+class IncidentUpdate(ApiModel):
+    status: str
+    note: str | None = None
+
+
 class AnnualPoint(ApiModel):
     year: int
     tc_ha: float | None
